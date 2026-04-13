@@ -11,12 +11,13 @@ describe("jarfi-contract", () => {
 
   it("creates a jar and accepts a deposit", async () => {
     const jar = anchor.web3.Keypair.generate();
+    const childWallet = anchor.web3.Keypair.generate();
 
     const now = Math.floor(Date.now() / 1000);
     const unlockDate = new anchor.BN(now + 60 * 60 * 24 * 30);
 
     await program.methods
-      .createJar(0, unlockDate)
+      .createJar(0, unlockDate, childWallet.publicKey)
       .accounts({
         jar: jar.publicKey,
         owner: provider.wallet.publicKey,
@@ -37,17 +38,21 @@ describe("jarfi-contract", () => {
 
     expect(jarAccount.balance.toString()).to.equal("20000");
     expect(jarAccount.stakingShares.toString()).to.equal("20000");
+    expect(jarAccount.childWallet.toBase58()).to.equal(childWallet.publicKey.toBase58());
+    expect(jarAccount.childSpendableBalance.toString()).to.equal("0");
+    expect(jarAccount.unlocked).to.equal(false);
   });
 
   it("creates a jar and a quest", async () => {
     const jar = anchor.web3.Keypair.generate();
     const quest = anchor.web3.Keypair.generate();
+    const childWallet = anchor.web3.Keypair.generate();
 
     const now = Math.floor(Date.now() / 1000);
     const unlockDate = new anchor.BN(now + 60 * 60 * 24 * 30);
 
     await program.methods
-      .createJar(0, unlockDate)
+      .createJar(0, unlockDate, childWallet.publicKey)
       .accounts({
         jar: jar.publicKey,
         owner: provider.wallet.publicKey,
@@ -71,21 +76,30 @@ describe("jarfi-contract", () => {
     expect(questAccount.name).to.equal("Weekly homework");
   });
 
-  it("approves a quest and updates jar balance + last_paid", async () => {
+  it("approves a quest and moves reward into child spendable balance", async () => {
     const jar = anchor.web3.Keypair.generate();
     const quest = anchor.web3.Keypair.generate();
+    const childWallet = anchor.web3.Keypair.generate();
 
     const now = Math.floor(Date.now() / 1000);
     const unlockDate = new anchor.BN(now + 60 * 60 * 24 * 30);
 
     await program.methods
-      .createJar(0, unlockDate)
+      .createJar(0, unlockDate, childWallet.publicKey)
       .accounts({
         jar: jar.publicKey,
         owner: provider.wallet.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
       })
       .signers([jar])
+      .rpc();
+
+    await program.methods
+      .deposit(new anchor.BN(10000))
+      .accounts({
+        jar: jar.publicKey,
+        depositor: provider.wallet.publicKey,
+      })
       .rpc();
 
     await program.methods
@@ -112,17 +126,19 @@ describe("jarfi-contract", () => {
     const questAccount = await program.account.quest.fetch(quest.publicKey);
 
     expect(jarAccount.balance.toString()).to.equal("5000");
+    expect(jarAccount.childSpendableBalance.toString()).to.equal("5000");
     expect(questAccount.lastPaid.toNumber()).to.be.greaterThan(0);
   });
 
   it("sets spending limits", async () => {
     const jar = anchor.web3.Keypair.generate();
+    const childWallet = anchor.web3.Keypair.generate();
 
     const now = Math.floor(Date.now() / 1000);
     const unlockDate = new anchor.BN(now + 60 * 60 * 24 * 30);
 
     await program.methods
-      .createJar(0, unlockDate)
+      .createJar(0, unlockDate, childWallet.publicKey)
       .accounts({
         jar: jar.publicKey,
         owner: provider.wallet.publicKey,
@@ -147,12 +163,13 @@ describe("jarfi-contract", () => {
   it("accepts a gift deposit with comment", async () => {
     const jar = anchor.web3.Keypair.generate();
     const contribution = anchor.web3.Keypair.generate();
+    const childWallet = anchor.web3.Keypair.generate();
 
     const now = Math.floor(Date.now() / 1000);
     const unlockDate = new anchor.BN(now + 60 * 60 * 24 * 30);
 
     await program.methods
-      .createJar(0, unlockDate)
+      .createJar(0, unlockDate, childWallet.publicKey)
       .accounts({
         jar: jar.publicKey,
         owner: provider.wallet.publicKey,
@@ -189,22 +206,32 @@ describe("jarfi-contract", () => {
     );
   });
 
-  it("unlocks a jar only after unlock date", async () => {
+  it("unlocks a jar only after unlock date and moves balance to child spendable", async () => {
     const pastJar = anchor.web3.Keypair.generate();
     const futureJar = anchor.web3.Keypair.generate();
+    const childWallet1 = anchor.web3.Keypair.generate();
+    const childWallet2 = anchor.web3.Keypair.generate();
 
     const now = Math.floor(Date.now() / 1000);
     const pastUnlockDate = new anchor.BN(now - 60);
     const futureUnlockDate = new anchor.BN(now + 60 * 60 * 24);
 
     await program.methods
-      .createJar(0, pastUnlockDate)
+      .createJar(0, pastUnlockDate, childWallet1.publicKey)
       .accounts({
         jar: pastJar.publicKey,
         owner: provider.wallet.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
       })
       .signers([pastJar])
+      .rpc();
+
+    await program.methods
+      .deposit(new anchor.BN(12000))
+      .accounts({
+        jar: pastJar.publicKey,
+        depositor: provider.wallet.publicKey,
+      })
       .rpc();
 
     await program.methods
@@ -215,8 +242,13 @@ describe("jarfi-contract", () => {
       })
       .rpc();
 
+    const unlockedJar = await program.account.jar.fetch(pastJar.publicKey);
+    expect(unlockedJar.balance.toString()).to.equal("0");
+    expect(unlockedJar.childSpendableBalance.toString()).to.equal("12000");
+    expect(unlockedJar.unlocked).to.equal(true);
+
     await program.methods
-      .createJar(0, futureUnlockDate)
+      .createJar(0, futureUnlockDate, childWallet2.publicKey)
       .accounts({
         jar: futureJar.publicKey,
         owner: provider.wallet.publicKey,

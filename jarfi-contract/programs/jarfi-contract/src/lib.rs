@@ -1,4 +1,3 @@
-
 use anchor_lang::prelude::*;
 
 declare_id!("HtQt8P4pcF2X4D9oxWwsafj5KnwJsUPF148mvkZMQaFW");
@@ -11,6 +10,7 @@ pub mod jarfi_contract {
         ctx: Context<CreateJar>,
         mode: u8,
         unlock_date: i64,
+        child_wallet: Pubkey,
     ) -> Result<()> {
         let jar = &mut ctx.accounts.jar;
         let clock = Clock::get()?;
@@ -23,6 +23,9 @@ pub mod jarfi_contract {
         jar.created_at = clock.unix_timestamp;
         jar.daily_limit = 0;
         jar.weekly_limit = 0;
+        jar.child_wallet = child_wallet;
+        jar.child_spendable_balance = 0;
+        jar.unlocked = false;
 
         Ok(())
     }
@@ -73,12 +76,20 @@ pub mod jarfi_contract {
 
         require!(quest.active, JarError::QuestInactive);
         require!(quest.jar == jar.key(), JarError::QuestJarMismatch);
+        require!(jar.balance >= quest.amount, JarError::InsufficientJarBalance);
+        require!(!jar.unlocked, JarError::JarAlreadyUnlocked);
 
-        quest.last_paid = clock.unix_timestamp;
         jar.balance = jar
             .balance
+            .checked_sub(quest.amount)
+            .ok_or(JarError::InsufficientJarBalance)?;
+
+        jar.child_spendable_balance = jar
+            .child_spendable_balance
             .checked_add(quest.amount)
             .ok_or(JarError::BalanceOverflow)?;
+
+        quest.last_paid = clock.unix_timestamp;
 
         Ok(())
     }
@@ -107,6 +118,7 @@ pub mod jarfi_contract {
 
         require!(comment.len() <= 120, JarError::CommentTooLong);
         require!(amount > 0, JarError::InvalidDepositAmount);
+        require!(!jar.unlocked, JarError::JarAlreadyUnlocked);
 
         jar.balance = jar
             .balance
@@ -123,13 +135,22 @@ pub mod jarfi_contract {
     }
 
     pub fn unlock_jar(ctx: Context<UnlockJar>) -> Result<()> {
-        let jar = &ctx.accounts.jar;
+        let jar = &mut ctx.accounts.jar;
         let clock = Clock::get()?;
 
         require!(
             clock.unix_timestamp >= jar.unlock_date,
             JarError::JarStillLocked
         );
+        require!(!jar.unlocked, JarError::JarAlreadyUnlocked);
+
+        jar.child_spendable_balance = jar
+            .child_spendable_balance
+            .checked_add(jar.balance)
+            .ok_or(JarError::BalanceOverflow)?;
+
+        jar.balance = 0;
+        jar.unlocked = true;
 
         Ok(())
     }
@@ -215,7 +236,7 @@ pub struct GiftDeposit<'info> {
 
 #[derive(Accounts)]
 pub struct UnlockJar<'info> {
-    #[account(has_one = owner)]
+    #[account(mut, has_one = owner)]
     pub jar: Account<'info, Jar>,
 
     pub owner: Signer<'info>,
@@ -232,6 +253,9 @@ pub struct Jar {
     pub created_at: i64,
     pub daily_limit: u64,
     pub weekly_limit: u64,
+    pub child_wallet: Pubkey,
+    pub child_spendable_balance: u64,
+    pub unlocked: bool,
 }
 
 #[account]
@@ -273,4 +297,8 @@ pub enum JarError {
     CommentTooLong,
     #[msg("Invalid deposit amount")]
     InvalidDepositAmount,
+    #[msg("Insufficient jar balance")]
+    InsufficientJarBalance,
+    #[msg("Jar already unlocked")]
+    JarAlreadyUnlocked,
 }
