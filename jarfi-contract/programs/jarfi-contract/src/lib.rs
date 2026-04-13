@@ -1,3 +1,4 @@
+
 use anchor_lang::prelude::*;
 
 declare_id!("HtQt8P4pcF2X4D9oxWwsafj5KnwJsUPF148mvkZMQaFW");
@@ -22,6 +23,25 @@ pub mod jarfi_contract {
         jar.created_at = clock.unix_timestamp;
         jar.daily_limit = 0;
         jar.weekly_limit = 0;
+
+        Ok(())
+    }
+
+    pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
+        let jar = &mut ctx.accounts.jar;
+
+        require!(amount > 0, JarError::InvalidDepositAmount);
+
+        jar.balance = jar
+            .balance
+            .checked_add(amount)
+            .ok_or(JarError::BalanceOverflow)?;
+
+        // Temporary mock until Marinade CPI is added
+        jar.staking_shares = jar
+            .staking_shares
+            .checked_add(amount)
+            .ok_or(JarError::BalanceOverflow)?;
 
         Ok(())
     }
@@ -76,6 +96,32 @@ pub mod jarfi_contract {
         Ok(())
     }
 
+    pub fn gift_deposit(
+        ctx: Context<GiftDeposit>,
+        amount: u64,
+        comment: String,
+    ) -> Result<()> {
+        let jar = &mut ctx.accounts.jar;
+        let contribution = &mut ctx.accounts.contribution;
+        let clock = Clock::get()?;
+
+        require!(comment.len() <= 120, JarError::CommentTooLong);
+        require!(amount > 0, JarError::InvalidDepositAmount);
+
+        jar.balance = jar
+            .balance
+            .checked_add(amount)
+            .ok_or(JarError::BalanceOverflow)?;
+
+        contribution.jar = jar.key();
+        contribution.contributor = ctx.accounts.contributor.key();
+        contribution.amount = amount;
+        contribution.comment = comment;
+        contribution.created_at = clock.unix_timestamp;
+
+        Ok(())
+    }
+
     pub fn unlock_jar(ctx: Context<UnlockJar>) -> Result<()> {
         let jar = &ctx.accounts.jar;
         let clock = Clock::get()?;
@@ -102,6 +148,14 @@ pub struct CreateJar<'info> {
     pub owner: Signer<'info>,
 
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct Deposit<'info> {
+    #[account(mut)]
+    pub jar: Account<'info, Jar>,
+
+    pub depositor: Signer<'info>,
 }
 
 #[derive(Accounts)]
@@ -142,6 +196,24 @@ pub struct SetSpendingLimit<'info> {
 }
 
 #[derive(Accounts)]
+pub struct GiftDeposit<'info> {
+    #[account(mut)]
+    pub jar: Account<'info, Jar>,
+
+    #[account(
+        init,
+        payer = contributor,
+        space = 8 + Contribution::INIT_SPACE
+    )]
+    pub contribution: Account<'info, Contribution>,
+
+    #[account(mut)]
+    pub contributor: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 pub struct UnlockJar<'info> {
     #[account(has_one = owner)]
     pub jar: Account<'info, Jar>,
@@ -174,6 +246,17 @@ pub struct Quest {
     pub active: bool,
 }
 
+#[account]
+#[derive(InitSpace)]
+pub struct Contribution {
+    pub jar: Pubkey,
+    pub contributor: Pubkey,
+    pub amount: u64,
+    #[max_len(120)]
+    pub comment: String,
+    pub created_at: i64,
+}
+
 #[error_code]
 pub enum JarError {
     #[msg("Quest name is too long")]
@@ -186,4 +269,8 @@ pub enum JarError {
     QuestJarMismatch,
     #[msg("Balance overflow")]
     BalanceOverflow,
+    #[msg("Comment is too long")]
+    CommentTooLong,
+    #[msg("Invalid deposit amount")]
+    InvalidDepositAmount,
 }
