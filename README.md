@@ -1,183 +1,188 @@
-# 🏺 JAR — Save for what matters.
+# 🏺 JAR — Save together. Lock it. Grow it.
 
-> On-chain vaults with yield. Any goal. Everyone included.
-
-**[jarfi.xyz](https://jarfi.xyz) · Built on Solana · Colosseum Frontier 2026**
+**jarfi.xyz** · Built on Solana · [Colosseum Frontier 2026](https://colosseum.com/frontier)
 
 ---
 
-## The Problem
+## What is JAR?
 
-In traditional banking, structured savings products exist — term deposits, goal accounts, family savings plans with conditions and schedules. They're imperfect, but the concept is proven: lock money for a purpose, earn yield, share access with family.
+JAR is a savings jar you share with people you love.
 
-On-chain, this doesn't exist in a consumer-friendly form.
-
-There's no product that lets you create a vault with APY, set unlock conditions, and allow anyone — including people with no crypto experience — to top it up in two taps. JAR brings this to Solana.
+Create a jar, set your unlock condition, share a link — anyone contributes by card, no crypto needed. Funds lock on-chain and earn passive yield via Marinade Finance. When the condition is met, the jar unlocks automatically.
 
 ---
 
-## The Solution
+## Two kinds of jar
 
-JAR is an on-chain savings app. Create a jar, set a goal and an unlock date — and every deposit auto-stakes to earn yield. Anyone can contribute: family, friends, anyone with a card. No wallet required to send money in.
+**⚡ Quick jar** — Save for something specific. A motorcycle, a trip, a group gift. Set a goal amount, a deadline, or both. Smart contract unlocks automatically when the condition is met.
 
-The result is a savings product that works like a family savings account — except it's transparent, on-chain, and earns real yield.
+**🌱 Long jar** — Save for years. A newborn's future, a child's 18th birthday, a first apartment. Family contributes from anywhere in the world. Staking compounds quietly in the background.
 
----
-
-## Real Example: Saving for a Child
-
-## 🧒 Real Example: Saving for a Child
-
-Most money saved for children never actually gets saved.
-
-Here's what usually happens — and what JAR changes.
+Same product. Same mechanic. Different timescale.
 
 ---
 
-### The Three Paths
+## Unlock conditions
 
-**Path 1 — The Default**
-Birthday money. Holiday envelopes. "We'll put it aside someday."
-In reality: it gets spent. On groceries, on a bill, on nothing memorable.
-Years pass. Your child turns 18.
+When creating a jar, you choose how it unlocks:
 
-**Result: ~$0**
+| Type | How it works |
+|---|---|
+| **By goal** | Unlocks automatically when balance reaches the target amount |
+| **By date** | Unlocks automatically on the date you set |
+| **Goal OR date** | Unlocks at whichever comes first — hit $5,000 early, it opens early |
 
----
-
-**Path 2 — A Traditional Savings Account**
-A parent opens a savings account. Deposits $50/month. Only they can add money — grandparents have no easy way in. Interest is ~0.5% APY. The money is technically there, but it barely moves.
-
-**$50/month × 18 years at 0.5% APY → ~$11,400**
+The smart contract checks and triggers unlock automatically. No manual action needed.
 
 ---
 
-**Path 3 — A JAR**
-A parent deposits $50/month. Grandma sends $100 on every birthday and holiday — two taps from a link, card payment, no registration, done. Auto-staking runs in the background at ~6.2% APY via Marinade Finance. Every contribution, every message, saved on-chain.
+## Jar creation flow
 
-**$50/month + $200/year from family × 18 years → ~$22,800**
+```
+"Create jar"
+      ↓
+What's the unlock condition?
+  ├── 🎯 Goal amount  (e.g. $5,000 for a motorcycle)
+  ├── 📅 Date         (e.g. child's 18th birthday)
+  └── 🎯+📅 Both      (whichever comes first)
+      ↓
+Set jar name + optional description
+      ↓
+Multisig? (optional — available on any jar type)
+  └── Add co-owner wallets (e.g. both parents, group of friends)
+      ↓
+Jar created on-chain → share link
+```
 
----
-
-### The Numbers
-
-| Who contributes | Traditional bank (0.5% APY) | JAR (~6.2% APY) |
-|---|---|---|
-| $50/month (parent only) | ~$11,400 | **~$18,400** |
-| $50/month + $200/year (family) | ~$12,600 | **~$22,800** |
-| $100/month + $400/year (family) | ~$25,200 | **~$45,600** |
-| $200/month + $400/year (family) | ~$46,800 | **~$85,000** |
-
-> Estimates based on monthly compounding over 18 years.
-
-The difference isn't a rounding error.
-It's a first apartment deposit vs. a weekend trip.
-
----
-
-### How the unlock works
-
-Funds are locked on-chain — enforced by the smart contract — until **you decide the moment has come**. That can be:
-
-- 📅 **A date** — the child's 18th birthday. Set it once, the contract handles the rest.
-- 🎯 **A goal amount** — "when we hit $10,000, we're going to Japan." Balance reaches the target → the jar unlocks automatically.
-- 🔐 **Multi-sig** — if two parents are set as co-owners, any early unlock requires **both signatures**. No one can break the jar alone.
-
-On the unlock date: one push notification. Full summary — total saved, breakdown by every contributor, every message left over the years, total staking earnings. One tap sends everything to the child's wallet. Automatic. On-chain.
+**Multisig** is available on any jar type. When enabled, unlocking requires approval from all co-owners. Useful for family jars where both parents should confirm, or group jars with shared ownership.
 
 ---
 
-### What this actually feels like
+## The flow
 
-You set it up once. Every month it runs quietly.
-
-Grandparents don't need a crypto wallet. They don't need to understand Solana. They open a link, write an amount, add "Happy Birthday Anya 🎂", pay by card. That's it.
-
-Years later, your child opens an app and sees:
-
-> *$34,000. From 47 contributions. From 6 people who loved you.*
-
-**That's not a savings account. That's a time capsule with compound interest.**
----
-
-## Features
-
-### 🔒 Time-locked Vaults
-Funds locked on-chain until the chosen unlock date. The smart contract enforces it.
-
-### 📈 Auto-staking Yield
-Every deposit immediately starts earning yield (via Marinade Finance or Kamino — integration TBD). No user action required. Interest compounds automatically.
-
-### 👥 Anyone Can Contribute
-Share a link. Anyone opens `jarfi.xyz/gift/anya`, pays by regular card, leaves a message. Like topping up a phone — two taps, done. No wallet, no registration, no crypto knowledge needed.
-
-### ✅ Quest Rewards
-Parent creates recurring tasks with rewards: *"Weekly homework — $3."* Every Sunday a push arrives. One tap confirms — payment goes on-chain instantly. Allowance, automated.
-
-### 💳 Child Spending Card
-Separate spending balance (not the locked jar). Virtual Solana card via Avici or Kast (partnership in progress). Parent sets daily and weekly limits. Every transaction sends a push to the parent.
-
-### 📊 Dashboard + Mobile Apps
-Full real-time overview on web and mobile: balance chart, yield forecast, contributor feed with messages, spending card controls. iOS and Android.
+```
+Create jar → choose unlock condition (goal / date / both)
+     ↓
+Share link → anyone pays by card (no crypto, no registration)
+     ↓
+Funds lock on-chain + auto-stake via Marinade
+     ↓
+Yield accrues passively
+     ↓
+Condition met → smart contract unlocks automatically
+     ↓
+Push notification → contributor summary → balance released
+```
 
 ---
 
-## Jar Modes
+## Real scenarios
 
-| Mode | Use Case |
-|------|----------|
-| 👧 **For a Child** | Long-term savings with time-lock, quests, spending card |
-| ✈️ **Group Jar** | Shared goal — trip, gift, family round |
-| 🎁 **Gift Jar** | One-time collection for an event |
-| 🏦 **Solo Jar** | Personal goal with auto-yield and time-lock |
+**Motorcycle fund** — You want a motorcycle, it costs $5,000. Create a quick jar, set goal = $5,000, add a 6-month deadline as backup. Friends chip in for your birthday, you top it up monthly. The day the balance hits $5,000 — unlocks automatically. No waiting for the date.
 
----
+**Birthday collection** — Friends want to pool money for a gift. One person creates a jar, sets a $300 goal and the date of the party. Everyone pays by card from the group chat link in 30 seconds. No Venmo math, no one fronting the money, no awkward follow-ups.
 
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Smart contracts | Solana + Anchor |
-| Staking / Yield | Marinade Finance or Kamino (TBD) |
-| Mobile | React Native + Expo (iOS + Android) |
-| Web dashboard | Next.js + Recharts |
-| Push notifications | Firebase Cloud Messaging via Expo |
-| Onramp | MoonPay SDK (fiat → USDC) |
-| Spending card | Avici / Kast (partnership in progress) |
-| Wallet | Phantom via Solana Wallet Adapter |
-| RPC | DoubleZero node |
-| Child wallet | Custodial — generated at jar creation, controlled by parent |
+**Newborn jar** — Parents create a jar on day one. Unlock date = child's 18th birthday. Optional: multisig so both parents must approve. Anyone opens the link and contributes $20–$200 by card, leaving a personal message. Over 18 years, deposits + family contributions + Marinade staking compound into a meaningful sum. On the 18th birthday: one push notification, full contributor summary, one transfer.
 
 ---
 
-## Project Structure
+## Why it works
+
+| Problem | JAR |
+|---|---|
+| Savings earn nothing (<0.5% APY) | Auto-staking via Marinade (~6% APY, variable) |
+| Family can't easily contribute | Anyone pays by card via shareable link |
+| Funds get spent before the goal | Locked on-chain until condition is met |
+| Manual unlock is a hassle | Smart contract triggers automatically |
+| Shared jars need shared control | Optional multisig for any jar type |
+
+---
+
+## Yield — honest framing
+
+JAR uses **Marinade Finance** for liquid staking on Solana. Current APY is approximately 6%, variable and not guaranteed.
+
+- Yield comes from Solana validator rewards via Marinade's liquid staking
+- APY fluctuates with network conditions — shown live in the app
+- Smart contract not yet audited (OtterSec planned post-hackathon)
+- Devnet only for hackathon; mainnet after audit
+- Emergency withdrawal available to creator at all times
+
+JAR is not a bank. Deposits are not insured. Only deposit what you're comfortable locking.
+
+---
+
+## Trust & custody
+
+- **Who controls funds:** Jar creator (+ co-owners if multisig). Funds go to the on-chain vault, not to JAR.
+- **Who triggers unlock:** Smart contract automatically when condition is met. Creator can trigger emergency withdrawal anytime.
+- **If JAR disappears:** Contract is autonomous. Funds stay on-chain, accessible via direct contract interaction.
+- **Contributions:** Non-revocable once sent.
+- **Multisig unlock:** Requires all co-owners to approve before funds are released.
+
+---
+
+## Tech stack
+
+| Layer | Tech |
+|---|---|
+| Blockchain | Solana |
+| Smart contracts | Anchor framework |
+| Staking | Marinade Finance |
+| Mobile | React Native / Expo (iOS + Android) |
+| Web dashboard | Next.js |
+| Fiat onramp | MoonPay (min $10, no registration) |
+| RPC | DoubleZero network |
+| Push notifications | Firebase / Expo Push |
+
+---
+
+## Repo structure
 
 ```
 jarfi/
-├── contracts/     # Anchor smart contracts
-├── app/           # React Native + Expo mobile app
-├── web/           # Next.js dashboard (jarfi.xyz/dashboard)
-├── backend/       # Node.js API + Firebase functions
-└── docs/          # Architecture, pitch deck
+├── jarfi-program/        # Anchor smart contracts
+│   ├── programs/
+│   └── tests/
+├── jarfi-app/            # React Native mobile app
+│   ├── screens/
+│   └── components/
+├── jarfi-web/            # Next.js dashboard + gift page
+│   ├── app/
+│   └── components/
+└── docs/
 ```
 
 ---
 
-## Live Demo
+## Hackathon MVP scope
 
-- **Dashboard:** [jarfi.xyz/dashboard](https://jarfi.xyz/dashboard) *(interactive mockup)*
-- **Gift page example:** `jarfi.xyz/gift/anya`
+**In scope:**
+- Jar creation with unlock type: goal / date / goal+date (first of two)
+- Optional multisig co-owner on any jar
+- Smart contract: create, deposit, gift_deposit, auto-unlock on condition, emergency_withdraw
+- Marinade staking integration
+- Mobile: create jar flow, jar detail, activity feed, push notifications
+- Web dashboard: balance chart, staking forecast, contributors feed
+- Gift page: jarfi.xyz/gift/[slug] with MoonPay widget
+- DoubleZero RPC for all transactions
 
----
-
-## Team
-
-Built by [@jarfixyz](https://twitter.com/jarfixyz) · [Superteam Ukraine](https://superteam.fun/ukraine)
+**Post-hackathon roadmap:**
+- Spending card integration (Avici / Kast)
+- Quest / allowance automation for children
+- Mainnet deployment + OtterSec audit
+- iOS / Android App Store submission
+- KYC / custodial setup for child wallets
 
 ---
 
 ## Links
 
-- 🌐 [jarfi.xyz](https://jarfi.xyz)
-- 🐦 [@jarfixyz](https://twitter.com/jarfixyz)
-- 🏆 [Colosseum Frontier 2026](https://colosseum.com/frontier)
+- **Demo:** [jarfi.xyz/dashboard](https://jarfi.xyz/dashboard)
+- **Gift page example:** [jarfi.xyz/gift/anya](https://jarfi.xyz/gift/anya)
+- **Colosseum:** [colosseum.com/frontier](https://colosseum.com/frontier)
+- **DoubleZero:** [docs.malbeclabs.com](https://docs.malbeclabs.com)
+
+---
+
+*JAR is a hackathon project. Not financial advice. Smart contract not yet audited. Use at your own risk.*
