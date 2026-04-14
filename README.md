@@ -195,10 +195,10 @@ jarfi/
 
 ## Links
 
-- **Demo:** [jarfi.xyz/dashboard](https://jarfi.xyz/dashboard)
-- **Gift page example:** [jarfi.xyz/gift/anya](https://jarfi.xyz/gift/anya)
+- **Website:** [jarfi.xyz](https://jarfi.xyz)
+- **X:** [@jarfixyz](https://x.com/jarfixyz)
+- **Builder:** [@hypnogaba](https://x.com/hypnogaba)
 - **Colosseum:** [colosseum.com/frontier](https://colosseum.com/frontier)
-- **DoubleZero:** [doublezero.xyz](https://doublezero.xyz)
 
 ---
 
