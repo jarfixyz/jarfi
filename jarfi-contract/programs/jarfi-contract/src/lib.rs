@@ -10,14 +10,22 @@ pub mod jarfi_contract {
         ctx: Context<CreateJar>,
         mode: u8,
         unlock_date: i64,
+        goal_amount: u64,
         child_wallet: Pubkey,
     ) -> Result<()> {
         let jar = &mut ctx.accounts.jar;
         let clock = Clock::get()?;
 
+        require!(mode <= 2, JarError::InvalidMode);
+        // goal_amount required for goal-based and combined modes
+        if mode == 1 || mode == 2 {
+            require!(goal_amount > 0, JarError::GoalAmountRequired);
+        }
+
         jar.owner = ctx.accounts.owner.key();
         jar.mode = mode;
         jar.unlock_date = unlock_date;
+        jar.goal_amount = goal_amount;
         jar.balance = 0;
         jar.staking_shares = 0;
         jar.created_at = clock.unix_timestamp;
@@ -138,11 +146,19 @@ pub mod jarfi_contract {
         let jar = &mut ctx.accounts.jar;
         let clock = Clock::get()?;
 
-        require!(
-            clock.unix_timestamp >= jar.unlock_date,
-            JarError::JarStillLocked
-        );
         require!(!jar.unlocked, JarError::JarAlreadyUnlocked);
+
+        let date_reached = clock.unix_timestamp >= jar.unlock_date;
+        let goal_reached = jar.goal_amount > 0 && jar.balance >= jar.goal_amount;
+
+        let can_unlock = match jar.mode {
+            0 => date_reached,                  // date only
+            1 => goal_reached,                  // goal only
+            2 => date_reached || goal_reached,  // either/first
+            _ => return Err(JarError::InvalidMode.into()),
+        };
+
+        require!(can_unlock, JarError::JarStillLocked);
 
         jar.child_spendable_balance = jar
             .child_spendable_balance
@@ -150,6 +166,18 @@ pub mod jarfi_contract {
             .ok_or(JarError::BalanceOverflow)?;
 
         jar.balance = 0;
+        jar.unlocked = true;
+
+        Ok(())
+    }
+
+    pub fn emergency_withdraw(ctx: Context<EmergencyWithdraw>) -> Result<()> {
+        let jar = &mut ctx.accounts.jar;
+
+        require!(!jar.unlocked, JarError::JarAlreadyUnlocked);
+
+        jar.balance = 0;
+        jar.staking_shares = 0;
         jar.unlocked = true;
 
         Ok(())
@@ -242,12 +270,21 @@ pub struct UnlockJar<'info> {
     pub owner: Signer<'info>,
 }
 
+#[derive(Accounts)]
+pub struct EmergencyWithdraw<'info> {
+    #[account(mut, has_one = owner)]
+    pub jar: Account<'info, Jar>,
+
+    pub owner: Signer<'info>,
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct Jar {
     pub owner: Pubkey,
-    pub mode: u8,
+    pub mode: u8,           // 0 = date, 1 = goal, 2 = either/first
     pub unlock_date: i64,
+    pub goal_amount: u64,
     pub balance: u64,
     pub staking_shares: u64,
     pub created_at: i64,
@@ -301,4 +338,8 @@ pub enum JarError {
     InsufficientJarBalance,
     #[msg("Jar already unlocked")]
     JarAlreadyUnlocked,
+    #[msg("Invalid unlock mode — must be 0 (date), 1 (goal), or 2 (either)")]
+    InvalidMode,
+    #[msg("Goal amount required for goal-based and combined unlock modes")]
+    GoalAmountRequired,
 }

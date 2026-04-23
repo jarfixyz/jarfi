@@ -14,7 +14,12 @@ import {
   Copy,
   ArrowUpRight,
   X,
+  Loader2,
 } from "lucide-react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { WalletButton } from "@/components/wallet-button";
+import { useJars } from "@/lib/use-jars";
+import { createJarViaApi } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
 // Mock data — will be replaced with on-chain reads in Stage 2
@@ -89,6 +94,30 @@ export default function Dashboard() {
   const [toast, setToast] = useState<string | null>(null);
   const [scenario, setScenario] = useState("$50/mo");
 
+  const { publicKey } = useWallet();
+  const { jars: liveJars, loading: jarsLoading } = useJars();
+
+  // Normalize on-chain JarAccount → JarType display shape
+  const normalizedLive: JarType[] = liveJars.map((j) => {
+    const modeLabel = j.mode === 0 ? "by date" : j.mode === 1 ? "by goal" : "goal or date";
+    const unlockDate = j.unlockDate > 0
+      ? new Date(j.unlockDate * 1000).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+      : null;
+    return {
+      id: j.pubkey,
+      emoji: "🏺",
+      name: `Jar ${j.pubkey.slice(0, 4)}…${j.pubkey.slice(-4)}`,
+      description: unlockDate ? `Unlocks ${unlockDate}` : `${j.balance / 100} deposited`,
+      amount: j.balance / 100,
+      goal: j.goalAmount > 0 ? j.goalAmount / 100 : 1000,
+      locked: !j.unlocked,
+      unlockLabel: modeLabel,
+    };
+  });
+
+  // Fall back to mock data when wallet not connected (demo mode)
+  const jars = normalizedLive.length > 0 ? normalizedLive : JARS;
+
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2800);
@@ -147,27 +176,22 @@ export default function Dashboard() {
           />
         </div>
 
-        <div className="mt-auto border-t border-black/5 px-6 pt-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-sol-green to-sol-blue text-sm font-bold text-ink">
-              I
+        <div className="mt-auto border-t border-black/5 px-3 pt-4">
+          <WalletButton />
+          {jarsLoading && (
+            <div className="mt-2 flex items-center gap-2 px-3 text-[11px] text-ink-faint">
+              <Loader2 className="h-3 w-3 animate-spin" /> Loading jars…
             </div>
-            <div>
-              <div className="text-sm font-semibold">Ivan</div>
-              <div className="font-mono text-[11px] text-ink-faint">
-                8xKp…4rNm
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       </aside>
 
       {/* ──────────────────────────────────────────────────────────────── MAIN */}
       <main className="flex-1 overflow-y-auto">
         {activePage === "dashboard" && (
-          <DashboardPage onNewJar={() => setModal("new-jar")} scenario={scenario} setScenario={setScenario} />
+          <DashboardPage onNewJar={() => setModal("new-jar")} scenario={scenario} setScenario={setScenario} jars={jars} />
         )}
-        {activePage === "jars" && <JarsPage onNewJar={() => setModal("new-jar")} />}
+        {activePage === "jars" && <JarsPage onNewJar={() => setModal("new-jar")} jars={jars} />}
         {activePage === "analytics" && <AnalyticsPage />}
         {activePage === "contributors" && <ContributorsPage />}
         {activePage === "gift" && <GiftPage onCopy={() => showToast("Link copied 📋")} />}
@@ -177,9 +201,15 @@ export default function Dashboard() {
       {modal === "new-jar" && (
         <NewJarModal
           onClose={() => setModal(null)}
-          onCreate={() => {
-            setModal(null);
-            showToast("Jar created 🏺");
+          onCreate={async (params) => {
+            try {
+              const walletPubkey = publicKey?.toBase58() ?? "11111111111111111111111111111111";
+              await createJarViaApi({ ...params, childWallet: walletPubkey });
+              setModal(null);
+              showToast("Jar created 🏺");
+            } catch (e) {
+              showToast("Failed to create jar ❌");
+            }
           }}
         />
       )}
@@ -202,10 +232,12 @@ function DashboardPage({
   onNewJar,
   scenario,
   setScenario,
+  jars,
 }: {
   onNewJar: () => void;
   scenario: string;
   setScenario: (s: string) => void;
+  jars: typeof JARS;
 }) {
   return (
     <>
@@ -299,7 +331,7 @@ function DashboardPage({
         {/* Jars grid */}
         <Card title="My Jars" action={<CardAction label="View all →" />}>
           <div className="grid gap-3 md:grid-cols-3">
-            {JARS.map((j) => (
+            {jars.map((j) => (
               <JarCard key={j.id} jar={j} />
             ))}
           </div>
@@ -346,10 +378,10 @@ function DashboardPage({
 // JARS / ANALYTICS / CONTRIBUTORS / GIFT — lighter pages
 // ---------------------------------------------------------------------------
 
-function JarsPage({ onNewJar }: { onNewJar: () => void }) {
+function JarsPage({ onNewJar, jars }: { onNewJar: () => void; jars: typeof JARS }) {
   return (
     <>
-      <TopBar title="My Jars" subtitle={`${JARS.length} active · $2,387 total`}>
+      <TopBar title="My Jars" subtitle={`${jars.length} active`}>
         <button
           onClick={onNewJar}
           className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white"
@@ -359,7 +391,7 @@ function JarsPage({ onNewJar }: { onNewJar: () => void }) {
       </TopBar>
       <div className="px-8 py-7">
         <div className="grid gap-4 md:grid-cols-3">
-          {JARS.map((j) => (
+          {jars.map((j) => (
             <JarCard key={j.id} jar={j} />
           ))}
           <button
@@ -585,10 +617,13 @@ function NewJarModal({
   onCreate,
 }: {
   onClose: () => void;
-  onCreate: () => void;
+  onCreate: (params: { mode: number; unlockDate: number; goalAmount: number }) => Promise<void>;
 }) {
   const [unlockType, setUnlockType] = useState<"goal" | "date" | "both">("goal");
   const [multisig, setMultisig] = useState(false);
+  const [goalInput, setGoalInput] = useState("");
+  const [dateInput, setDateInput] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   return (
     <div
@@ -655,6 +690,8 @@ function NewJarModal({
               <input
                 type="number"
                 placeholder="5000"
+                value={goalInput}
+                onChange={(e) => setGoalInput(e.target.value)}
                 className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
               />
             </div>
@@ -667,6 +704,8 @@ function NewJarModal({
               </label>
               <input
                 type="date"
+                value={dateInput}
+                onChange={(e) => setDateInput(e.target.value)}
                 className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
               />
             </div>
@@ -707,15 +746,24 @@ function NewJarModal({
         <div className="mt-6 flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 rounded-full border border-black/10 py-3 text-sm font-medium"
+            disabled={submitting}
+            className="flex-1 rounded-full border border-black/10 py-3 text-sm font-medium disabled:opacity-40"
           >
             Cancel
           </button>
           <button
-            onClick={onCreate}
-            className="flex-1 rounded-full bg-ink py-3 text-sm font-medium text-white"
+            disabled={submitting}
+            onClick={async () => {
+              const mode = unlockType === "goal" ? 1 : unlockType === "date" ? 0 : 2;
+              const unlockDate = dateInput ? Math.floor(new Date(dateInput).getTime() / 1000) : 0;
+              const goalAmount = goalInput ? Math.round(parseFloat(goalInput) * 100) : 0;
+              setSubmitting(true);
+              await onCreate({ mode, unlockDate, goalAmount });
+              setSubmitting(false);
+            }}
+            className="flex-1 rounded-full bg-ink py-3 text-sm font-medium text-white disabled:opacity-40"
           >
-            Create Jar
+            {submitting ? "Creating…" : "Create Jar"}
           </button>
         </div>
       </div>

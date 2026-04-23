@@ -58,11 +58,26 @@ export default function GiftClient({ slug }: { slug: string }) {
 
   const pct = Math.min(100, Math.round((jar.amount / jar.goal) * 100));
 
-  const handlePay = async () => {
-    setSubmitting(true);
-    // Placeholder — in Stage 2 this opens MoonPay widget
-    await new Promise((r) => setTimeout(r, 800));
-    setSubmitting(false);
+  const handlePay = () => {
+    if (amount < 10) return;
+
+    // MoonPay widget URL — opens in new tab
+    // externalTransactionId carries the jar pubkey to the webhook
+    // notes carries the contributor message
+    const moonpayBase =
+      process.env.NEXT_PUBLIC_MOONPAY_WIDGET_URL ??
+      "https://buy-sandbox.moonpay.com";
+
+    const params = new URLSearchParams({
+      apiKey: process.env.NEXT_PUBLIC_MOONPAY_API_KEY ?? "pk_test_key",
+      currencyCode: "sol",
+      baseCurrencyCode: "usd",
+      baseCurrencyAmount: String(amount),
+      externalTransactionId: slug, // jar pubkey — passed to webhook
+      notes: message.slice(0, 120),
+    });
+
+    window.open(`${moonpayBase}?${params.toString()}`, "_blank");
     setDone(true);
   };
 

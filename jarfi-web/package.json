@@ -10,11 +10,18 @@
     "preview": "npx @cloudflare/next-on-pages && npx wrangler pages dev .vercel/output/static"
   },
   "dependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@solana/wallet-adapter-base": "^0.9.27",
+    "@solana/wallet-adapter-phantom": "^0.9.29",
+    "@solana/wallet-adapter-react": "^0.15.39",
+    "@solana/wallet-adapter-solflare": "^0.6.33",
+    "@solana/web3.js": "^1.98.4",
     "lucide-react": "^0.454.0",
     "next": "15.0.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "recharts": "^2.12.7"
+    "recharts": "^2.12.7",
+    "ts-interface-checker": "^1.0.2"
   },
   "devDependencies": {
     "@cloudflare/next-on-pages": "^1.13.5",
