@@ -5,7 +5,7 @@ const crypto = require('crypto')
 const anchor = require('@coral-xyz/anchor')
 const { Connection, Keypair, PublicKey, clusterApiUrl } = require('@solana/web3.js')
 
-const IDL = require('../jarfi-contract/target/idl/jarfi_contract.json')
+const IDL = require('./idl.json')
 
 // ---------------------------------------------------------------------------
 // Solana / Anchor setup
