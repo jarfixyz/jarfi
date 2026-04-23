@@ -177,9 +177,8 @@ jarfi/
 
 ## Links
 
-- **Demo:** [jarfi.xyz/dashboard](https://jarfi.xyz/dashboard)
-- **Gift page example:** [jarfi.xyz/gift/anya](https://jarfi.xyz/gift/anya)
-- **Colosseum:** [colosseum.com/frontier](https://colosseum.com/frontier)
+- [jarfi.xyz](https://jarfi.xyz)
+- [@jarfixyz](https://twitter.com/jarfixyz)
 
 ---
 
