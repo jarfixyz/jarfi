@@ -98,23 +98,6 @@ Push notification → contributor summary → balance released
 
 ---
 
-## The difference a JAR makes
-
-Most money saved for children never actually gets saved. Here's what usually happens:
-
-| Scenario | Traditional bank (0.5% APY) | JAR (~6.2% APY) |
-|---|---|---|
-| $50/month, parent only | ~$11,400 | **~$18,400** |
-| $50/month + $200/year family | ~$12,600 | **~$22,800** |
-| $100/month + $400/year family | ~$25,200 | **~$45,600** |
-| $200/month + $400/year family | ~$46,800 | **~$85,000** |
-
-> Estimates based on monthly compounding over 18 years.
-
-The difference isn't a rounding error. It's a first apartment deposit vs. a weekend trip.
-
----
-
 ## Yield — honest framing
 
 JAR uses **Marinade Finance** for liquid staking on Solana. Current APY is approximately 6%, variable and not guaranteed.
@@ -158,16 +141,15 @@ JAR is not a bank. Deposits are not insured. Only deposit what you're comfortabl
 
 ```
 jarfi/
-├── jarfi-contract/       # Anchor smart contracts
+├── jarfi-contract/       # Anchor smart contracts (Solana)
 │   ├── programs/
 │   └── tests/
-├── jarfi-mobile/         # React Native mobile app
+├── jarfi-mobile/         # React Native + Expo (iOS + Android)
 │   ├── screens/
 │   └── components/
-├── jarfi-web/            # Next.js dashboard + gift page
-│   ├── app/
-│   └── components/
-└── jarfi-backend/        # Node.js API + Firebase functions
+└── jarfi-web/            # Next.js landing + dashboard + gift page
+    ├── app/
+    └── components/
 ```
 
 ---
@@ -195,9 +177,8 @@ jarfi/
 
 ## Links
 
-- **Website:** [jarfi.xyz](https://jarfi.xyz)
-- **X:** [@jarfixyz](https://x.com/jarfixyz)
-- **Builder:** [@hypnogaba](https://x.com/hypnogaba)
+- **Demo:** [jarfi.xyz/dashboard](https://jarfi.xyz/dashboard)
+- **Gift page example:** [jarfi.xyz/gift/anya](https://jarfi.xyz/gift/anya)
 - **Colosseum:** [colosseum.com/frontier](https://colosseum.com/frontier)
 
 ---
