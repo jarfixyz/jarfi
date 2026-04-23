@@ -1,6 +1,6 @@
 # 🏺 JAR — Save together. Lock it. Grow it.
 
-**jarfi.xyz** · Built on Solana · [Colosseum Frontier 2026](https://colosseum.com/frontier)
+**jarfi.xyz** · Built on Solana · [Colosseum Frontier 2026](https://colosseum.com/frontier) 
 
 ---
 
