@@ -16,10 +16,10 @@ import {
   X,
   Loader2,
 } from "lucide-react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletButton } from "@/components/wallet-button";
 import { useJars } from "@/lib/use-jars";
-import { createJarViaApi } from "@/lib/api";
+import { createJarOnChain } from "@/lib/create-jar";
 
 // ---------------------------------------------------------------------------
 // Mock data — will be replaced with on-chain reads in Stage 2
@@ -94,7 +94,8 @@ export default function Dashboard() {
   const [toast, setToast] = useState<string | null>(null);
   const [scenario, setScenario] = useState("$50/mo");
 
-  const { publicKey } = useWallet();
+  const { publicKey, wallet } = useWallet();
+  const { connection } = useConnection();
   const { jars: liveJars, loading: jarsLoading } = useJars();
 
   // Normalize on-chain JarAccount → JarType display shape
@@ -203,12 +204,17 @@ export default function Dashboard() {
           onClose={() => setModal(null)}
           onCreate={async (params) => {
             try {
-              const walletPubkey = publicKey?.toBase58() ?? "11111111111111111111111111111111";
-              await createJarViaApi({ ...params, childWallet: walletPubkey });
+              if (!wallet?.adapter || !publicKey) {
+                showToast("Connect wallet first");
+                return;
+              }
+              const childWallet = publicKey.toBase58();
+              await createJarOnChain(wallet.adapter as never, connection, { ...params, childWallet });
               setModal(null);
               showToast("Jar created 🏺");
-            } catch (e) {
-              showToast("Failed to create jar ❌");
+            } catch (e: unknown) {
+              const msg = e instanceof Error ? e.message : "Unknown error";
+              showToast("Failed: " + msg.slice(0, 60));
             }
           }}
         />
