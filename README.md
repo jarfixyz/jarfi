@@ -131,7 +131,7 @@ JAR is not a bank. Deposits are not insured. Only deposit what you're comfortabl
 | Staking | Marinade Finance |
 | Mobile | React Native / Expo (iOS + Android) |
 | Web dashboard | Next.js |
-| Fiat onramp | MoonPay (min $10, no registration) |
+| Fiat onramp | Guardarian candidate: card/Apple Pay → USDC on Solana |
 | RPC | DoubleZero network |
 | Push notifications | Firebase / Expo Push |
 
@@ -163,7 +163,7 @@ jarfi/
 - Marinade staking integration
 - Mobile: create jar flow, jar detail, activity feed, push notifications
 - Web dashboard: balance chart, staking forecast, contributors feed
-- Gift page: jarfi.xyz/gift/[slug] with MoonPay widget
+- Gift page: jarfi.xyz/gift/[slug] with Guardarian USDC checkout spike
 - DoubleZero RPC for all transactions
 
 **Post-hackathon roadmap:**

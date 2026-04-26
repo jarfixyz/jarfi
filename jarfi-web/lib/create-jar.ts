@@ -31,8 +31,7 @@ export async function createJarOnChain(
     .accounts({
       jar: jarKeypair.publicKey,
       owner: wallet.publicKey,
-      systemProgram: SystemProgram.programId,
-    })
+    } as never)
     .signers([jarKeypair])
     .rpc();
 

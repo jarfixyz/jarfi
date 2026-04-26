@@ -1,5 +1,5 @@
 import { AnchorProvider, Program, BN } from "@coral-xyz/anchor";
-import { Connection, PublicKey, clusterApiUrl } from "@solana/web3.js";
+import { Connection, PublicKey, clusterApiUrl, Transaction, VersionedTransaction } from "@solana/web3.js";
 import type { AnchorWallet } from "@solana/wallet-adapter-react";
 import type { JarfiContract } from "./jarfi_contract";
 import IDL from "./idl.json";
@@ -45,6 +45,54 @@ export type ContributionAccount = {
   comment: string;
   createdAt: number;
 };
+
+// ---------------------------------------------------------------------------
+// Read-only program instance (no wallet needed — for gift page / public reads)
+// ---------------------------------------------------------------------------
+
+const DUMMY_WALLET: AnchorWallet = {
+  publicKey: new PublicKey("11111111111111111111111111111111"),
+  signTransaction: <T extends Transaction | VersionedTransaction>(tx: T) => Promise.resolve(tx),
+  signAllTransactions: <T extends Transaction | VersionedTransaction>(txs: T[]) => Promise.resolve(txs),
+};
+
+export function getReadonlyProgram(connection: Connection) {
+  const provider = new AnchorProvider(connection, DUMMY_WALLET, {
+    commitment: "confirmed",
+  });
+  return new Program<JarfiContract>(IDL, provider);
+}
+
+// ---------------------------------------------------------------------------
+// Fetch a single jar by its on-chain pubkey (no wallet required)
+// ---------------------------------------------------------------------------
+
+export async function fetchJarByPubkey(
+  connection: Connection,
+  jarPubkey: PublicKey
+): Promise<JarAccount | null> {
+  try {
+    const program = getReadonlyProgram(connection);
+    const account = await program.account.jar.fetch(jarPubkey);
+    return {
+      pubkey: jarPubkey.toBase58(),
+      owner: (account.owner as PublicKey).toBase58(),
+      mode: account.mode as number,
+      unlockDate: (account.unlockDate as BN).toNumber(),
+      goalAmount: (account.goalAmount as BN).toNumber(),
+      balance: (account.balance as BN).toNumber(),
+      stakingShares: (account.stakingShares as BN).toNumber(),
+      createdAt: (account.createdAt as BN).toNumber(),
+      dailyLimit: (account.dailyLimit as BN).toNumber(),
+      weeklyLimit: (account.weeklyLimit as BN).toNumber(),
+      childWallet: (account.childWallet as PublicKey).toBase58(),
+      childSpendableBalance: (account.childSpendableBalance as BN).toNumber(),
+      unlocked: account.unlocked as boolean,
+    };
+  } catch {
+    return null;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Fetch all jars owned by a wallet

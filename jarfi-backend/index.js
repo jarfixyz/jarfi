@@ -42,8 +42,10 @@ const program = new anchor.Program(IDL, provider)
 const app = express()
 app.use(cors())
 
-// /moonpay-webhook needs raw body for signature verification — register before express.json()
+// Onramp webhooks may need raw body for signature verification — register before express.json()
 app.use('/moonpay-webhook', express.raw({ type: '*/*' }))
+app.use('/guardarian-webhook', express.raw({ type: '*/*' }))
+app.use('/transak-webhook', express.raw({ type: '*/*' }))
 app.use(express.json())
 
 // ---------------------------------------------------------------------------
@@ -256,6 +258,145 @@ app.post('/moonpay-webhook', async (req, res) => {
     res.json({ ok: true, txSignature })
   } catch (err) {
     console.error('[moonpay-webhook]', err.message)
+    res.status(500).json({ ok: false, error: err.message })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// POST /guardarian-webhook
+//
+// Called by Guardarian when a fiat-to-USDC transaction changes status.
+// Expected finished payload fields, naming varies slightly by integration:
+//   status / transaction_status       → finished
+//   payout_address                    → jar pubkey / vault address
+//   external_partner_link_id          → JAR contribution id
+//   from_amount                       → fiat amount paid
+//   output_hash                       → Solana transaction hash
+//
+// NOTE: Guardarian does the fiat → USDC conversion and sends funds to the
+// payout address. This handler only records the contribution on the JAR program
+// for the current MVP; the SPL USDC vault flow is the next contract step.
+// ---------------------------------------------------------------------------
+
+app.post('/guardarian-webhook', async (req, res) => {
+  try {
+    const rawBody = Buffer.isBuffer(req.body) ? req.body.toString() : JSON.stringify(req.body)
+    const payload = rawBody ? JSON.parse(rawBody) : {}
+
+    const status = payload.status || payload.transaction_status || payload.transactionStatus
+    console.log('[guardarian-webhook] received status:', status)
+
+    if (status !== 'finished') {
+      return res.json({ ok: true, skipped: true, status })
+    }
+
+    const jarPubkeyStr =
+      payload.payout_address ||
+      payload.wallet_address ||
+      payload.to_address ||
+      payload.address
+    const amountPaid = Number(payload.from_amount || payload.input_amount || payload.amount || 0)
+    const contributionId = payload.external_partner_link_id || payload.partner_link_id || ''
+    const outputHash = payload.output_hash || payload.transaction_hash || ''
+    const comment = String(payload.message || contributionId || outputHash || '').slice(0, 120)
+
+    if (!jarPubkeyStr) {
+      return res.status(400).json({ ok: false, error: 'payout_address (jar pubkey) missing' })
+    }
+    if (!Number.isFinite(amountPaid) || amountPaid <= 0) {
+      return res.status(400).json({ ok: false, error: 'Invalid fiat amount' })
+    }
+
+    const amountUnits = Math.round(amountPaid * 100)
+    const jarPubkey = new PublicKey(jarPubkeyStr)
+    const contributionKeypair = Keypair.generate()
+
+    const txSignature = await program.methods
+      .giftDeposit(new anchor.BN(amountUnits), comment)
+      .accounts({
+        jar: jarPubkey,
+        contribution: contributionKeypair.publicKey,
+        contributor: serverKeypair.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([contributionKeypair])
+      .rpc()
+
+    console.log('[guardarian-webhook] gift_deposit tx:', txSignature, 'onramp tx:', outputHash)
+    res.json({ ok: true, txSignature, outputHash })
+  } catch (err) {
+    console.error('[guardarian-webhook]', err.message)
+    res.status(500).json({ ok: false, error: err.message })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// POST /transak-webhook
+//
+// Called by Transak when an order status changes.
+// Payload is a JWT signed with TRANSAK_API_SECRET (Partner Access Token).
+// On ORDER_COMPLETED: decode partnerOrderId → vaultAddress, record gift_deposit on-chain.
+// ---------------------------------------------------------------------------
+
+app.post('/transak-webhook', async (req, res) => {
+  try {
+    const rawBody = Buffer.isBuffer(req.body) ? req.body.toString() : JSON.stringify(req.body)
+
+    let payload
+    const secret = process.env.TRANSAK_API_SECRET
+    if (secret) {
+      const jwt = require('jsonwebtoken')
+      payload = jwt.verify(rawBody, secret)
+    } else {
+      // No secret configured — accept without verification (dev/staging only)
+      payload = JSON.parse(rawBody)
+    }
+
+    const eventID = payload.eventID || payload.event_id
+    console.log('[transak-webhook] event:', eventID)
+
+    if (eventID !== 'ORDER_COMPLETED') {
+      return res.json({ ok: true, skipped: true, eventID })
+    }
+
+    const data = payload.webhookData || payload.data || {}
+    const vaultAddress = data.walletAddress || data.wallet_address
+    const fiatAmount = Number(data.fiatAmount || data.fiat_amount || 0)
+    const cryptoAmount = Number(data.cryptoAmount || data.crypto_amount || 0)
+    const partnerOrderId = data.partnerOrderId || data.partner_order_id || ''
+    const transakOrderId = data.id || ''
+
+    // Decode message from partnerOrderId: `${vaultAddress}__${timestamp}__${encodedMessage}`
+    const parts = partnerOrderId.split('__')
+    const contributorMessage = parts.length >= 3
+      ? decodeURIComponent(parts.slice(2).join('__')).slice(0, 120)
+      : transakOrderId
+
+    if (!vaultAddress) {
+      return res.status(400).json({ ok: false, error: 'walletAddress (jar pubkey) missing' })
+    }
+
+    console.log('[transak-webhook] ORDER_COMPLETED', { vaultAddress, fiatAmount, cryptoAmount, contributorMessage })
+
+    const amountUnits = Math.round(fiatAmount * 100)
+    const jarPubkey = new PublicKey(vaultAddress)
+    const contributionKeypair = Keypair.generate()
+
+    const txSignature = await program.methods
+      .giftDeposit(new anchor.BN(amountUnits), contributorMessage)
+      .accounts({
+        jar: jarPubkey,
+        contribution: contributionKeypair.publicKey,
+        contributor: serverKeypair.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([contributionKeypair])
+      .rpc()
+
+    console.log('[transak-webhook] gift_deposit tx:', txSignature)
+    res.json({ ok: true, txSignature })
+  } catch (err) {
+    console.error('[transak-webhook]', err.message)
     res.status(500).json({ ok: false, error: err.message })
   }
 })
