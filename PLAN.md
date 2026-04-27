@@ -24,7 +24,7 @@ Node.js / Express · `https://jarfi.up.railway.app`
 - [x] `GET /jar/:pubkey` → fetch Jar + Contributions from devnet
 - [x] `POST /transak-webhook` → JWT verify → gift_deposit on-chain
 - [x] **Deployed on Railway** — auto-deploys from `main` branch (`jarfi-backend/` root)
-- [ ] **`NEXT_PUBLIC_BACKEND_URL`** = `https://jarfi.up.railway.app` → set in Cloudflare Pages ← TODO tomorrow
+- [x] `NEXT_PUBLIC_BACKEND_URL` = `https://jarfi.up.railway.app` → set in Cloudflare Pages ✅
 - [ ] **`TRANSAK_API_SECRET`** → set in Railway env vars (Partner Access Token from Transak dashboard) ← TODO tomorrow
 
 ---
@@ -40,10 +40,10 @@ Next.js 15 · Live at jarfi.xyz · Cloudflare Pages
 - [x] Gift page reads real jar data from on-chain when slug is a Solana pubkey
 - [x] Contributors / activity feed (live Contribution account fetches)
 - [x] Deployed at jarfi.xyz with git auto-deploy (Cloudflare Pages)
-- [ ] **`NEXT_PUBLIC_BACKEND_URL`** = `https://jarfi.up.railway.app` → set in Cloudflare Pages ← TODO tomorrow
-- [ ] **`NEXT_PUBLIC_TRANSAK_API_KEY`** = `06d758b0-...` → set in Cloudflare Pages ← TODO tomorrow
-- [ ] **`NEXT_PUBLIC_ENV`** = `staging` → set in Cloudflare Pages ← TODO tomorrow
-- [ ] **Marinade staking APY** — hardcoded 6.2%, replace with real Marinade API
+- [x] `NEXT_PUBLIC_BACKEND_URL` = `https://jarfi.up.railway.app` → set in Cloudflare Pages ✅
+- [x] `NEXT_PUBLIC_TRANSAK_API_KEY` → set in Cloudflare Pages ✅
+- [x] `NEXT_PUBLIC_ENV` = `staging` → set in Cloudflare Pages ✅
+- [x] Marinade APY — real from API (6.85%), gift page fetches live
 - [ ] **Push notifications** — not started
 
 ---
