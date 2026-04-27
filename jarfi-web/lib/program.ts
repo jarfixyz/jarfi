@@ -22,13 +22,16 @@ export function getProgram(wallet: AnchorWallet, connection: Connection) {
 // Shape of a fetched Jar account (decoded from on-chain)
 // ---------------------------------------------------------------------------
 
+export const CURRENCY_USDC = 0;
+export const CURRENCY_SOL  = 1;
+
 export type JarAccount = {
   pubkey: string;
   owner: string;
   mode: number;        // 0 = date, 1 = goal, 2 = either
-  unlockDate: number;  // unix timestamp
+  unlockDate: number;
   goalAmount: number;
-  balance: number;
+  balance: number;     // lamports (SOL mode)
   stakingShares: number;
   createdAt: number;
   dailyLimit: number;
@@ -36,6 +39,9 @@ export type JarAccount = {
   childWallet: string;
   childSpendableBalance: number;
   unlocked: boolean;
+  jarCurrency: number; // 0 = USDC, 1 = SOL
+  usdcBalance: number; // USDC micro-units (6 decimals)
+  usdcVault: string;
 };
 
 export type ContributionAccount = {
@@ -88,6 +94,9 @@ export async function fetchJarByPubkey(
       childWallet: (account.childWallet as PublicKey).toBase58(),
       childSpendableBalance: (account.childSpendableBalance as BN).toNumber(),
       unlocked: account.unlocked as boolean,
+      jarCurrency: account.jarCurrency as number,
+      usdcBalance: (account.usdcBalance as BN).toNumber(),
+      usdcVault: (account.usdcVault as PublicKey).toBase58(),
     };
   } catch {
     return null;
@@ -128,6 +137,9 @@ export async function fetchJarsByOwner(
     childWallet: account.childWallet.toBase58(),
     childSpendableBalance: (account.childSpendableBalance as BN).toNumber(),
     unlocked: account.unlocked as boolean,
+    jarCurrency: account.jarCurrency as number,
+    usdcBalance: (account.usdcBalance as BN).toNumber(),
+    usdcVault: (account.usdcVault as PublicKey).toBase58(),
   }));
 }
 

@@ -19,7 +19,8 @@ import {
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletButton } from "@/components/wallet-button";
 import { useJars } from "@/lib/use-jars";
-import { createJarOnChain } from "@/lib/create-jar";
+import { createJarOnChain, createUsdcJarOnChain } from "@/lib/create-jar";
+import { CURRENCY_USDC } from "@/lib/program";
 
 // ---------------------------------------------------------------------------
 // Mock data — will be replaced with on-chain reads in Stage 2
@@ -30,10 +31,11 @@ type JarType = {
   emoji: string;
   name: string;
   description: string;
-  amount: number;
-  goal: number;
+  amount: number;   // display amount (already in $)
+  goal: number;     // display goal (in $)
   locked: boolean;
   unlockLabel: string;
+  currency: "usdc" | "sol";
 };
 
 const JARS: JarType[] = [
@@ -46,6 +48,7 @@ const JARS: JarType[] = [
     goal: 2000,
     locked: true,
     unlockLabel: "by date",
+    currency: "usdc",
   },
   {
     id: "japan",
@@ -56,6 +59,7 @@ const JARS: JarType[] = [
     goal: 1000,
     locked: false,
     unlockLabel: "by goal",
+    currency: "usdc",
   },
   {
     id: "moto",
@@ -66,6 +70,7 @@ const JARS: JarType[] = [
     goal: 5000,
     locked: false,
     unlockLabel: "goal or date",
+    currency: "sol",
   },
 ];
 
@@ -100,19 +105,32 @@ export default function Dashboard() {
 
   // Normalize on-chain JarAccount → JarType display shape
   const normalizedLive: JarType[] = liveJars.map((j) => {
+    const isUsdc = j.jarCurrency === CURRENCY_USDC;
     const modeLabel = j.mode === 0 ? "by date" : j.mode === 1 ? "by goal" : "goal or date";
     const unlockDate = j.unlockDate > 0
       ? new Date(j.unlockDate * 1000).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
       : null;
+
+    // USDC: balance in micro-units (6 dec) → dollars
+    // SOL:  balance in lamports (9 dec) → SOL displayed as dollars equivalent (mock rate)
+    const displayAmount = isUsdc
+      ? j.usdcBalance / 1_000_000
+      : j.balance / 1_000_000_000;
+
+    const displayGoal = isUsdc
+      ? j.goalAmount / 1_000_000
+      : j.goalAmount / 1_000_000_000;
+
     return {
       id: j.pubkey,
-      emoji: "🏺",
+      emoji: isUsdc ? "💵" : "◎",
       name: `Jar ${j.pubkey.slice(0, 4)}…${j.pubkey.slice(-4)}`,
-      description: unlockDate ? `Unlocks ${unlockDate}` : `${j.balance / 100} deposited`,
-      amount: j.balance / 100,
-      goal: j.goalAmount > 0 ? j.goalAmount / 100 : 1000,
+      description: unlockDate ? `Unlocks ${unlockDate}` : `${isUsdc ? "$" : "◎"}${displayAmount.toFixed(2)} deposited`,
+      amount: displayAmount,
+      goal: displayGoal > 0 ? displayGoal : 1000,
       locked: !j.unlocked,
       unlockLabel: modeLabel,
+      currency: isUsdc ? "usdc" : "sol",
     };
   });
 
@@ -219,7 +237,11 @@ export default function Dashboard() {
                 return;
               }
               const childWallet = publicKey.toBase58();
-              await createJarOnChain(wallet.adapter as never, connection, { ...params, childWallet });
+              if (params.currency === "usdc") {
+                await createUsdcJarOnChain(wallet.adapter as never, connection, { ...params, childWallet });
+              } else {
+                await createJarOnChain(wallet.adapter as never, connection, { ...params, childWallet });
+              }
               setModal(null);
               showToast("Jar created 🏺");
             } catch (e: unknown) {
@@ -649,9 +671,10 @@ function NewJarModal({
   onCreate,
 }: {
   onClose: () => void;
-  onCreate: (params: { mode: number; unlockDate: number; goalAmount: number }) => Promise<void>;
+  onCreate: (params: { mode: number; unlockDate: number; goalAmount: number; currency: "usdc" | "sol" }) => Promise<void>;
 }) {
   const [unlockType, setUnlockType] = useState<"goal" | "date" | "both">("goal");
+  const [currency, setCurrency] = useState<"usdc" | "sol">("usdc");
   const [multisig, setMultisig] = useState(false);
   const [goalInput, setGoalInput] = useState("");
   const [dateInput, setDateInput] = useState("");
@@ -678,7 +701,39 @@ function NewJarModal({
           </button>
         </div>
 
+        {/* Currency */}
         <div className="mt-6">
+          <label className="mb-2 block text-xs font-semibold uppercase tracking-widest text-ink-muted">
+            Currency
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setCurrency("usdc")}
+              className={`rounded-xl border-2 px-4 py-3 text-left transition ${
+                currency === "usdc"
+                  ? "border-sol-purple bg-surface-lavender"
+                  : "border-black/10 hover:border-black/20"
+              }`}
+            >
+              <div className="text-sm font-semibold">💵 USDC</div>
+              <div className="mt-0.5 text-[11px] text-ink-muted">Stable · ~8% APY via Kamino</div>
+            </button>
+            <button
+              onClick={() => setCurrency("sol")}
+              className={`rounded-xl border-2 px-4 py-3 text-left transition ${
+                currency === "sol"
+                  ? "border-sol-purple bg-surface-lavender"
+                  : "border-black/10 hover:border-black/20"
+              }`}
+            >
+              <div className="text-sm font-semibold">◎ SOL</div>
+              <div className="mt-0.5 text-[11px] text-ink-muted">Volatile · ~6.85% APY via Marinade</div>
+            </button>
+          </div>
+        </div>
+
+        {/* Unlock condition */}
+        <div className="mt-5">
           <label className="mb-2 block text-xs font-semibold uppercase tracking-widest text-ink-muted">
             Unlock condition
           </label>
@@ -788,9 +843,14 @@ function NewJarModal({
             onClick={async () => {
               const mode = unlockType === "goal" ? 1 : unlockType === "date" ? 0 : 2;
               const unlockDate = dateInput ? Math.floor(new Date(dateInput).getTime() / 1000) : 0;
-              const goalAmount = goalInput ? Math.round(parseFloat(goalInput) * 100) : 0;
+              // USDC goal: dollars → micro-units (6 dec). SOL goal: SOL → lamports (9 dec)
+              const goalAmount = goalInput
+                ? currency === "usdc"
+                  ? Math.round(parseFloat(goalInput) * 1_000_000)
+                  : Math.round(parseFloat(goalInput) * 1_000_000_000)
+                : 0;
               setSubmitting(true);
-              await onCreate({ mode, unlockDate, goalAmount });
+              await onCreate({ mode, unlockDate, goalAmount, currency });
               setSubmitting(false);
             }}
             className="flex-1 rounded-full bg-ink py-3 text-sm font-medium text-white disabled:opacity-40"
@@ -901,26 +961,37 @@ function CardAction({ label }: { label: string }) {
 }
 
 function JarCard({ jar }: { jar: JarType }) {
-  const pct = Math.round((jar.amount / jar.goal) * 100);
+  const pct = Math.min(100, Math.round((jar.amount / jar.goal) * 100));
+  const isUsdc = jar.currency === "usdc";
+
+  const fmtAmount = isUsdc
+    ? `$${jar.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : `◎${jar.amount.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 })}`;
+
+  const fmtGoal = isUsdc
+    ? `$${jar.goal.toLocaleString()}`
+    : `◎${jar.goal.toLocaleString()}`;
+
   return (
     <div className="cursor-pointer rounded-2xl border border-black/5 bg-[#FAFAF8] p-5 transition hover:-translate-y-0.5 hover:border-sol-purple hover:shadow-lg">
       <div className="flex items-start justify-between">
         <div className="text-3xl">{jar.emoji}</div>
-        <div
-          className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-            jar.locked
-              ? "bg-surface-lavender text-sol-purple"
-              : "bg-surface-mint text-green-700"
-          }`}
-        >
-          {jar.locked ? "🔒 Locked" : "Open"}
+        <div className="flex items-center gap-1.5">
+          <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${
+            isUsdc ? "bg-surface-mint text-green-700" : "bg-surface-sky text-blue-700"
+          }`}>
+            {isUsdc ? "USDC" : "SOL"}
+          </span>
+          <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+            jar.locked ? "bg-surface-lavender text-sol-purple" : "bg-surface-cream text-amber-700"
+          }`}>
+            {jar.locked ? "🔒 Locked" : "Open"}
+          </span>
         </div>
       </div>
       <div className="mt-3 font-display text-lg font-semibold">{jar.name}</div>
       <div className="text-xs text-ink-muted">{jar.description}</div>
-      <div className="mt-3 font-display text-2xl font-semibold">
-        ${jar.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-      </div>
+      <div className="mt-3 font-display text-2xl font-semibold">{fmtAmount}</div>
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/5">
         <div
           className="h-full rounded-full bg-gradient-to-r from-sol-purple to-sol-blue"
@@ -928,7 +999,7 @@ function JarCard({ jar }: { jar: JarType }) {
         />
       </div>
       <div className="mt-2 flex justify-between text-[11px] text-ink-faint">
-        <span>{pct}% of ${jar.goal.toLocaleString()}</span>
+        <span>{pct}% of {fmtGoal}</span>
         <span>{jar.unlockLabel}</span>
       </div>
     </div>
