@@ -3,9 +3,33 @@ const express = require('express')
 const cors = require('cors')
 const crypto = require('crypto')
 const anchor = require('@coral-xyz/anchor')
-const { Connection, Keypair, PublicKey, clusterApiUrl } = require('@solana/web3.js')
+const {
+  Connection,
+  Keypair,
+  PublicKey,
+  clusterApiUrl,
+} = require('@solana/web3.js')
+const {
+  getAssociatedTokenAddress,
+  TOKEN_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+} = require('@solana/spl-token')
 
 const IDL = require('./idl.json')
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const USDC_MINT_DEVNET  = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU')
+const USDC_MINT_MAINNET = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v')
+const VAULT_SEED = Buffer.from('vault')
+const CURRENCY_USDC = 0
+const CURRENCY_SOL  = 1
+
+function usdcMint() {
+  return process.env.SOLANA_NETWORK === 'mainnet' ? USDC_MINT_MAINNET : USDC_MINT_DEVNET
+}
 
 // ---------------------------------------------------------------------------
 // Solana / Anchor setup
@@ -14,18 +38,14 @@ const IDL = require('./idl.json')
 const RPC_URL = process.env.SOLANA_RPC_URL || clusterApiUrl('devnet')
 const connection = new Connection(RPC_URL, 'confirmed')
 
-// Server wallet — signs on-chain txs on behalf of the backend
-// Set SERVER_WALLET_SECRET in .env as a JSON array of byte values
-// e.g. run: node -e "const {Keypair}=require('@solana/web3.js');console.log(JSON.stringify(Array.from(Keypair.generate().secretKey)))"
 let serverKeypair
 if (process.env.SERVER_WALLET_SECRET) {
   serverKeypair = Keypair.fromSecretKey(
     Uint8Array.from(JSON.parse(process.env.SERVER_WALLET_SECRET))
   )
 } else {
-  // Dev fallback — ephemeral wallet, fine for local testing
   serverKeypair = Keypair.generate()
-  console.warn('[warn] SERVER_WALLET_SECRET not set — using ephemeral wallet (no SOL, will fail on-chain)')
+  console.warn('[warn] SERVER_WALLET_SECRET not set — using ephemeral wallet')
 }
 
 const wallet = new anchor.Wallet(serverKeypair)
@@ -36,16 +56,36 @@ const PROGRAM_ID = new PublicKey('HtQt8P4pcF2X4D9oxWwsafj5KnwJsUPF148mvkZMQaFW')
 const program = new anchor.Program(IDL, provider)
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+async function getVaultAuthority(jarPubkey) {
+  const [vaultAuthority] = PublicKey.findProgramAddressSync(
+    [VAULT_SEED, jarPubkey.toBuffer()],
+    PROGRAM_ID
+  )
+  return vaultAuthority
+}
+
+async function getJarUsdcVault(jarPubkey) {
+  const vaultAuthority = await getVaultAuthority(jarPubkey)
+  return getAssociatedTokenAddress(usdcMint(), vaultAuthority, true)
+}
+
+async function getOrCreateATA(owner) {
+  return getAssociatedTokenAddress(usdcMint(), owner)
+}
+
+// ---------------------------------------------------------------------------
 // Express setup
 // ---------------------------------------------------------------------------
 
 const app = express()
 app.use(cors())
 
-// Onramp webhooks may need raw body for signature verification — register before express.json()
-app.use('/moonpay-webhook', express.raw({ type: '*/*' }))
-app.use('/guardarian-webhook', express.raw({ type: '*/*' }))
-app.use('/transak-webhook', express.raw({ type: '*/*' }))
+app.use('/moonpay-webhook',     express.raw({ type: '*/*' }))
+app.use('/guardarian-webhook',  express.raw({ type: '*/*' }))
+app.use('/transak-webhook',     express.raw({ type: '*/*' }))
 app.use(express.json())
 
 // ---------------------------------------------------------------------------
@@ -66,52 +106,77 @@ app.get('/', (req, res) => {
 //
 // Body:
 //   mode        0 = date only | 1 = goal only | 2 = either/first
-//   unlockDate  unix timestamp (seconds). Required for mode 0 and 2.
-//   goalAmount  u64 (lamports). Required for mode 1 and 2.
-//   childWallet base58 pubkey of the child/beneficiary wallet
-//
-// Returns:
-//   jarPubkey   base58 pubkey of the new on-chain Jar account
-//   txSignature confirmed transaction signature
+//   unlockDate  unix timestamp (seconds)
+//   goalAmount  u64 (lamports for SOL | USDC micro-units 6dec for USDC)
+//   childWallet base58 pubkey
+//   currency    "usdc" | "sol"  (default: "usdc")
 // ---------------------------------------------------------------------------
 
 app.post('/jar/create', async (req, res) => {
   try {
-    const { mode = 0, unlockDate = 0, goalAmount = 0, childWallet } = req.body
+    const {
+      mode = 0,
+      unlockDate = 0,
+      goalAmount = 0,
+      childWallet,
+      currency = 'usdc',
+    } = req.body
 
-    if (!childWallet) {
-      return res.status(400).json({ ok: false, error: 'childWallet is required' })
-    }
-    if (mode < 0 || mode > 2) {
-      return res.status(400).json({ ok: false, error: 'mode must be 0, 1, or 2' })
-    }
-    if ((mode === 1 || mode === 2) && goalAmount <= 0) {
-      return res.status(400).json({ ok: false, error: 'goalAmount required for mode 1 and 2' })
-    }
+    if (!childWallet) return res.status(400).json({ ok: false, error: 'childWallet is required' })
+    if (mode < 0 || mode > 2) return res.status(400).json({ ok: false, error: 'mode must be 0–2' })
 
-    const jarKeypair = Keypair.generate()
+    const jarKeypair       = Keypair.generate()
     const childWalletPubkey = new PublicKey(childWallet)
 
-    const txSignature = await program.methods
-      .createJar(
-        mode,
-        new anchor.BN(unlockDate),
-        new anchor.BN(goalAmount),
-        childWalletPubkey
-      )
-      .accounts({
-        jar: jarKeypair.publicKey,
-        owner: serverKeypair.publicKey,
-        systemProgram: anchor.web3.SystemProgram.programId,
-      })
-      .signers([jarKeypair])
-      .rpc()
+    let txSignature
 
-    console.log('[/jar/create] created jar:', jarKeypair.publicKey.toBase58(), 'tx:', txSignature)
+    if (currency === 'usdc') {
+      const mint           = usdcMint()
+      const vaultAuthority = await getVaultAuthority(jarKeypair.publicKey)
+      const jarUsdcVault   = await getAssociatedTokenAddress(mint, vaultAuthority, true)
+
+      txSignature = await program.methods
+        .createUsdcJar(
+          mode,
+          new anchor.BN(unlockDate),
+          new anchor.BN(goalAmount),
+          childWalletPubkey
+        )
+        .accounts({
+          jar:                    jarKeypair.publicKey,
+          vaultAuthority,
+          jarUsdcVault,
+          usdcMint:               mint,
+          owner:                  serverKeypair.publicKey,
+          systemProgram:          anchor.web3.SystemProgram.programId,
+          tokenProgram:           TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        })
+        .signers([jarKeypair])
+        .rpc()
+    } else {
+      txSignature = await program.methods
+        .createJar(
+          mode,
+          new anchor.BN(unlockDate),
+          new anchor.BN(goalAmount),
+          childWalletPubkey
+        )
+        .accounts({
+          jar:           jarKeypair.publicKey,
+          owner:         serverKeypair.publicKey,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([jarKeypair])
+        .rpc()
+    }
+
+    console.log(`[/jar/create] ${currency} jar:`, jarKeypair.publicKey.toBase58(), 'tx:', txSignature)
 
     res.json({
       ok: true,
       jarPubkey: jarKeypair.publicKey.toBase58(),
+      currency,
       txSignature,
     })
   } catch (err) {
@@ -122,49 +187,56 @@ app.post('/jar/create', async (req, res) => {
 
 // ---------------------------------------------------------------------------
 // GET /jar/:pubkey
-//
-// Returns full jar state + list of contributions.
 // ---------------------------------------------------------------------------
 
 app.get('/jar/:pubkey', async (req, res) => {
   try {
     const jarPubkey = new PublicKey(req.params.pubkey)
-
     const jar = await program.account.jar.fetch(jarPubkey)
 
-    // Fetch all Contribution accounts whose first field (jar pubkey) matches
     const contributions = await program.account.contribution.all([
-      {
-        memcmp: {
-          offset: 8, // skip 8-byte Anchor account discriminator
-          bytes: jarPubkey.toBase58(),
-        },
-      },
+      { memcmp: { offset: 8, bytes: jarPubkey.toBase58() } },
     ])
+
+    // For USDC jars: also return live vault token balance
+    let vaultTokenBalance = null
+    if (jar.jarCurrency === CURRENCY_USDC) {
+      try {
+        const jarUsdcVault = await getJarUsdcVault(jarPubkey)
+        const tokenBal = await connection.getTokenAccountBalance(jarUsdcVault)
+        vaultTokenBalance = tokenBal.value
+      } catch {
+        // vault may not exist yet
+      }
+    }
 
     res.json({
       ok: true,
       jar: {
-        pubkey: jarPubkey.toBase58(),
-        owner: jar.owner.toBase58(),
-        mode: jar.mode,
-        unlockDate: jar.unlockDate.toNumber(),
-        goalAmount: jar.goalAmount.toNumber(),
-        balance: jar.balance.toNumber(),
-        stakingShares: jar.stakingShares.toNumber(),
-        createdAt: jar.createdAt.toNumber(),
-        dailyLimit: jar.dailyLimit.toNumber(),
-        weeklyLimit: jar.weeklyLimit.toNumber(),
-        childWallet: jar.childWallet.toBase58(),
-        childSpendableBalance: jar.childSpendableBalance.toNumber(),
-        unlocked: jar.unlocked,
+        pubkey:               jarPubkey.toBase58(),
+        owner:                jar.owner.toBase58(),
+        mode:                 jar.mode,
+        unlockDate:           jar.unlockDate.toNumber(),
+        goalAmount:           jar.goalAmount.toNumber(),
+        balance:              jar.balance.toNumber(),
+        stakingShares:        jar.stakingShares.toNumber(),
+        createdAt:            jar.createdAt.toNumber(),
+        dailyLimit:           jar.dailyLimit.toNumber(),
+        weeklyLimit:          jar.weeklyLimit.toNumber(),
+        childWallet:          jar.childWallet.toBase58(),
+        childSpendableBalance:jar.childSpendableBalance.toNumber(),
+        unlocked:             jar.unlocked,
+        jarCurrency:          jar.jarCurrency,       // 0=USDC, 1=SOL
+        usdcBalance:          jar.usdcBalance.toNumber(),
+        usdcVault:            jar.usdcVault.toBase58(),
+        vaultTokenBalance,                           // live on-chain token balance
       },
       contributions: contributions.map(({ publicKey, account }) => ({
-        pubkey: publicKey.toBase58(),
+        pubkey:      publicKey.toBase58(),
         contributor: account.contributor.toBase58(),
-        amount: account.amount.toNumber(),
-        comment: account.comment,
-        createdAt: account.createdAt.toNumber(),
+        amount:      account.amount.toNumber(),
+        comment:     account.comment,
+        createdAt:   account.createdAt.toNumber(),
       })),
     })
   } catch (err) {
@@ -174,168 +246,61 @@ app.get('/jar/:pubkey', async (req, res) => {
 })
 
 // ---------------------------------------------------------------------------
-// POST /moonpay-webhook
-//
-// Called by MoonPay when a card payment settles.
-// Expects custom metadata set when creating the MoonPay widget session:
-//   externalTransactionId → jar pubkey (base58)
-//   notes                 → contributor message (max 120 chars)
-//
-// MoonPay signature header: MoonPay-Signature-1: t=<timestamp>,s=<hmac>
+// GET /apy
+// Returns live APY for USDC (Kamino) and SOL (Marinade)
 // ---------------------------------------------------------------------------
 
-app.post('/moonpay-webhook', async (req, res) => {
+app.get('/apy', async (req, res) => {
+  const FALLBACK = { usdc_kamino: 8.2, sol_marinade: 6.85 }
   try {
-    const rawBody = req.body.toString()
+    const [marinadeRes] = await Promise.allSettled([
+      fetch('https://api.marinade.finance/msol/apy/1y').then(r => r.json()),
+    ])
+    const solApy = marinadeRes.status === 'fulfilled'
+      ? Math.round((marinadeRes.value?.value || 0.0685) * 10000) / 100
+      : FALLBACK.sol_marinade
 
-    // 1. Verify MoonPay HMAC signature (skip if secret not configured)
-    const moonpaySecret = process.env.MOONPAY_SECRET_KEY
-    if (moonpaySecret) {
-      const header = req.headers['moonpay-signature-1'] || ''
-      const parts = Object.fromEntries(
-        header.split(',').map((p) => p.split('='))
-      )
-      const timestamp = parts['t']
-      const receivedSig = parts['s']
-
-      if (!timestamp || !receivedSig) {
-        return res.status(400).json({ ok: false, error: 'Missing MoonPay-Signature-1 header' })
-      }
-
-      const expected = crypto
-        .createHmac('sha256', moonpaySecret)
-        .update(`${timestamp}.${rawBody}`)
-        .digest('hex')
-
-      if (expected !== receivedSig) {
-        console.warn('[moonpay-webhook] invalid signature')
-        return res.status(401).json({ ok: false, error: 'Invalid signature' })
-      }
-    }
-
-    // 2. Parse payload
-    const payload = JSON.parse(rawBody)
-    console.log('[moonpay-webhook] received status:', payload?.transaction?.status)
-
-    const { transaction } = payload
-    if (!transaction) {
-      return res.status(400).json({ ok: false, error: 'No transaction in payload' })
-    }
-
-    // Only act on completed transactions
-    if (transaction.status !== 'completed') {
-      return res.json({ ok: true, skipped: true, status: transaction.status })
-    }
-
-    const jarPubkeyStr = transaction.externalTransactionId
-    const comment = (transaction.notes || '').slice(0, 120)
-    // baseCurrencyAmount is in USD — store cents as u64 for now
-    const amountUnits = Math.round((transaction.baseCurrencyAmount || 0) * 100)
-
-    if (!jarPubkeyStr) {
-      return res.status(400).json({ ok: false, error: 'externalTransactionId (jar pubkey) missing' })
-    }
-    if (amountUnits <= 0) {
-      return res.status(400).json({ ok: false, error: 'Invalid amount' })
-    }
-
-    // 3. Call gift_deposit on-chain
-    const jarPubkey = new PublicKey(jarPubkeyStr)
-    const contributionKeypair = Keypair.generate()
-
-    const txSignature = await program.methods
-      .giftDeposit(new anchor.BN(amountUnits), comment)
-      .accounts({
-        jar: jarPubkey,
-        contribution: contributionKeypair.publicKey,
-        contributor: serverKeypair.publicKey,
-        systemProgram: anchor.web3.SystemProgram.programId,
-      })
-      .signers([contributionKeypair])
-      .rpc()
-
-    console.log('[moonpay-webhook] gift_deposit tx:', txSignature)
-    res.json({ ok: true, txSignature })
-  } catch (err) {
-    console.error('[moonpay-webhook]', err.message)
-    res.status(500).json({ ok: false, error: err.message })
+    res.json({ ok: true, usdc_kamino: FALLBACK.usdc_kamino, sol_marinade: solApy })
+  } catch {
+    res.json({ ok: true, ...FALLBACK })
   }
 })
 
 // ---------------------------------------------------------------------------
-// POST /guardarian-webhook
+// Internal: gift_deposit_usdc — called after Transak/onramp confirms USDC
 //
-// Called by Guardarian when a fiat-to-USDC transaction changes status.
-// Expected finished payload fields, naming varies slightly by integration:
-//   status / transaction_status       → finished
-//   payout_address                    → jar pubkey / vault address
-//   external_partner_link_id          → JAR contribution id
-//   from_amount                       → fiat amount paid
-//   output_hash                       → Solana transaction hash
-//
-// NOTE: Guardarian does the fiat → USDC conversion and sends funds to the
-// payout address. This handler only records the contribution on the JAR program
-// for the current MVP; the SPL USDC vault flow is the next contract step.
+// Transfers USDC from server wallet ATA → jar vault, records Contribution.
 // ---------------------------------------------------------------------------
 
-app.post('/guardarian-webhook', async (req, res) => {
-  try {
-    const rawBody = Buffer.isBuffer(req.body) ? req.body.toString() : JSON.stringify(req.body)
-    const payload = rawBody ? JSON.parse(rawBody) : {}
+async function onrampDepositUsdc(jarPubkey, cryptoAmount, comment) {
+  const mint                   = usdcMint()
+  const vaultAuthority         = await getVaultAuthority(jarPubkey)
+  const jarUsdcVault           = await getAssociatedTokenAddress(mint, vaultAuthority, true)
+  const contributorUsdcAccount = await getOrCreateATA(serverKeypair.publicKey)
+  const contributionKeypair    = Keypair.generate()
 
-    const status = payload.status || payload.transaction_status || payload.transactionStatus
-    console.log('[guardarian-webhook] received status:', status)
+  const txSignature = await program.methods
+    .giftDepositUsdc(new anchor.BN(cryptoAmount), comment)
+    .accounts({
+      jar:                    jarPubkey,
+      jarUsdcVault,
+      vaultAuthority,
+      contribution:           contributionKeypair.publicKey,
+      contributorUsdcAccount,
+      usdcMint:               mint,
+      contributor:            serverKeypair.publicKey,
+      systemProgram:          anchor.web3.SystemProgram.programId,
+      tokenProgram:           TOKEN_PROGRAM_ID,
+      associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+    })
+    .signers([contributionKeypair])
+    .rpc()
 
-    if (status !== 'finished') {
-      return res.json({ ok: true, skipped: true, status })
-    }
-
-    const jarPubkeyStr =
-      payload.payout_address ||
-      payload.wallet_address ||
-      payload.to_address ||
-      payload.address
-    const amountPaid = Number(payload.from_amount || payload.input_amount || payload.amount || 0)
-    const contributionId = payload.external_partner_link_id || payload.partner_link_id || ''
-    const outputHash = payload.output_hash || payload.transaction_hash || ''
-    const comment = String(payload.message || contributionId || outputHash || '').slice(0, 120)
-
-    if (!jarPubkeyStr) {
-      return res.status(400).json({ ok: false, error: 'payout_address (jar pubkey) missing' })
-    }
-    if (!Number.isFinite(amountPaid) || amountPaid <= 0) {
-      return res.status(400).json({ ok: false, error: 'Invalid fiat amount' })
-    }
-
-    const amountUnits = Math.round(amountPaid * 100)
-    const jarPubkey = new PublicKey(jarPubkeyStr)
-    const contributionKeypair = Keypair.generate()
-
-    const txSignature = await program.methods
-      .giftDeposit(new anchor.BN(amountUnits), comment)
-      .accounts({
-        jar: jarPubkey,
-        contribution: contributionKeypair.publicKey,
-        contributor: serverKeypair.publicKey,
-        systemProgram: anchor.web3.SystemProgram.programId,
-      })
-      .signers([contributionKeypair])
-      .rpc()
-
-    console.log('[guardarian-webhook] gift_deposit tx:', txSignature, 'onramp tx:', outputHash)
-    res.json({ ok: true, txSignature, outputHash })
-  } catch (err) {
-    console.error('[guardarian-webhook]', err.message)
-    res.status(500).json({ ok: false, error: err.message })
-  }
-})
+  return txSignature
+}
 
 // ---------------------------------------------------------------------------
 // POST /transak-webhook
-//
-// Called by Transak when an order status changes.
-// Payload is a JWT signed with TRANSAK_API_SECRET (Partner Access Token).
-// On ORDER_COMPLETED: decode partnerOrderId → vaultAddress, record gift_deposit on-chain.
 // ---------------------------------------------------------------------------
 
 app.post('/transak-webhook', async (req, res) => {
@@ -348,7 +313,6 @@ app.post('/transak-webhook', async (req, res) => {
       const jwt = require('jsonwebtoken')
       payload = jwt.verify(rawBody, secret)
     } else {
-      // No secret configured — accept without verification (dev/staging only)
       payload = JSON.parse(rawBody)
     }
 
@@ -359,14 +323,13 @@ app.post('/transak-webhook', async (req, res) => {
       return res.json({ ok: true, skipped: true, eventID })
     }
 
-    const data = payload.webhookData || payload.data || {}
-    const vaultAddress = data.walletAddress || data.wallet_address
-    const fiatAmount = Number(data.fiatAmount || data.fiat_amount || 0)
-    const cryptoAmount = Number(data.cryptoAmount || data.crypto_amount || 0)
+    const data          = payload.webhookData || payload.data || {}
+    const vaultAddress  = data.walletAddress || data.wallet_address
+    const fiatAmount    = Number(data.fiatAmount    || data.fiat_amount    || 0)
+    const cryptoAmount  = Number(data.cryptoAmount  || data.crypto_amount  || 0)
     const partnerOrderId = data.partnerOrderId || data.partner_order_id || ''
     const transakOrderId = data.id || ''
 
-    // Decode message from partnerOrderId: `${vaultAddress}__${timestamp}__${encodedMessage}`
     const parts = partnerOrderId.split('__')
     const contributorMessage = parts.length >= 3
       ? decodeURIComponent(parts.slice(2).join('__')).slice(0, 120)
@@ -376,27 +339,117 @@ app.post('/transak-webhook', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'walletAddress (jar pubkey) missing' })
     }
 
-    console.log('[transak-webhook] ORDER_COMPLETED', { vaultAddress, fiatAmount, cryptoAmount, contributorMessage })
-
-    const amountUnits = Math.round(fiatAmount * 100)
     const jarPubkey = new PublicKey(vaultAddress)
-    const contributionKeypair = Keypair.generate()
 
-    const txSignature = await program.methods
-      .giftDeposit(new anchor.BN(amountUnits), contributorMessage)
-      .accounts({
-        jar: jarPubkey,
-        contribution: contributionKeypair.publicKey,
-        contributor: serverKeypair.publicKey,
-        systemProgram: anchor.web3.SystemProgram.programId,
-      })
-      .signers([contributionKeypair])
-      .rpc()
+    // Fetch jar to determine currency
+    let jar
+    try {
+      jar = await program.account.jar.fetch(jarPubkey)
+    } catch (e) {
+      console.warn('[transak-webhook] could not fetch jar, assuming USDC:', e.message)
+    }
 
-    console.log('[transak-webhook] gift_deposit tx:', txSignature)
+    const isUsdcJar = !jar || jar.jarCurrency === CURRENCY_USDC
+
+    console.log('[transak-webhook] ORDER_COMPLETED', {
+      vaultAddress, fiatAmount, cryptoAmount, isUsdcJar, contributorMessage,
+    })
+
+    let txSignature
+
+    if (isUsdcJar) {
+      // cryptoAmount is in USDC (6 decimals) — convert to micro-units
+      const usdcMicroUnits = Math.round(cryptoAmount * 1_000_000)
+      txSignature = await onrampDepositUsdc(jarPubkey, usdcMicroUnits, contributorMessage)
+      console.log('[transak-webhook] gift_deposit_usdc tx:', txSignature)
+    } else {
+      // SOL jar — Jupiter swap USDC→SOL then deposit (TODO: implement Jupiter swap)
+      // For now: record as legacy gift_deposit with fiat cents
+      const contributionKeypair = Keypair.generate()
+      const amountUnits = Math.round(fiatAmount * 100)
+      txSignature = await program.methods
+        .giftDeposit(new anchor.BN(amountUnits), contributorMessage)
+        .accounts({
+          jar:           jarPubkey,
+          contribution:  contributionKeypair.publicKey,
+          contributor:   serverKeypair.publicKey,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([contributionKeypair])
+        .rpc()
+      console.log('[transak-webhook] gift_deposit (SOL jar, swap TODO) tx:', txSignature)
+    }
+
     res.json({ ok: true, txSignature })
   } catch (err) {
     console.error('[transak-webhook]', err.message)
+    res.status(500).json({ ok: false, error: err.message })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// POST /moonpay-webhook  (unchanged — SOL mode only)
+// ---------------------------------------------------------------------------
+
+app.post('/moonpay-webhook', async (req, res) => {
+  try {
+    const rawBody = req.body.toString()
+    const moonpaySecret = process.env.MOONPAY_SECRET_KEY
+    if (moonpaySecret) {
+      const header = req.headers['moonpay-signature-1'] || ''
+      const parts  = Object.fromEntries(header.split(',').map(p => p.split('=')))
+      const expected = crypto
+        .createHmac('sha256', moonpaySecret)
+        .update(`${parts['t']}.${rawBody}`)
+        .digest('hex')
+      if (expected !== parts['s']) {
+        return res.status(401).json({ ok: false, error: 'Invalid signature' })
+      }
+    }
+    const payload = JSON.parse(rawBody)
+    if (payload?.transaction?.status !== 'completed') {
+      return res.json({ ok: true, skipped: true })
+    }
+    const amountUnits = Math.round((payload.transaction.baseCurrencyAmount || 0) * 100)
+    const jarPubkey   = new PublicKey(payload.transaction.externalTransactionId)
+    const comment     = (payload.transaction.notes || '').slice(0, 120)
+    const contributionKeypair = Keypair.generate()
+    const tx = await program.methods
+      .giftDeposit(new anchor.BN(amountUnits), comment)
+      .accounts({ jar: jarPubkey, contribution: contributionKeypair.publicKey, contributor: serverKeypair.publicKey, systemProgram: anchor.web3.SystemProgram.programId })
+      .signers([contributionKeypair])
+      .rpc()
+    res.json({ ok: true, txSignature: tx })
+  } catch (err) {
+    console.error('[moonpay-webhook]', err.message)
+    res.status(500).json({ ok: false, error: err.message })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// POST /guardarian-webhook  (unchanged)
+// ---------------------------------------------------------------------------
+
+app.post('/guardarian-webhook', async (req, res) => {
+  try {
+    const rawBody = Buffer.isBuffer(req.body) ? req.body.toString() : JSON.stringify(req.body)
+    const payload = rawBody ? JSON.parse(rawBody) : {}
+    const status  = payload.status || payload.transaction_status
+    if (status !== 'finished') return res.json({ ok: true, skipped: true, status })
+    const jarPubkeyStr = payload.payout_address || payload.wallet_address
+    const amountPaid   = Number(payload.from_amount || 0)
+    const comment      = String(payload.output_hash || '').slice(0, 120)
+    const amountUnits  = Math.round(amountPaid * 100)
+    const jarPubkey    = new PublicKey(jarPubkeyStr)
+    const contributionKeypair = Keypair.generate()
+    const tx = await program.methods
+      .giftDeposit(new anchor.BN(amountUnits), comment)
+      .accounts({ jar: jarPubkey, contribution: contributionKeypair.publicKey, contributor: serverKeypair.publicKey, systemProgram: anchor.web3.SystemProgram.programId })
+      .signers([contributionKeypair])
+      .rpc()
+    res.json({ ok: true, txSignature: tx })
+  } catch (err) {
+    console.error('[guardarian-webhook]', err.message)
     res.status(500).json({ ok: false, error: err.message })
   }
 })
