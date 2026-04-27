@@ -1,18 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Lock, Heart, Shield } from "lucide-react";
-import { Connection, PublicKey } from "@solana/web3.js";
 import TransakWidget from "@/components/TransakWidget";
-import { fetchJarByPubkey, RPC_URL } from "@/lib/program";
-import type { JarAccount } from "@/lib/program";
 
-// ---------------------------------------------------------------------------
-// Mock data — used when slug is a human-readable alias (not a real pubkey)
-// ---------------------------------------------------------------------------
-
-type DisplayJar = {
+export type DisplayJar = {
   name: string;
   emoji: string;
   amountCents: number;
@@ -48,60 +41,24 @@ const MOCK_JARS: Record<string, DisplayJar> = {
   },
 };
 
-function jarToDisplay(jar: JarAccount): DisplayJar {
-  let unlockLabel = "";
-  const date = jar.unlockDate
-    ? new Date(jar.unlockDate * 1000).toLocaleDateString("en-US", {
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      })
-    : null;
-  const goalUsd = (jar.goalAmount / 100).toLocaleString();
-
-  if (jar.mode === 0) unlockLabel = date ? `Opens ${date}` : "Locked";
-  else if (jar.mode === 1) unlockLabel = `Opens when $${goalUsd} collected`;
-  else unlockLabel = `Opens at $${goalUsd}${date ? ` or on ${date}` : ""}`;
-
-  return {
-    name: "Savings Jar",
-    emoji: "🏺",
-    amountCents: jar.balance,
-    goalCents: jar.goalAmount,
-    unlockLabel,
-    contributors: 0,
-  };
-}
-
-// ---------------------------------------------------------------------------
-
 const IS_SOLANA_PUBKEY = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
-export default function GiftClient({ slug, apy = 6.85 }: { slug: string; apy?: number }) {
-  const isRealJar = IS_SOLANA_PUBKEY.test(slug);
+interface GiftClientProps {
+  slug: string;
+  apy?: number;
+  jarData?: DisplayJar | null;
+}
 
-  const [jar, setJar] = useState<DisplayJar | null>(
-    MOCK_JARS[slug] ?? (isRealJar ? null : MOCK_JARS.anya)
-  );
-  const [loading, setLoading] = useState(isRealJar && !MOCK_JARS[slug]);
+export default function GiftClient({ slug, apy = 6.85, jarData }: GiftClientProps) {
+  const isRealJar = IS_SOLANA_PUBKEY.test(slug);
+  const jar: DisplayJar | null = jarData ?? MOCK_JARS[slug] ?? (isRealJar ? null : MOCK_JARS.anya);
+  const vaultAddress = isRealJar ? slug : "11111111111111111111111111111111";
 
   const [amount, setAmount] = useState<number>(50);
   const [message, setMessage] = useState("");
   const [showTransak, setShowTransak] = useState(false);
   const [done, setDone] = useState(false);
 
-  useEffect(() => {
-    if (!isRealJar || MOCK_JARS[slug]) return;
-
-    const connection = new Connection(RPC_URL, "confirmed");
-    fetchJarByPubkey(connection, new PublicKey(slug))
-      .then((data) => {
-        if (data) setJar(jarToDisplay(data));
-      })
-      .finally(() => setLoading(false));
-  }, [slug, isRealJar]);
-
-  const vaultAddress = isRealJar ? slug : "11111111111111111111111111111111";
   const pct = jar ? Math.min(100, Math.round((jar.amountCents / jar.goalCents) * 100)) : 0;
   const amountUsd = jar ? (jar.amountCents / 100).toLocaleString(undefined, { minimumFractionDigits: 0 }) : "—";
   const goalUsd = jar ? (jar.goalCents / 100).toLocaleString() : "—";
@@ -139,35 +96,25 @@ export default function GiftClient({ slug, apy = 6.85 }: { slug: string; apy?: n
           vaultAddress={vaultAddress}
           fiatAmount={amount}
           contributorMessage={message}
-          onSuccess={() => {
-            setShowTransak(false);
-            setDone(true);
-          }}
+          onSuccess={() => { setShowTransak(false); setDone(true); }}
           onClose={() => setShowTransak(false)}
         />
       )}
 
       <div className="mx-auto max-w-lg">
-        <Link
-          href="/"
-          className="mb-8 inline-flex items-center gap-2 text-sm text-ink-muted hover:text-ink"
-        >
+        <Link href="/" className="mb-8 inline-flex items-center gap-2 text-sm text-ink-muted hover:text-ink">
           <span className="text-lg">🏺</span>
           <span className="font-display text-xl font-bold">JAR</span>
         </Link>
 
         <div className="rounded-3xl bg-white p-8 shadow-[0_30px_80px_-30px_rgba(153,69,255,0.3)]">
-          {loading ? (
-            <div className="flex h-64 items-center justify-center">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-sol-purple border-t-transparent" />
-            </div>
-          ) : jar ? (
+          {!jar ? (
+            <div className="flex h-64 items-center justify-center text-ink-muted">Jar not found</div>
+          ) : (
             <>
               <div className="text-center">
                 <div className="text-6xl">{jar.emoji}</div>
-                <div className="mt-4 font-display text-3xl font-semibold">
-                  {jar.name}
-                </div>
+                <div className="mt-4 font-display text-3xl font-semibold">{jar.name}</div>
                 <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-surface-lavender px-3 py-1 text-xs font-medium text-sol-purple">
                   <Lock className="h-3 w-3" /> {jar.unlockLabel}
                 </div>
@@ -175,9 +122,7 @@ export default function GiftClient({ slug, apy = 6.85 }: { slug: string; apy?: n
 
               <div className="mt-8">
                 <div className="mb-2 flex items-baseline justify-between">
-                  <span className="font-display text-3xl font-semibold">
-                    ${amountUsd}
-                  </span>
+                  <span className="font-display text-3xl font-semibold">${amountUsd}</span>
                   <span className="text-sm text-ink-muted">of ${goalUsd}</span>
                 </div>
                 <div className="h-3 overflow-hidden rounded-full bg-black/5">
@@ -246,26 +191,17 @@ export default function GiftClient({ slug, apy = 6.85 }: { slug: string; apy?: n
                 Secure payment · min $15 · no account needed
               </div>
             </>
-          ) : (
-            <div className="flex h-64 items-center justify-center text-ink-muted">
-              Jar not found
-            </div>
           )}
         </div>
 
         <div className="mt-6 space-y-2.5 rounded-3xl bg-white/60 p-5 text-xs text-ink-muted backdrop-blur">
           <div className="flex items-start gap-2">
             <Shield className="mt-0.5 h-4 w-4 flex-shrink-0 text-ink-faint" />
-            <span>
-              Your contribution goes directly to an on-chain vault. JAR never
-              holds your money.
-            </span>
+            <span>Your contribution goes directly to an on-chain vault. JAR never holds your money.</span>
           </div>
           <div className="flex items-start gap-2">
             <Heart className="mt-0.5 h-4 w-4 flex-shrink-0 text-ink-faint" />
-            <span>
-              Funds earn ~{apy}% APY via Marinade staking until the jar unlocks.
-            </span>
+            <span>Funds earn ~{apy}% APY via Marinade staking until the jar unlocks.</span>
           </div>
         </div>
       </div>
