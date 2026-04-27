@@ -24,6 +24,10 @@
     "recharts": "^2.12.7",
     "ts-interface-checker": "^1.0.2"
   },
+  "overrides": {
+    "@types/react": "^18",
+    "@types/react-dom": "^18"
+  },
   "devDependencies": {
     "@cloudflare/next-on-pages": "^1.13.5",
     "@types/node": "^20",
