@@ -1,4 +1,5 @@
 import GiftClient from "./GiftClient";
+import { getMarinadeAPY } from "@/lib/marinade";
 
 export const runtime = "edge";
 
@@ -8,5 +9,6 @@ export default async function GiftPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  return <GiftClient slug={slug} />;
+  const apy = await getMarinadeAPY();
+  return <GiftClient slug={slug} apy={apy} />;
 }

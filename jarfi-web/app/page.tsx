@@ -118,7 +118,7 @@ export default function Landing() {
                   </div>
                 </div>
                 <div className="rounded-full bg-sol-green/20 px-3 py-1 text-[11px] font-semibold text-green-700">
-                  +6.2% APY
+                  +6.85% APY
                 </div>
               </div>
 
@@ -210,7 +210,7 @@ export default function Landing() {
 
               <div className="border-t border-black/5 pt-6 text-xs text-ink-muted">
                 Monthly compounding. Bank APY 0.5% (US avg). JAR uses Marinade
-                at ~6.2% APY — variable, not guaranteed.
+                at ~6.85% APY — variable, not guaranteed.
               </div>
             </div>
 
@@ -233,7 +233,7 @@ export default function Landing() {
               <ResultRow
                 emoji="🏺"
                 label="JAR"
-                sub="Auto-staked at ~6.2% APY. Family contributes by card."
+                sub="Auto-staked at ~6.85% APY. Family contributes by card."
                 amount={jar}
                 tone="win"
                 highlight
@@ -402,7 +402,7 @@ export default function Landing() {
             <TrustItem
               icon={<TrendingUp className="h-5 w-5" />}
               title="Yield comes from Marinade"
-              body="Variable ~6.2% APY from Solana validator rewards via Marinade liquid staking. Not guaranteed. Fluctuates with the network."
+              body="Variable ~6.85% APY from Solana validator rewards via Marinade liquid staking. Not guaranteed. Fluctuates with the network."
             />
             <TrustItem
               icon={<Heart className="h-5 w-5" />}

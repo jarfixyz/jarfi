@@ -77,7 +77,7 @@ function jarToDisplay(jar: JarAccount): DisplayJar {
 
 const IS_SOLANA_PUBKEY = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
-export default function GiftClient({ slug }: { slug: string }) {
+export default function GiftClient({ slug, apy = 6.85 }: { slug: string; apy?: number }) {
   const isRealJar = IS_SOLANA_PUBKEY.test(slug);
 
   const [jar, setJar] = useState<DisplayJar | null>(
@@ -264,7 +264,7 @@ export default function GiftClient({ slug }: { slug: string }) {
           <div className="flex items-start gap-2">
             <Heart className="mt-0.5 h-4 w-4 flex-shrink-0 text-ink-faint" />
             <span>
-              Funds earn ~6.2% APY via Marinade staking until the jar unlocks.
+              Funds earn ~{apy}% APY via Marinade staking until the jar unlocks.
             </span>
           </div>
         </div>

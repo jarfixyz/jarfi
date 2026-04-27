@@ -90,7 +90,7 @@ Push notification → contributor summary → balance released
 
 | Problem | JAR |
 |---|---|
-| Savings earn nothing (<0.5% APY) | Auto-staking via Marinade (~6% APY, variable) |
+| Savings earn nothing (<0.5% APY) | Auto-staking via Marinade (~6.85% APY, variable) |
 | Family can't easily contribute | Anyone pays by card via shareable link |
 | Funds get spent before the goal | Locked on-chain until condition is met |
 | Manual unlock is a hassle | Smart contract triggers automatically |
@@ -100,7 +100,7 @@ Push notification → contributor summary → balance released
 
 ## Yield — honest framing
 
-JAR uses **Marinade Finance** for liquid staking on Solana. Current APY is approximately 6%, variable and not guaranteed.
+JAR uses **Marinade Finance** for liquid staking on Solana. Current APY is approximately 6.85%, variable and not guaranteed.
 
 - Yield comes from Solana validator rewards via Marinade's liquid staking
 - APY fluctuates with network conditions — shown live in the app
@@ -131,8 +131,8 @@ JAR is not a bank. Deposits are not insured. Only deposit what you're comfortabl
 | Staking | Marinade Finance |
 | Mobile | React Native / Expo (iOS + Android) |
 | Web dashboard | Next.js |
-| Fiat onramp | Guardarian candidate: card/Apple Pay → USDC on Solana |
-| RPC | DoubleZero network |
+| Fiat onramp | Transak — card/Apple Pay → USDC on Solana, no crypto account needed |
+| RPC | Powered by DoubleZero |
 | Push notifications | Firebase / Expo Push |
 
 ---
@@ -163,7 +163,7 @@ jarfi/
 - Marinade staking integration
 - Mobile: create jar flow, jar detail, activity feed, push notifications
 - Web dashboard: balance chart, staking forecast, contributors feed
-- Gift page: jarfi.xyz/gift/[slug] with Guardarian USDC checkout spike
+- Gift page: jarfi.xyz/gift/[slug] with Transak card/Apple Pay checkout
 - DoubleZero RPC for all transactions
 
 **Post-hackathon roadmap:**

@@ -300,7 +300,7 @@ function DashboardPage({
 
           <Card title="Forecast">
             <div className="mb-4 text-xs text-ink-muted">
-              Marinade · 6.2% APY · until 2036
+              Marinade · 6.85% APY · until 2036
             </div>
             <div className="space-y-2">
               {[
@@ -422,7 +422,7 @@ function AnalyticsPage() {
       <div className="px-8 py-7">
         <div className="mb-6 grid gap-4 md:grid-cols-4">
           <StatCard label="Total deposited" value="$1,200.30" change="by you" tint="bg-surface-lavender" />
-          <StatCard label="Staking earned" value="$84.20" change="↑ 6.2% APY avg" tint="bg-surface-mint" />
+          <StatCard label="Staking earned" value="$84.20" change="↑ 6.85% APY avg" tint="bg-surface-mint" />
           <StatCard label="Family contributed" value="$436.00" change="5 contributors" tint="bg-surface-sky" />
           <StatCard label="Deposits count" value="24" change="across all jars" tint="bg-surface-cream" />
         </div>
