@@ -53,9 +53,15 @@ export default async function GiftPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const [apy, jarData] = await Promise.all([
-    getMarinadeAPY(),
-    IS_SOLANA_PUBKEY.test(slug) ? fetchJarFromBackend(slug) : Promise.resolve(null),
-  ]);
+  let apy = 6.85;
+  let jarData: DisplayJar | null = null;
+  try {
+    [apy, jarData] = await Promise.all([
+      getMarinadeAPY(),
+      IS_SOLANA_PUBKEY.test(slug) ? fetchJarFromBackend(slug) : Promise.resolve(null),
+    ]);
+  } catch {
+    // fallback silently
+  }
   return <GiftClient slug={slug} apy={apy} jarData={jarData} />;
 }
