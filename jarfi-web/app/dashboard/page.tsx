@@ -116,8 +116,16 @@ export default function Dashboard() {
     };
   });
 
-  // Fall back to mock data when wallet not connected (demo mode)
-  const jars = normalizedLive.length > 0 ? normalizedLive : JARS;
+  // Fall back to mock data only when wallet not connected (demo mode)
+  const jars = publicKey
+    ? normalizedLive
+    : JARS;
+
+  const greeting = publicKey
+    ? `${publicKey.toBase58().slice(0, 4)}…${publicKey.toBase58().slice(-4)}`
+    : null;
+
+  const firstJarName = normalizedLive[0]?.name ?? null;
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -159,9 +167,10 @@ export default function Dashboard() {
           />
         </div>
 
+        {(firstJarName || !publicKey) && (
         <div className="mt-6 px-3">
           <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-widest text-ink-faint">
-            Anya&apos;s Jar
+            {firstJarName ?? "Anya's Jar"}
           </div>
           <NavItem
             label="Contributors"
@@ -176,6 +185,7 @@ export default function Dashboard() {
             onClick={() => setActivePage("gift")}
           />
         </div>
+        )}
 
         <div className="mt-auto border-t border-black/5 px-3 pt-4">
           <WalletButton />
@@ -190,7 +200,7 @@ export default function Dashboard() {
       {/* ──────────────────────────────────────────────────────────────── MAIN */}
       <main className="flex-1 overflow-y-auto">
         {activePage === "dashboard" && (
-          <DashboardPage onNewJar={() => setModal("new-jar")} scenario={scenario} setScenario={setScenario} jars={jars} />
+          <DashboardPage onNewJar={() => setModal("new-jar")} scenario={scenario} setScenario={setScenario} jars={jars} greeting={greeting} />
         )}
         {activePage === "jars" && <JarsPage onNewJar={() => setModal("new-jar")} jars={jars} />}
         {activePage === "analytics" && <AnalyticsPage />}
@@ -239,15 +249,17 @@ function DashboardPage({
   scenario,
   setScenario,
   jars,
+  greeting,
 }: {
   onNewJar: () => void;
   scenario: string;
   setScenario: (s: string) => void;
   jars: typeof JARS;
+  greeting: string | null;
 }) {
   return (
     <>
-      <TopBar title="Dashboard" subtitle="Good morning, Ivan ☀️">
+      <TopBar title="Dashboard" subtitle={greeting ? `Good morning, ${greeting} ☀️` : "Good morning ☀️"}>
         <button
           onClick={onNewJar}
           className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white transition hover:bg-ink/90"
@@ -336,11 +348,25 @@ function DashboardPage({
 
         {/* Jars grid */}
         <Card title="My Jars" action={<CardAction label="View all →" />}>
-          <div className="grid gap-3 md:grid-cols-3">
-            {jars.map((j) => (
-              <JarCard key={j.id} jar={j} />
-            ))}
-          </div>
+          {jars.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="mb-3 text-5xl">🏺</div>
+              <div className="mb-1 font-display text-lg font-semibold">No jars yet</div>
+              <div className="mb-5 text-sm text-ink-muted">Create your first jar and share a gift link</div>
+              <button
+                onClick={onNewJar}
+                className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white hover:bg-ink/90"
+              >
+                <Plus className="h-4 w-4" /> Create your first jar
+              </button>
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-3">
+              {jars.map((j) => (
+                <JarCard key={j.id} jar={j} />
+              ))}
+            </div>
+          )}
         </Card>
 
         {/* Activity + Contributors */}

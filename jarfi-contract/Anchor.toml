@@ -12,7 +12,7 @@ jarfi_contract = "HtQt8P4pcF2X4D9oxWwsafj5KnwJsUPF148mvkZMQaFW"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

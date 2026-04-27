@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Lock, Heart, Shield } from "lucide-react";
 import TransakWidget from "@/components/TransakWidget";
@@ -42,23 +42,72 @@ const MOCK_JARS: Record<string, DisplayJar> = {
 };
 
 const IS_SOLANA_PUBKEY = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:3001";
+const FALLBACK_APY = 6.85;
 
-interface GiftClientProps {
-  slug: string;
-  apy?: number;
-  jarData?: DisplayJar | null;
-}
-
-export default function GiftClient({ slug, apy = 6.85, jarData }: GiftClientProps) {
+export default function GiftClient({ slug }: { slug: string }) {
   const isRealJar = IS_SOLANA_PUBKEY.test(slug);
-  const jar: DisplayJar | null = jarData ?? MOCK_JARS[slug] ?? (isRealJar ? null : MOCK_JARS.anya);
-  const vaultAddress = isRealJar ? slug : "11111111111111111111111111111111";
+  const mockJar = MOCK_JARS[slug] ?? null;
 
+  const [jar, setJar] = useState<DisplayJar | null>(mockJar);
+  const [jarNotFound, setJarNotFound] = useState(false);
+  const [apy, setApy] = useState<number>(FALLBACK_APY);
   const [amount, setAmount] = useState<number>(50);
   const [message, setMessage] = useState("");
   const [showTransak, setShowTransak] = useState(false);
   const [done, setDone] = useState(false);
 
+  useEffect(() => {
+    // Fetch live APY from Marinade
+    fetch("https://api.marinade.finance/msol/apy/1y")
+      .then((r) => r.json())
+      .then((d: { value?: number }) => {
+        const pct = (d.value ?? 0) * 100;
+        if (pct > 0) setApy(Math.round(pct * 10) / 10);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!isRealJar || mockJar) return;
+
+    const timeout = setTimeout(() => setJarNotFound(true), 6000);
+
+    fetch(`${BACKEND_URL}/jar/${slug}`)
+      .then((r) => r.json())
+      .then((data: {
+        ok: boolean;
+        jar?: { mode: number; unlockDate: number; goalAmount: number; balance: number };
+        contributions?: unknown[];
+      }) => {
+        if (!data.ok || !data.jar) return;
+        const j = data.jar;
+        const date = j.unlockDate
+          ? new Date(j.unlockDate * 1000).toLocaleDateString("en-US", {
+              month: "long", day: "numeric", year: "numeric",
+            })
+          : null;
+        const goalUsd = (j.goalAmount / 100).toLocaleString();
+        let unlockLabel = "";
+        if (j.mode === 0) unlockLabel = date ? `Opens ${date}` : "Locked";
+        else if (j.mode === 1) unlockLabel = `Opens when $${goalUsd} collected`;
+        else unlockLabel = `Opens at $${goalUsd}${date ? ` or on ${date}` : ""}`;
+
+        setJar({
+          name: "Savings Jar",
+          emoji: "🏺",
+          amountCents: j.balance,
+          goalCents: j.goalAmount,
+          unlockLabel,
+          contributors: data.contributions?.length ?? 0,
+        });
+        clearTimeout(timeout);
+      })
+      .catch(() => setJarNotFound(true))
+      .finally(() => clearTimeout(timeout));
+  }, [slug, isRealJar, mockJar]);
+
+  const vaultAddress = isRealJar ? slug : "11111111111111111111111111111111";
   const pct = jar ? Math.min(100, Math.round((jar.amountCents / jar.goalCents) * 100)) : 0;
   const amountUsd = jar ? (jar.amountCents / 100).toLocaleString(undefined, { minimumFractionDigits: 0 }) : "—";
   const goalUsd = jar ? (jar.goalCents / 100).toLocaleString() : "—";
@@ -78,10 +127,7 @@ export default function GiftClient({ slug, apy = 6.85, jarData }: GiftClientProp
               &ldquo;{message}&rdquo;
             </div>
           )}
-          <Link
-            href="/"
-            className="mt-8 inline-block rounded-full bg-ink px-6 py-3 text-sm font-medium text-white"
-          >
+          <Link href="/" className="mt-8 inline-block rounded-full bg-ink px-6 py-3 text-sm font-medium text-white">
             Learn about JAR
           </Link>
         </div>
@@ -108,8 +154,16 @@ export default function GiftClient({ slug, apy = 6.85, jarData }: GiftClientProp
         </Link>
 
         <div className="rounded-3xl bg-white p-8 shadow-[0_30px_80px_-30px_rgba(153,69,255,0.3)]">
-          {!jar ? (
-            <div className="flex h-64 items-center justify-center text-ink-muted">Jar not found</div>
+          {jarNotFound ? (
+            <div className="flex h-64 flex-col items-center justify-center text-center">
+              <div className="mb-2 text-4xl">🔍</div>
+              <div className="font-display text-lg font-semibold">Jar not found</div>
+              <div className="mt-1 text-sm text-ink-muted">Check the link and try again</div>
+            </div>
+          ) : !jar ? (
+            <div className="flex h-64 items-center justify-center">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-sol-purple border-t-transparent" />
+            </div>
           ) : (
             <>
               <div className="text-center">
