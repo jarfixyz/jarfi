@@ -1,31 +1,11 @@
-const fs = require('fs')
-const path = require('path')
 const cron = require('node-cron')
 const crypto = require('crypto')
-
-const SCHEDULES_FILE = path.join(__dirname, 'schedules.json')
-const SUBS_FILE = path.join(__dirname, 'push-subscriptions.json')
-
-// ---------------------------------------------------------------------------
-// Persistence helpers
-// ---------------------------------------------------------------------------
-
-function loadJson(file, fallback) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')) }
-  catch { return fallback }
-}
-
-function saveJson(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2))
-}
+const db = require('./db')
 
 // ---------------------------------------------------------------------------
 // Cron expression builder
 // ---------------------------------------------------------------------------
 
-// frequency: "weekly" | "monthly"
-// day:  weekly = 0-6 (Sun=0), monthly = 1-28
-// hour, minute: 0-23, 0-59
 function buildCron({ frequency, day, hour, minute }) {
   if (frequency === 'weekly')  return `${minute} ${hour} * * ${day}`
   if (frequency === 'monthly') return `${minute} ${hour} ${day} * *`
@@ -37,47 +17,27 @@ function buildCron({ frequency, day, hour, minute }) {
 // ---------------------------------------------------------------------------
 
 function addSchedule({ jar_pubkey, owner_pubkey, amount_usdc, frequency, day, hour, minute }) {
-  const schedules = loadJson(SCHEDULES_FILE, [])
   const id = crypto.randomUUID()
   const cron_expr = buildCron({ frequency, day, hour, minute })
-  const schedule = {
-    id,
-    jar_pubkey,
-    owner_pubkey,
-    amount_usdc,       // USD cents (integer) — e.g. 1000 = $10.00
-    frequency,
-    day,
-    hour,
-    minute,
-    cron_expr,
-    active: true,
-    created_at: Date.now(),
-    last_fired: null,
+  const row = {
+    id, jar_pubkey, owner_pubkey,
+    amount_usdc, frequency, day, hour, minute,
+    cron_expr, created_at: Date.now(),
   }
-  schedules.push(schedule)
-  saveJson(SCHEDULES_FILE, schedules)
-  return schedule
+  db.addScheduleRow(row)
+  return { ...row, active: true, last_fired: null }
 }
 
 function getSchedulesByOwner(owner_pubkey) {
-  return loadJson(SCHEDULES_FILE, []).filter(
-    s => s.owner_pubkey === owner_pubkey && s.active
-  )
+  return db.getSchedulesByOwner(owner_pubkey).map(r => ({ ...r, active: !!r.active }))
 }
 
 function deleteSchedule(id) {
-  const schedules = loadJson(SCHEDULES_FILE, [])
-  const idx = schedules.findIndex(s => s.id === id)
-  if (idx === -1) return false
-  schedules[idx].active = false
-  saveJson(SCHEDULES_FILE, schedules)
-  return true
+  return db.deactivateSchedule(id)
 }
 
 function markFired(id) {
-  const schedules = loadJson(SCHEDULES_FILE, [])
-  const s = schedules.find(s => s.id === id)
-  if (s) { s.last_fired = Date.now(); saveJson(SCHEDULES_FILE, schedules) }
+  db.markScheduleFired(id)
 }
 
 // ---------------------------------------------------------------------------
@@ -85,28 +45,23 @@ function markFired(id) {
 // ---------------------------------------------------------------------------
 
 function savePushSubscription(owner_pubkey, subscription) {
-  const subs = loadJson(SUBS_FILE, {})
-  subs[owner_pubkey] = subscription
-  saveJson(SUBS_FILE, subs)
+  db.savePushSub(owner_pubkey, subscription)
 }
 
 function getPushSubscription(owner_pubkey) {
-  return loadJson(SUBS_FILE, {})[owner_pubkey] || null
+  return db.getPushSub(owner_pubkey)
 }
 
 // ---------------------------------------------------------------------------
-// Cron runner
+// Cron runner — same API as before
 // ---------------------------------------------------------------------------
 
-// onFire(schedule, subscription|null) — called when a schedule is due.
-// Runs every minute; node-cron checks each active schedule's cron_expr.
 function startCronRunner(onFire) {
   const activeTasks = new Map()
 
   function syncTasks() {
-    const schedules = loadJson(SCHEDULES_FILE, []).filter(s => s.active)
+    const schedules = db.getActiveSchedules()
 
-    // Remove tasks for deleted/inactive schedules
     for (const [id, task] of activeTasks) {
       if (!schedules.find(s => s.id === id)) {
         task.stop()
@@ -114,7 +69,6 @@ function startCronRunner(onFire) {
       }
     }
 
-    // Add tasks for new schedules
     for (const schedule of schedules) {
       if (activeTasks.has(schedule.id)) continue
       if (!cron.validate(schedule.cron_expr)) {
@@ -132,7 +86,6 @@ function startCronRunner(onFire) {
     }
   }
 
-  // Sync on startup and every 60s to pick up new schedules added via API
   syncTasks()
   setInterval(syncTasks, 60_000)
 }
