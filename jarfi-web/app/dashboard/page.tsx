@@ -28,6 +28,7 @@ import {
   fetchApy,
   createScheduleApi, fetchSchedules, stopScheduleApi, type Schedule,
   createGroupApi, fetchGroupsByOwner, type GroupInfo,
+  fetchContributionsForJar, type JarContribution,
 } from "@/lib/api";
 import { subscribeToPush } from "@/lib/push";
 
@@ -114,6 +115,7 @@ export default function Dashboard() {
   const [apy, setApy] = useState({ usdc_kamino: 8.2, sol_marinade: 6.85 });
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [groups, setGroups] = useState<GroupInfo[]>([]);
+  const [contributions, setContributions] = useState<JarContribution[]>([]);
   const [confirmBanner, setConfirmBanner] = useState<{ jar_pubkey: string; amount_usdc: number } | null>(null);
 
   useEffect(() => {
@@ -132,6 +134,12 @@ export default function Dashboard() {
     fetchSchedules(publicKey.toBase58()).then(setSchedules);
     fetchGroupsByOwner(publicKey.toBase58()).then(setGroups);
   }, [publicKey]);
+
+  // Fetch contributions for first jar (activity + contributors feed)
+  useEffect(() => {
+    if (!liveJars.length) { setContributions([]); return; }
+    fetchContributionsForJar(liveJars[0].pubkey).then(setContributions);
+  }, [liveJars]);
 
   // Handle ?confirm=JAR_PUBKEY&amount=AMOUNT from push notification click
   useEffect(() => {
@@ -273,6 +281,7 @@ export default function Dashboard() {
             scenario={scenario}
             setScenario={setScenario}
             jars={jars}
+            liveJars={normalizedLive}
             greeting={greeting}
             apy={apy}
             schedules={schedules}
@@ -281,6 +290,7 @@ export default function Dashboard() {
               setSchedules(s => s.filter(x => x.id !== id));
             }}
             groups={groups}
+            contributions={contributions}
           />
         )}
         {activePage === "jars" && <JarsPage onNewJar={() => setModal("new-jar")} jars={jars} />}
@@ -344,22 +354,37 @@ function DashboardPage({
   scenario,
   setScenario,
   jars,
+  liveJars,
   greeting,
   apy,
   schedules,
   onStopSchedule,
   groups,
+  contributions,
 }: {
   onNewJar: () => void;
   scenario: string;
   setScenario: (s: string) => void;
   jars: typeof JARS;
+  liveJars: typeof JARS;
   greeting: string | null;
   apy: { usdc_kamino: number; sol_marinade: number };
   schedules: Schedule[];
   onStopSchedule: (id: string) => Promise<void>;
   groups: GroupInfo[];
+  contributions: JarContribution[];
 }) {
+  // ── Real stats from on-chain jars ──────────────────────────────────────
+  const totalSaved = jars.reduce((s, j) => s + j.amount, 0);
+  const lockedCount = jars.filter(j => j.locked).length;
+  const estimatedYieldMonthly = jars.reduce((s, j) => {
+    const rate = j.currency === "usdc" ? apy.usdc_kamino / 100 : apy.sol_marinade / 100;
+    return s + (j.amount * rate / 12);
+  }, 0);
+  const uniqueContributors = new Set(contributions.map(c => c.contributor)).size;
+  const totalContributed = contributions.reduce((s, c) => s + c.amount / 1_000_000, 0);
+  // ────────────────────────────────────────────────────────────────────────
+
   return (
     <>
       <TopBar title="Dashboard" subtitle={greeting ? `Good morning, ${greeting} ☀️` : "Good morning ☀️"}>
@@ -379,26 +404,26 @@ function DashboardPage({
         <div className="mb-6 grid gap-4 md:grid-cols-4">
           <StatCard
             label="Total Saved"
-            value="$2,387.30"
-            change="↑ +$147.30 this month"
+            value={jars === JARS ? "$2,387.30" : `$${totalSaved.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            change={jars === JARS ? "↑ +$147.30 this month" : `${jars.length} jar${jars.length !== 1 ? "s" : ""} · Kamino + Marinade`}
             tint="bg-surface-lavender"
           />
           <StatCard
-            label="Staking Earned"
-            value="$84.20"
-            change="↑ +$3.10 this week"
+            label="Staking Earned (est.)"
+            value={jars === JARS ? "$84.20" : `~$${estimatedYieldMonthly.toFixed(2)}/mo`}
+            change={`Kamino ${apy.usdc_kamino}% · Marinade ${apy.sol_marinade}% APY`}
             tint="bg-surface-mint"
           />
           <StatCard
             label="Active Jars"
-            value="3"
-            change="1 locked · 2 open"
+            value={jars === JARS ? "3" : String(jars.length)}
+            change={jars === JARS ? "1 locked · 2 open" : `${lockedCount} locked · ${jars.length - lockedCount} open`}
             tint="bg-surface-sky"
           />
           <StatCard
             label="Contributors"
-            value="5"
-            change="↑ Grandma sent $50 today"
+            value={jars === JARS ? "5" : String(uniqueContributors || contributions.length)}
+            change={jars === JARS ? "↑ Grandma sent $50 today" : uniqueContributors > 0 ? `$${totalContributed.toFixed(2)} contributed` : "Share your gift link"}
             tint="bg-surface-cream"
           />
         </div>
@@ -561,33 +586,84 @@ function DashboardPage({
         {/* Activity + Contributors */}
         <div className="mt-5 grid gap-5 lg:grid-cols-2">
           <Card title="Recent Activity" action={<CardAction label="All →" />}>
-            <div className="space-y-1">
-              {ACTIVITY.map((a, i) => (
-                <ActivityRow key={i} {...a} />
-              ))}
-            </div>
+            {jars !== JARS && contributions.length === 0 ? (
+              <div className="py-8 text-center text-sm text-ink-muted">
+                Поки немає активності — поділись gift-посиланням 🎁
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {(jars === JARS ? ACTIVITY.map((a, i) => <ActivityRow key={i} {...a} />) :
+                  contributions.slice(0, 5).map((c) => {
+                    const shortAddr = `${c.contributor.slice(0, 4)}…${c.contributor.slice(-4)}`;
+                    const ago = (() => {
+                      const s = Math.floor(Date.now() / 1000 - c.createdAt);
+                      if (s < 3600) return `${Math.floor(s / 60)}хв тому`;
+                      if (s < 86400) return `${Math.floor(s / 3600)}г тому`;
+                      return `${Math.floor(s / 86400)}д тому`;
+                    })();
+                    return (
+                      <ActivityRow
+                        key={c.pubkey}
+                        icon="💝"
+                        tone="green"
+                        title={`${shortAddr} contributed`}
+                        sub={`${c.comment ? `"${c.comment.slice(0, 40)}" · ` : ""}${ago}`}
+                        amount={`+$${(c.amount / 1_000_000).toFixed(2)}`}
+                      />
+                    );
+                  })
+                )}
+              </div>
+            )}
           </Card>
 
           <Card
-            title="Contributors · Anya's"
+            title={jars !== JARS && liveJars[0] ? `Contributors · Jar ${liveJars[0].id.slice(0,4)}…${liveJars[0].id.slice(-4)}` : "Contributors · Anya's"}
             action={<CardAction label="See all →" />}
           >
-            <div className="mb-3 text-xs text-ink-muted">
-              Family total: <strong className="text-ink">$436</strong>
-            </div>
-            <div className="space-y-3">
-              {CONTRIBUTORS.slice(0, 4).map((c, i) => (
-                <ContributorRow key={i} {...c} />
-              ))}
-            </div>
-            <div className="mt-4 flex items-center justify-between rounded-xl bg-[#FAFAF8] px-4 py-2.5">
-              <span className="font-mono text-xs text-ink-muted">
-                jarfi.xyz/gift/anya
-              </span>
-              <button className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-medium">
-                Copy
-              </button>
-            </div>
+            {jars !== JARS && contributions.length === 0 ? (
+              <div className="py-6 text-center text-sm text-ink-muted">Ще немає внесків</div>
+            ) : (
+              <>
+                <div className="mb-3 text-xs text-ink-muted">
+                  {jars !== JARS
+                    ? <>Всього: <strong className="text-ink">${totalContributed.toFixed(2)}</strong></>
+                    : <>Family total: <strong className="text-ink">$436</strong></>
+                  }
+                </div>
+                <div className="space-y-3">
+                  {jars === JARS
+                    ? CONTRIBUTORS.slice(0, 4).map((c, i) => <ContributorRow key={i} {...c} />)
+                    : contributions.slice(0, 4).map((c, i) => {
+                        const gradients = ["from-sol-purple to-sol-blue","from-sol-green to-sol-blue","from-orange-400 to-yellow-400","from-red-400 to-orange-400"];
+                        const short = `${c.contributor.slice(0, 4)}…${c.contributor.slice(-4)}`;
+                        return (
+                          <ContributorRow
+                            key={c.pubkey}
+                            name={short}
+                            comment={c.comment || "—"}
+                            amount={`+$${(c.amount / 1_000_000).toFixed(2)}`}
+                            gradient={gradients[i % gradients.length]}
+                          />
+                        );
+                      })
+                  }
+                </div>
+              </>
+            )}
+            {jars !== JARS && liveJars[0] && (
+              <div className="mt-4 flex items-center justify-between rounded-xl bg-[#FAFAF8] px-4 py-2.5">
+                <span className="font-mono text-xs text-ink-muted truncate">
+                  jarfi.xyz/gift/{liveJars[0].id.slice(0, 8)}
+                </span>
+                <button
+                  onClick={() => navigator.clipboard.writeText(`${window.location.origin}/gift/${liveJars[0].id}`)}
+                  className="ml-2 flex-shrink-0 rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-medium"
+                >
+                  Copy
+                </button>
+              </div>
+            )}
           </Card>
         </div>
       </div>

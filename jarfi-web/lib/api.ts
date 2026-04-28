@@ -190,6 +190,23 @@ export async function fetchGroupsByOwner(ownerPubkey: string): Promise<GroupInfo
 
 // ---------------------------------------------------------------------------
 
+export type JarContribution = {
+  pubkey: string;
+  contributor: string;
+  amount: number;
+  comment: string;
+  createdAt: number;
+};
+
+export async function fetchContributionsForJar(jarPubkey: string): Promise<JarContribution[]> {
+  try {
+    const data = await fetchJarFromApi(jarPubkey);
+    return data.contributions ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function createJarViaApi(params: {
   mode: number;
   unlockDate: number;
