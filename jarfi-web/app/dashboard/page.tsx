@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletButton } from "@/components/wallet-button";
+import { JupiterSwapButton } from "@/components/jupiter-swap";
 import { useJars } from "@/lib/use-jars";
 import { createJarOnChain, createUsdcJarOnChain } from "@/lib/create-jar";
 import { CURRENCY_USDC } from "@/lib/program";
@@ -291,12 +292,15 @@ function DashboardPage({
   return (
     <>
       <TopBar title="Dashboard" subtitle={greeting ? `Good morning, ${greeting} ☀️` : "Good morning ☀️"}>
-        <button
-          onClick={onNewJar}
-          className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white transition hover:bg-ink/90"
-        >
-          <Plus className="h-4 w-4" /> New Jar
-        </button>
+        <div className="flex items-center gap-2">
+          <JupiterSwapButton className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-5 py-2.5 text-sm font-medium text-ink transition hover:bg-black/5" />
+          <button
+            onClick={onNewJar}
+            className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white transition hover:bg-ink/90"
+          >
+            <Plus className="h-4 w-4" /> New Jar
+          </button>
+        </div>
       </TopBar>
 
       <div className="px-8 py-7">
