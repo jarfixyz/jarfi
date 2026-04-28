@@ -17,6 +17,14 @@ const {
 
 const IDL = require('./idl.json')
 const { depositToKamino, getYieldEarned, getLiveApyPublic } = require('./kaminoService')
+const {
+  addSchedule,
+  getSchedulesByOwner,
+  deleteSchedule,
+  savePushSubscription,
+  getPushSubscription,
+  startCronRunner,
+} = require('./scheduleService')
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -470,10 +478,90 @@ app.post('/guardarian-webhook', async (req, res) => {
 })
 
 // ---------------------------------------------------------------------------
+// POST /schedule/create
+//
+// Body:
+//   jar_pubkey    base58 pubkey
+//   owner_pubkey  base58 pubkey (wallet owner)
+//   amount_usdc   integer cents (e.g. 1000 = $10.00)
+//   frequency     "weekly" | "monthly"
+//   day           weekly: 0-6 (Sun=0) | monthly: 1-28
+//   hour          0-23
+//   minute        0-59
+// ---------------------------------------------------------------------------
+
+app.post('/schedule/create', (req, res) => {
+  try {
+    const { jar_pubkey, owner_pubkey, amount_usdc, frequency, day, hour, minute } = req.body
+    if (!jar_pubkey || !owner_pubkey || !amount_usdc || !frequency) {
+      return res.status(400).json({ ok: false, error: 'missing required fields' })
+    }
+    const schedule = addSchedule({
+      jar_pubkey,
+      owner_pubkey,
+      amount_usdc: Number(amount_usdc),
+      frequency,
+      day: Number(day ?? 1),
+      hour: Number(hour ?? 9),
+      minute: Number(minute ?? 0),
+    })
+    res.json({ ok: true, schedule })
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// GET /schedule/:owner_pubkey
+// ---------------------------------------------------------------------------
+
+app.get('/schedule/:owner_pubkey', (req, res) => {
+  const schedules = getSchedulesByOwner(req.params.owner_pubkey)
+  res.json({ ok: true, schedules })
+})
+
+// ---------------------------------------------------------------------------
+// DELETE /schedule/:id
+// ---------------------------------------------------------------------------
+
+app.delete('/schedule/:id', (req, res) => {
+  const deleted = deleteSchedule(req.params.id)
+  res.json({ ok: deleted })
+})
+
+// ---------------------------------------------------------------------------
+// POST /push/subscribe
+//
+// Body:
+//   owner_pubkey   base58 pubkey
+//   subscription   PushSubscription object from browser
+// ---------------------------------------------------------------------------
+
+app.post('/push/subscribe', (req, res) => {
+  const { owner_pubkey, subscription } = req.body
+  if (!owner_pubkey || !subscription) {
+    return res.status(400).json({ ok: false, error: 'missing owner_pubkey or subscription' })
+  }
+  savePushSubscription(owner_pubkey, subscription)
+  res.json({ ok: true })
+})
+
+// ---------------------------------------------------------------------------
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
   console.log(`JAR backend on port ${PORT}`)
   console.log(`Server wallet: ${serverKeypair.publicKey.toBase58()}`)
   console.log(`RPC: ${RPC_URL}`)
+
+  // Start recurring deposit cron runner.
+  // onFire is a placeholder — Phase 4B wires up real VAPID push here.
+  startCronRunner((schedule, subscription) => {
+    if (!subscription) {
+      console.log(`[schedule] no push sub for ${schedule.owner_pubkey} — skipping notify`)
+      return
+    }
+    // Phase 4B: sendWebPush(subscription, { title: 'Час поповнити банку', ... })
+    console.log(`[schedule] would push to ${schedule.owner_pubkey}: $${(schedule.amount_usdc / 100).toFixed(2)} → ${schedule.jar_pubkey}`)
+  })
 })
