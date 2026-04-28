@@ -323,7 +323,12 @@
         },
         {
           "name": "depositor",
+          "writable": true,
           "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -900,6 +905,70 @@
       ]
     },
     {
+      "name": "record_marinade_stake",
+      "discriminator": [
+        193,
+        17,
+        27,
+        240,
+        70,
+        254,
+        24,
+        229
+      ],
+      "accounts": [
+        {
+          "name": "jar",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "jar"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "msol_shares",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "set_kamino_obligation",
+      "discriminator": [
+        250,
+        216,
+        2,
+        135,
+        190,
+        119,
+        163,
+        255
+      ],
+      "accounts": [
+        {
+          "name": "jar",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "jar"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "obligation",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
       "name": "set_spending_limit",
       "discriminator": [
         39,
@@ -1402,6 +1471,10 @@
           },
           {
             "name": "usdc_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "kamino_obligation",
             "type": "pubkey"
           }
         ]

@@ -329,7 +329,12 @@ export type JarfiContract = {
         },
         {
           "name": "depositor",
+          "writable": true,
           "signer": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -902,6 +907,38 @@ export type JarfiContract = {
         {
           "name": "comment",
           "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "recordMarinadeStake",
+      "discriminator": [
+        193,
+        17,
+        27,
+        240,
+        70,
+        254,
+        24,
+        229
+      ],
+      "accounts": [
+        {
+          "name": "jar",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "jar"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "msolShares",
+          "type": "u64"
         }
       ]
     },

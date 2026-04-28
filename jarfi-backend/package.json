@@ -14,6 +14,7 @@
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
     "@kamino-finance/klend-sdk": "^7.3.22",
+    "@marinade.finance/marinade-ts-sdk": "^5.0.18",
     "@solana/spl-token": "^0.4.14",
     "@solana/web3.js": "^1.98.4",
     "cors": "^2.8.6",

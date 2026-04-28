@@ -62,21 +62,40 @@ pub mod jarfi_contract {
     }
 
     pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
-        let jar = &mut ctx.accounts.jar;
-
         require!(amount > 0, JarError::InvalidDepositAmount);
+        require!(ctx.accounts.jar.jar_currency == CURRENCY_SOL, JarError::WrongCurrency);
+        require!(!ctx.accounts.jar.unlocked, JarError::JarAlreadyUnlocked);
 
+        // Capture account infos before mutable borrow to satisfy borrow checker
+        let jar_info = ctx.accounts.jar.to_account_info();
+        let depositor_info = ctx.accounts.depositor.to_account_info();
+        let system_info = ctx.accounts.system_program.to_account_info();
+
+        anchor_lang::system_program::transfer(
+            CpiContext::new(
+                system_info,
+                anchor_lang::system_program::Transfer {
+                    from: depositor_info,
+                    to: jar_info,
+                },
+            ),
+            amount,
+        )?;
+
+        let jar = &mut ctx.accounts.jar;
         jar.balance = jar
             .balance
             .checked_add(amount)
             .ok_or(JarError::BalanceOverflow)?;
 
-        // Temporary mock until Marinade CPI is added
-        jar.staking_shares = jar
-            .staking_shares
-            .checked_add(amount)
-            .ok_or(JarError::BalanceOverflow)?;
+        // staking_shares updated by backend via record_marinade_stake after SDK call
 
+        Ok(())
+    }
+
+    // Called by backend (server keypair = jar owner) after Marinade SDK stake
+    pub fn record_marinade_stake(ctx: Context<RecordMarinadeStake>, msol_shares: u64) -> Result<()> {
+        ctx.accounts.jar.staking_shares = msol_shares;
         Ok(())
     }
 
@@ -440,7 +459,18 @@ pub struct Deposit<'info> {
     #[account(mut)]
     pub jar: Account<'info, Jar>,
 
+    #[account(mut)]
     pub depositor: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct RecordMarinadeStake<'info> {
+    #[account(mut, has_one = owner)]
+    pub jar: Account<'info, Jar>,
+
+    pub owner: Signer<'info>,
 }
 
 #[derive(Accounts)]

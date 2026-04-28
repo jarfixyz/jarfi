@@ -19,6 +19,7 @@ const webpush = require('web-push')
 
 const IDL = require('./idl.json')
 const { depositToKamino, getYieldEarned, getLiveApyPublic } = require('./kaminoService')
+const { stakeWithMarinade } = require('./marinadeService')
 const { createGroup, getGroup, joinGroup, listGroupsByOwner } = require('./groupService')
 const {
   addSchedule,
@@ -572,6 +573,68 @@ app.get('/push/vapid-public-key', (req, res) => {
   const key = process.env.VAPID_PUBLIC_KEY
   if (!key) return res.status(503).json({ ok: false, error: 'VAPID not configured' })
   res.json({ ok: true, publicKey: key })
+})
+
+// ---------------------------------------------------------------------------
+// Helper: call record_marinade_stake on-chain after SDK stake
+// ---------------------------------------------------------------------------
+
+async function recordMarinadeStake(jarPubkey, msolShares) {
+  await program.methods
+    .recordMarinadeStake(new anchor.BN(msolShares))
+    .accounts({
+      jar: jarPubkey,
+      owner: serverKeypair.publicKey,
+    })
+    .rpc()
+}
+
+// ---------------------------------------------------------------------------
+// POST /jar/deposit-sol
+//
+// Body:
+//   jar_pubkey   base58 pubkey
+//   lamports     u64 — amount in lamports to deposit (server wallet pays)
+//
+// Server wallet deposits SOL into the jar on-chain, then stakes with Marinade.
+// ---------------------------------------------------------------------------
+
+app.post('/jar/deposit-sol', async (req, res) => {
+  try {
+    const { jar_pubkey, lamports } = req.body
+    if (!jar_pubkey || !lamports) {
+      return res.status(400).json({ ok: false, error: 'jar_pubkey and lamports required' })
+    }
+
+    const jarPubkey = new PublicKey(jar_pubkey)
+    const amount = Number(lamports)
+
+    // 1. Call on-chain deposit (transfers SOL from server wallet → jar)
+    const depositTx = await program.methods
+      .deposit(new anchor.BN(amount))
+      .accounts({
+        jar: jarPubkey,
+        depositor: serverKeypair.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .rpc()
+    console.log('[deposit-sol] on-chain deposit tx:', depositTx)
+
+    // 2. Stake with Marinade (async, non-blocking)
+    stakeWithMarinade(connection, serverKeypair, amount)
+      .then(async ({ signature, msol_lamports }) => {
+        console.log('[marinade] staked, mSOL lamports:', msol_lamports, 'tx:', signature)
+        // 3. Record mSOL shares on-chain
+        await recordMarinadeStake(jarPubkey, msol_lamports)
+        console.log('[marinade] recorded staking_shares:', msol_lamports)
+      })
+      .catch(e => console.warn('[marinade] stake failed:', e.message))
+
+    res.json({ ok: true, depositTx })
+  } catch (err) {
+    console.error('[/jar/deposit-sol]', err.message)
+    res.status(500).json({ ok: false, error: err.message })
+  }
 })
 
 // ---------------------------------------------------------------------------
