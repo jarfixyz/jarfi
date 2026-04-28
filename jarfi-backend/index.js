@@ -20,6 +20,7 @@ const webpush = require('web-push')
 const IDL = require('./idl.json')
 const { depositToKamino, getYieldEarned, getLiveApyPublic } = require('./kaminoService')
 const { stakeWithMarinade } = require('./marinadeService')
+const { swapUsdcToSol } = require('./jupiterService')
 const { createGroup, getGroup, joinGroup, listGroupsByOwner } = require('./groupService')
 const {
   addSchedule,
@@ -405,21 +406,32 @@ app.post('/transak-webhook', async (req, res) => {
         .then(r => console.log('[kamino] auto-stake result:', r))
         .catch(e => console.warn('[kamino] auto-stake failed:', e.message))
     } else {
-      // SOL jar — Jupiter swap USDC→SOL then deposit (TODO: implement Jupiter swap)
-      // For now: record as legacy gift_deposit with fiat cents
-      const contributionKeypair = Keypair.generate()
-      const amountUnits = Math.round(fiatAmount * 100)
+      // SOL jar — Jupiter swap USDC→SOL, then on-chain deposit + Marinade stake
+      const usdcMicroUnits = Math.round(cryptoAmount * 1_000_000)
+
+      const { signature: swapSig, outLamports } = await swapUsdcToSol(
+        connection, serverKeypair, usdcMicroUnits
+      )
+      console.log('[transak-webhook] jupiter swap tx:', swapSig, 'lamports:', outLamports)
+
+      // Deposit SOL on-chain into jar
       txSignature = await program.methods
-        .giftDeposit(new anchor.BN(amountUnits), contributorMessage)
+        .deposit(new anchor.BN(outLamports))
         .accounts({
           jar:           jarPubkey,
-          contribution:  contributionKeypair.publicKey,
-          contributor:   serverKeypair.publicKey,
+          depositor:     serverKeypair.publicKey,
           systemProgram: anchor.web3.SystemProgram.programId,
         })
-        .signers([contributionKeypair])
         .rpc()
-      console.log('[transak-webhook] gift_deposit (SOL jar, swap TODO) tx:', txSignature)
+      console.log('[transak-webhook] deposit SOL tx:', txSignature)
+
+      // Auto-stake into Marinade (async)
+      stakeWithMarinade(connection, serverKeypair, outLamports)
+        .then(async ({ signature: stakeSig, msol_lamports }) => {
+          console.log('[marinade] staked, mSOL:', msol_lamports, 'tx:', stakeSig)
+          await recordMarinadeStake(jarPubkey, msol_lamports)
+        })
+        .catch(e => console.warn('[marinade] stake failed:', e.message))
     }
 
     res.json({ ok: true, txSignature })
