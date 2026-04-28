@@ -31,6 +31,7 @@ import {
   fetchContributionsForJar, type JarContribution,
 } from "@/lib/api";
 import { subscribeToPush } from "@/lib/push";
+import TransakWidget from "@/components/TransakWidget";
 
 // ---------------------------------------------------------------------------
 // Mock data — will be replaced with on-chain reads in Stage 2
@@ -117,6 +118,7 @@ export default function Dashboard() {
   const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [contributions, setContributions] = useState<JarContribution[]>([]);
   const [confirmBanner, setConfirmBanner] = useState<{ jar_pubkey: string; amount_usdc: number } | null>(null);
+  const [showDepositTransak, setShowDepositTransak] = useState(false);
 
   useEffect(() => {
     fetchApy().then(data => setApy({ usdc_kamino: data.usdc_kamino, sol_marinade: data.sol_marinade }));
@@ -270,10 +272,27 @@ export default function Dashboard() {
             <span>
               ⏰ Час поповнити банку — ${(confirmBanner.amount_usdc / 100).toFixed(2)} → Jar {confirmBanner.jar_pubkey.slice(0, 4)}…{confirmBanner.jar_pubkey.slice(-4)}
             </span>
-            <button onClick={() => setConfirmBanner(null)} className="ml-4 rounded-full p-1 hover:bg-white/20">
-              <X className="h-4 w-4" />
-            </button>
+            <div className="ml-4 flex items-center gap-2">
+              <button
+                onClick={() => setShowDepositTransak(true)}
+                className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-sol-purple hover:bg-white/90"
+              >
+                Поповнити
+              </button>
+              <button onClick={() => setConfirmBanner(null)} className="rounded-full p-1 hover:bg-white/20">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
+        )}
+        {showDepositTransak && confirmBanner && (
+          <TransakWidget
+            vaultAddress={confirmBanner.jar_pubkey}
+            fiatAmount={confirmBanner.amount_usdc / 100}
+            contributorMessage="Recurring deposit"
+            onSuccess={() => { setShowDepositTransak(false); setConfirmBanner(null); showToast("Депозит підтверджено ✅"); }}
+            onClose={() => setShowDepositTransak(false)}
+          />
         )}
         {activePage === "dashboard" && (
           <DashboardPage
