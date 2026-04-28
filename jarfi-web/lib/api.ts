@@ -35,6 +35,22 @@ export async function fetchJarFromApi(
   return res.json();
 }
 
+export type ApyResponse = {
+  ok: boolean;
+  usdc_kamino: number;
+  sol_marinade: number;
+};
+
+export async function fetchApy(): Promise<ApyResponse> {
+  try {
+    const res = await fetch(`${API_URL}/apy`);
+    if (!res.ok) throw new Error();
+    return res.json();
+  } catch {
+    return { ok: true, usdc_kamino: 8.2, sol_marinade: 6.85 };
+  }
+}
+
 export async function createJarViaApi(params: {
   mode: number;
   unlockDate: number;

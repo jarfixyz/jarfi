@@ -16,6 +16,7 @@ const {
 } = require('@solana/spl-token')
 
 const IDL = require('./idl.json')
+const { depositToKamino, getYieldEarned, getLiveApyPublic } = require('./kaminoService')
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -198,15 +199,20 @@ app.get('/jar/:pubkey', async (req, res) => {
       { memcmp: { offset: 8, bytes: jarPubkey.toBase58() } },
     ])
 
-    // For USDC jars: also return live vault token balance
+    // For USDC jars: vault token balance + Kamino yield
     let vaultTokenBalance = null
+    let kaminoYield = null
     if (jar.jarCurrency === CURRENCY_USDC) {
       try {
         const jarUsdcVault = await getJarUsdcVault(jarPubkey)
         const tokenBal = await connection.getTokenAccountBalance(jarUsdcVault)
         vaultTokenBalance = tokenBal.value
-      } catch {
-        // vault may not exist yet
+      } catch { /* vault may not exist yet */ }
+
+      try {
+        kaminoYield = await getYieldEarned(connection, jarPubkey.toBase58())
+      } catch (e) {
+        console.warn('[/jar/:pubkey] kamino yield error:', e.message)
       }
     }
 
@@ -230,6 +236,7 @@ app.get('/jar/:pubkey', async (req, res) => {
         usdcBalance:          jar.usdcBalance.toNumber(),
         usdcVault:            jar.usdcVault.toBase58(),
         vaultTokenBalance,                           // live on-chain token balance
+        kaminoYield,                                 // { earned_usd, earned_usdc, apy, ... }
       },
       contributions: contributions.map(({ publicKey, account }) => ({
         pubkey:      publicKey.toBase58(),
@@ -253,14 +260,18 @@ app.get('/jar/:pubkey', async (req, res) => {
 app.get('/apy', async (req, res) => {
   const FALLBACK = { usdc_kamino: 8.2, sol_marinade: 6.85 }
   try {
-    const [marinadeRes] = await Promise.allSettled([
+    const [kaminoApy, marinadeRes] = await Promise.allSettled([
+      getLiveApyPublic(),
       fetch('https://api.marinade.finance/msol/apy/1y').then(r => r.json()),
     ])
+    const usdcApy = kaminoApy.status === 'fulfilled'
+      ? Math.round(kaminoApy.value * 10000) / 100
+      : FALLBACK.usdc_kamino
     const solApy = marinadeRes.status === 'fulfilled'
       ? Math.round((marinadeRes.value?.value || 0.0685) * 10000) / 100
       : FALLBACK.sol_marinade
 
-    res.json({ ok: true, usdc_kamino: FALLBACK.usdc_kamino, sol_marinade: solApy })
+    res.json({ ok: true, usdc_kamino: usdcApy, sol_marinade: solApy })
   } catch {
     res.json({ ok: true, ...FALLBACK })
   }
@@ -358,10 +369,14 @@ app.post('/transak-webhook', async (req, res) => {
     let txSignature
 
     if (isUsdcJar) {
-      // cryptoAmount is in USDC (6 decimals) — convert to micro-units
       const usdcMicroUnits = Math.round(cryptoAmount * 1_000_000)
       txSignature = await onrampDepositUsdc(jarPubkey, usdcMicroUnits, contributorMessage)
       console.log('[transak-webhook] gift_deposit_usdc tx:', txSignature)
+
+      // Auto-stake into Kamino after on-chain deposit
+      depositToKamino(connection, serverKeypair, jarPubkey.toBase58(), usdcMicroUnits)
+        .then(r => console.log('[kamino] auto-stake result:', r))
+        .catch(e => console.warn('[kamino] auto-stake failed:', e.message))
     } else {
       // SOL jar — Jupiter swap USDC→SOL then deposit (TODO: implement Jupiter swap)
       // For now: record as legacy gift_deposit with fiat cents

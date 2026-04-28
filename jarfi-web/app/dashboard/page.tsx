@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   LayoutGrid,
@@ -21,6 +21,7 @@ import { WalletButton } from "@/components/wallet-button";
 import { useJars } from "@/lib/use-jars";
 import { createJarOnChain, createUsdcJarOnChain } from "@/lib/create-jar";
 import { CURRENCY_USDC } from "@/lib/program";
+import { fetchApy } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
 // Mock data — will be replaced with on-chain reads in Stage 2
@@ -102,6 +103,11 @@ export default function Dashboard() {
   const { publicKey, wallet } = useWallet();
   const { connection } = useConnection();
   const { jars: liveJars, loading: jarsLoading } = useJars();
+  const [apy, setApy] = useState({ usdc_kamino: 8.2, sol_marinade: 6.85 });
+
+  useEffect(() => {
+    fetchApy().then(data => setApy({ usdc_kamino: data.usdc_kamino, sol_marinade: data.sol_marinade }));
+  }, []);
 
   // Normalize on-chain JarAccount → JarType display shape
   const normalizedLive: JarType[] = liveJars.map((j) => {
@@ -218,7 +224,7 @@ export default function Dashboard() {
       {/* ──────────────────────────────────────────────────────────────── MAIN */}
       <main className="flex-1 overflow-y-auto">
         {activePage === "dashboard" && (
-          <DashboardPage onNewJar={() => setModal("new-jar")} scenario={scenario} setScenario={setScenario} jars={jars} greeting={greeting} />
+          <DashboardPage onNewJar={() => setModal("new-jar")} scenario={scenario} setScenario={setScenario} jars={jars} greeting={greeting} apy={apy} />
         )}
         {activePage === "jars" && <JarsPage onNewJar={() => setModal("new-jar")} jars={jars} />}
         {activePage === "analytics" && <AnalyticsPage />}
@@ -229,6 +235,7 @@ export default function Dashboard() {
       {/* ───────────────────────────────────────────────────────── NEW JAR MODAL */}
       {modal === "new-jar" && (
         <NewJarModal
+          apy={apy}
           onClose={() => setModal(null)}
           onCreate={async (params) => {
             try {
@@ -272,12 +279,14 @@ function DashboardPage({
   setScenario,
   jars,
   greeting,
+  apy,
 }: {
   onNewJar: () => void;
   scenario: string;
   setScenario: (s: string) => void;
   jars: typeof JARS;
   greeting: string | null;
+  apy: { usdc_kamino: number; sol_marinade: number };
 }) {
   return (
     <>
@@ -334,7 +343,7 @@ function DashboardPage({
 
           <Card title="Forecast">
             <div className="mb-4 text-xs text-ink-muted">
-              Marinade · 6.85% APY · until 2036
+              Kamino {apy.usdc_kamino}% · Marinade {apy.sol_marinade}% APY
             </div>
             <div className="space-y-2">
               {[
@@ -470,7 +479,7 @@ function AnalyticsPage() {
       <div className="px-8 py-7">
         <div className="mb-6 grid gap-4 md:grid-cols-4">
           <StatCard label="Total deposited" value="$1,200.30" change="by you" tint="bg-surface-lavender" />
-          <StatCard label="Staking earned" value="$84.20" change="↑ 6.85% APY avg" tint="bg-surface-mint" />
+          <StatCard label="Staking earned" value="$84.20" change="↑ via Kamino + Marinade" tint="bg-surface-mint" />
           <StatCard label="Family contributed" value="$436.00" change="5 contributors" tint="bg-surface-sky" />
           <StatCard label="Deposits count" value="24" change="across all jars" tint="bg-surface-cream" />
         </div>
@@ -669,9 +678,11 @@ function BalanceChart() {
 function NewJarModal({
   onClose,
   onCreate,
+  apy,
 }: {
   onClose: () => void;
   onCreate: (params: { mode: number; unlockDate: number; goalAmount: number; currency: "usdc" | "sol" }) => Promise<void>;
+  apy: { usdc_kamino: number; sol_marinade: number };
 }) {
   const [unlockType, setUnlockType] = useState<"goal" | "date" | "both">("goal");
   const [currency, setCurrency] = useState<"usdc" | "sol">("usdc");
@@ -716,7 +727,7 @@ function NewJarModal({
               }`}
             >
               <div className="text-sm font-semibold">💵 USDC</div>
-              <div className="mt-0.5 text-[11px] text-ink-muted">Stable · ~8% APY via Kamino</div>
+              <div className="mt-0.5 text-[11px] text-ink-muted">Stable · ~{apy.usdc_kamino}% APY via Kamino</div>
             </button>
             <button
               onClick={() => setCurrency("sol")}
@@ -727,7 +738,7 @@ function NewJarModal({
               }`}
             >
               <div className="text-sm font-semibold">◎ SOL</div>
-              <div className="mt-0.5 text-[11px] text-ink-muted">Volatile · ~6.85% APY via Marinade</div>
+              <div className="mt-0.5 text-[11px] text-ink-muted">Volatile · ~{apy.sol_marinade}% APY via Marinade</div>
             </button>
           </div>
         </div>

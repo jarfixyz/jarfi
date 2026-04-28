@@ -56,6 +56,7 @@ pub mod jarfi_contract {
         jar.jar_currency = CURRENCY_SOL;
         jar.usdc_balance = 0;
         jar.usdc_vault = Pubkey::default();
+        jar.kamino_obligation = Pubkey::default();
 
         Ok(())
     }
@@ -113,6 +114,7 @@ pub mod jarfi_contract {
         jar.jar_currency = CURRENCY_USDC;
         jar.usdc_balance = 0;
         jar.usdc_vault = ctx.accounts.jar_usdc_vault.key();
+        jar.kamino_obligation = Pubkey::default();
 
         Ok(())
     }
@@ -355,6 +357,15 @@ pub mod jarfi_contract {
 
         jar.unlocked = true;
 
+        Ok(())
+    }
+
+    // Called by the backend after successfully depositing into Kamino
+    pub fn set_kamino_obligation(
+        ctx: Context<SetKaminoObligation>,
+        obligation: Pubkey,
+    ) -> Result<()> {
+        ctx.accounts.jar.kamino_obligation = obligation;
         Ok(())
     }
 
@@ -607,6 +618,14 @@ pub struct UnlockJar<'info> {
 }
 
 #[derive(Accounts)]
+pub struct SetKaminoObligation<'info> {
+    #[account(mut, has_one = owner)]
+    pub jar: Account<'info, Jar>,
+
+    pub owner: Signer<'info>,
+}
+
+#[derive(Accounts)]
 pub struct EmergencyWithdraw<'info> {
     #[account(mut, has_one = owner)]
     pub jar: Account<'info, Jar>,
@@ -633,9 +652,10 @@ pub struct Jar {
     pub child_wallet: Pubkey,
     pub child_spendable_balance: u64,
     pub unlocked: bool,
-    pub jar_currency: u8,       // 0 = USDC, 1 = SOL
-    pub usdc_balance: u64,      // USDC micro-units (jar_currency = 0)
-    pub usdc_vault: Pubkey,     // jar's USDC ATA (zero if SOL mode)
+    pub jar_currency: u8,        // 0 = USDC, 1 = SOL
+    pub usdc_balance: u64,       // USDC micro-units (jar_currency = 0)
+    pub usdc_vault: Pubkey,      // jar's USDC ATA (zero if SOL mode)
+    pub kamino_obligation: Pubkey, // Kamino obligation account (zero if not staked)
 }
 
 #[account]
