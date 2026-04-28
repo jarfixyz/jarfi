@@ -906,6 +906,38 @@ export type JarfiContract = {
       ]
     },
     {
+      "name": "setKaminoObligation",
+      "discriminator": [
+        250,
+        216,
+        2,
+        135,
+        190,
+        119,
+        163,
+        255
+      ],
+      "accounts": [
+        {
+          "name": "jar",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "jar"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "obligation",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
       "name": "setSpendingLimit",
       "discriminator": [
         39,
@@ -1408,6 +1440,10 @@ export type JarfiContract = {
           },
           {
             "name": "usdcVault",
+            "type": "pubkey"
+          },
+          {
+            "name": "kaminoObligation",
             "type": "pubkey"
           }
         ]

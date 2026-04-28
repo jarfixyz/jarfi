@@ -900,6 +900,38 @@
       ]
     },
     {
+      "name": "set_kamino_obligation",
+      "discriminator": [
+        250,
+        216,
+        2,
+        135,
+        190,
+        119,
+        163,
+        255
+      ],
+      "accounts": [
+        {
+          "name": "jar",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "jar"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "obligation",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
       "name": "set_spending_limit",
       "discriminator": [
         39,
@@ -1402,6 +1434,10 @@
           },
           {
             "name": "usdc_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "kamino_obligation",
             "type": "pubkey"
           }
         ]
