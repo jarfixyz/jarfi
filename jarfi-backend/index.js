@@ -15,8 +15,11 @@ const {
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } = require('@solana/spl-token')
 
+const webpush = require('web-push')
+
 const IDL = require('./idl.json')
 const { depositToKamino, getYieldEarned, getLiveApyPublic } = require('./kaminoService')
+const { createGroup, getGroup, joinGroup, listGroupsByOwner } = require('./groupService')
 const {
   addSchedule,
   getSchedulesByOwner,
@@ -88,6 +91,21 @@ async function getOrCreateATA(owner) {
 // ---------------------------------------------------------------------------
 // Express setup
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// VAPID / web-push setup
+// ---------------------------------------------------------------------------
+
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    process.env.VAPID_EMAIL || 'mailto:hello@jarfi.xyz',
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  )
+  console.log('[push] VAPID configured')
+} else {
+  console.warn('[push] VAPID keys not set — push notifications disabled')
+}
 
 const app = express()
 app.use(cors())
@@ -547,6 +565,99 @@ app.post('/push/subscribe', (req, res) => {
 })
 
 // ---------------------------------------------------------------------------
+// GET /push/vapid-public-key
+// ---------------------------------------------------------------------------
+
+app.get('/push/vapid-public-key', (req, res) => {
+  const key = process.env.VAPID_PUBLIC_KEY
+  if (!key) return res.status(503).json({ ok: false, error: 'VAPID not configured' })
+  res.json({ ok: true, publicKey: key })
+})
+
+// ---------------------------------------------------------------------------
+// Group Trip endpoints
+// ---------------------------------------------------------------------------
+
+// Fetch on-chain contributions for a jar, grouped by contributor pubkey → USDC micro-units
+async function getContributionsByMember(jarPubkey) {
+  const contributions = await program.account.contribution.all([
+    { memcmp: { offset: 8, bytes: jarPubkey.toBase58() } },
+  ])
+  const totals = {}
+  for (const { account } of contributions) {
+    const key = account.contributor.toBase58()
+    totals[key] = (totals[key] || 0) + account.amount.toNumber()
+  }
+  return totals
+}
+
+function enrichGroupMembers(group, contributionsByMember) {
+  const members = group.members.map(m => {
+    // USDC micro-units (6 dec) → cents: /1_000_000 * 100 = /10_000
+    const contributed_cents = Math.round((contributionsByMember[m.pubkey] || 0) / 10_000)
+    const progress_pct = group.budget_per_person_cents > 0
+      ? Math.min(100, Math.round(contributed_cents / group.budget_per_person_cents * 100))
+      : 0
+    return { ...m, contributed_cents, progress_pct }
+  })
+  const total_contributed = members.reduce((s, m) => s + m.contributed_cents, 0)
+  const total_goal_cents = group.budget_per_person_cents * group.members.length
+  return {
+    ...group,
+    members,
+    total_contributed,
+    total_goal_cents,
+    total_progress_pct: total_goal_cents > 0
+      ? Math.min(100, Math.round(total_contributed / total_goal_cents * 100))
+      : 0,
+  }
+}
+
+// POST /group/create
+// Body: { jar_pubkey, trip_name, destination_emoji, trip_date, budget_per_person_cents, owner_pubkey, owner_nickname }
+app.post('/group/create', (req, res) => {
+  const { jar_pubkey, trip_name, destination_emoji, trip_date, budget_per_person_cents, owner_pubkey, owner_nickname } = req.body
+  if (!jar_pubkey || !trip_name || !owner_pubkey || !budget_per_person_cents) {
+    return res.status(400).json({ ok: false, error: 'missing required fields' })
+  }
+  const group = createGroup({ jar_pubkey, trip_name, destination_emoji, trip_date: Number(trip_date), budget_per_person_cents: Number(budget_per_person_cents), owner_pubkey, owner_nickname })
+  res.json({ ok: true, group })
+})
+
+// GET /group/:jar_pubkey
+app.get('/group/:jar_pubkey', async (req, res) => {
+  const group = getGroup(req.params.jar_pubkey)
+  if (!group) return res.status(404).json({ ok: false, error: 'group not found' })
+  let byMember = {}
+  try {
+    byMember = await getContributionsByMember(new PublicKey(req.params.jar_pubkey))
+  } catch (e) {
+    console.warn('[/group/:jar_pubkey] contributions error:', e.message)
+  }
+  res.json({ ok: true, group: enrichGroupMembers(group, byMember) })
+})
+
+// POST /group/:jar_pubkey/join
+// Body: { owner_pubkey, nickname }
+app.post('/group/:jar_pubkey/join', async (req, res) => {
+  const { owner_pubkey, nickname } = req.body
+  if (!owner_pubkey) return res.status(400).json({ ok: false, error: 'owner_pubkey required' })
+  const group = joinGroup({ jar_pubkey: req.params.jar_pubkey, owner_pubkey, nickname })
+  if (!group) return res.status(404).json({ ok: false, error: 'group not found' })
+  let byMember = {}
+  try {
+    byMember = await getContributionsByMember(new PublicKey(req.params.jar_pubkey))
+  } catch {}
+  res.json({ ok: true, group: enrichGroupMembers(group, byMember) })
+})
+
+// GET /group/by-owner/:owner_pubkey
+app.get('/group/by-owner/:owner_pubkey', (req, res) => {
+  const groups = listGroupsByOwner(req.params.owner_pubkey)
+  res.json({ ok: true, groups })
+})
+
+// ---------------------------------------------------------------------------
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
@@ -554,14 +665,27 @@ app.listen(PORT, () => {
   console.log(`Server wallet: ${serverKeypair.publicKey.toBase58()}`)
   console.log(`RPC: ${RPC_URL}`)
 
-  // Start recurring deposit cron runner.
-  // onFire is a placeholder — Phase 4B wires up real VAPID push here.
-  startCronRunner((schedule, subscription) => {
+  startCronRunner(async (schedule, subscription) => {
     if (!subscription) {
       console.log(`[schedule] no push sub for ${schedule.owner_pubkey} — skipping notify`)
       return
     }
-    // Phase 4B: sendWebPush(subscription, { title: 'Час поповнити банку', ... })
-    console.log(`[schedule] would push to ${schedule.owner_pubkey}: $${(schedule.amount_usdc / 100).toFixed(2)} → ${schedule.jar_pubkey}`)
+    if (!process.env.VAPID_PUBLIC_KEY) {
+      console.log(`[schedule] VAPID not configured — skipping push`)
+      return
+    }
+    const shortJar = `${schedule.jar_pubkey.slice(0, 4)}…${schedule.jar_pubkey.slice(-4)}`
+    const amount = (schedule.amount_usdc / 100).toFixed(2)
+    const payload = JSON.stringify({
+      title: 'Час поповнити банку 🏺',
+      body: `$${amount} → Jar ${shortJar}`,
+      data: { jar_pubkey: schedule.jar_pubkey, amount_usdc: schedule.amount_usdc },
+    })
+    try {
+      await webpush.sendNotification(subscription, payload)
+      console.log(`[schedule] push sent to ${schedule.owner_pubkey}`)
+    } catch (err) {
+      console.warn(`[schedule] push failed for ${schedule.owner_pubkey}:`, err.message)
+    }
   })
 })

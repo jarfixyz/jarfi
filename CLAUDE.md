@@ -41,12 +41,12 @@ jarfi/
 - Phase 1 (USDC Foundation) — ✅ done
 - Phase 2 (Kamino staking) — ✅ done
 - Phase 3 (Jupiter Terminal swap widget) — ✅ done
-- Phase 4 (Recurring deposits + push notifications) — 🔄 in progress
+- Phase 4 (Recurring deposits + push notifications) — ✅ done
   - 4A (schedule engine) — ✅ done
-  - 4B (VAPID web push) — ⏳ next
-  - 4C (service worker + push permission in web) — pending
-  - 4D (UI: recurring toggle in create jar modal) — pending
-- Phase 5 (Group Trip jar) — pending
+  - 4B (VAPID web push) — ✅ done
+  - 4C (service worker + push permission in web) — ✅ done
+  - 4D (UI: recurring toggle in create jar modal) — ✅ done
+- Phase 5 (Group Trip jar) — ✅ done
 - Transak API Secret — ✅ set in Railway
 - Cloudflare Pages auto-deploy — ✅ fixed with jarfi-web/.npmrc (legacy-peer-deps=true)
 

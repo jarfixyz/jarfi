@@ -40,7 +40,7 @@ export async function createUsdcJarOnChain(
     goalAmount: number; // in USDC micro-units (e.g. $100 = 100_000_000)
     childWallet: string;
   }
-): Promise<string> {
+): Promise<{ jarPubkey: string; txSignature: string }> {
   const program = getProgram(wallet, connection);
   const jarKeypair = Keypair.generate();
   const childWalletPubkey = new PublicKey(params.childWallet);
@@ -68,7 +68,7 @@ export async function createUsdcJarOnChain(
     .signers([jarKeypair])
     .rpc();
 
-  return txSignature;
+  return { jarPubkey: jarKeypair.publicKey.toBase58(), txSignature };
 }
 
 // ---------------------------------------------------------------------------
@@ -84,7 +84,7 @@ export async function createJarOnChain(
     goalAmount: number;
     childWallet: string;
   }
-): Promise<string> {
+): Promise<{ jarPubkey: string; txSignature: string }> {
   const program = getProgram(wallet, connection);
   const jarKeypair = Keypair.generate();
   const childWalletPubkey = new PublicKey(params.childWallet);
@@ -103,5 +103,5 @@ export async function createJarOnChain(
     .signers([jarKeypair])
     .rpc();
 
-  return txSignature;
+  return { jarPubkey: jarKeypair.publicKey.toBase58(), txSignature };
 }

@@ -15,6 +15,8 @@ import {
   ArrowUpRight,
   X,
   Loader2,
+  RefreshCw,
+  Clock,
 } from "lucide-react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletButton } from "@/components/wallet-button";
@@ -22,7 +24,12 @@ import { JupiterSwapButton } from "@/components/jupiter-swap";
 import { useJars } from "@/lib/use-jars";
 import { createJarOnChain, createUsdcJarOnChain } from "@/lib/create-jar";
 import { CURRENCY_USDC } from "@/lib/program";
-import { fetchApy } from "@/lib/api";
+import {
+  fetchApy,
+  createScheduleApi, fetchSchedules, stopScheduleApi, type Schedule,
+  createGroupApi, fetchGroupsByOwner, type GroupInfo,
+} from "@/lib/api";
+import { subscribeToPush } from "@/lib/push";
 
 // ---------------------------------------------------------------------------
 // Mock data — will be replaced with on-chain reads in Stage 2
@@ -105,9 +112,34 @@ export default function Dashboard() {
   const { connection } = useConnection();
   const { jars: liveJars, loading: jarsLoading } = useJars();
   const [apy, setApy] = useState({ usdc_kamino: 8.2, sol_marinade: 6.85 });
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [groups, setGroups] = useState<GroupInfo[]>([]);
+  const [confirmBanner, setConfirmBanner] = useState<{ jar_pubkey: string; amount_usdc: number } | null>(null);
 
   useEffect(() => {
     fetchApy().then(data => setApy({ usdc_kamino: data.usdc_kamino, sol_marinade: data.sol_marinade }));
+  }, []);
+
+  // Push subscription when wallet connects
+  useEffect(() => {
+    if (!publicKey) return;
+    subscribeToPush(publicKey.toBase58()).catch(() => {});
+  }, [publicKey]);
+
+  // Fetch schedules + groups when wallet connects
+  useEffect(() => {
+    if (!publicKey) { setSchedules([]); setGroups([]); return; }
+    fetchSchedules(publicKey.toBase58()).then(setSchedules);
+    fetchGroupsByOwner(publicKey.toBase58()).then(setGroups);
+  }, [publicKey]);
+
+  // Handle ?confirm=JAR_PUBKEY&amount=AMOUNT from push notification click
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const p = new URLSearchParams(window.location.search);
+    const jar_pubkey = p.get('confirm');
+    const amount_usdc = Number(p.get('amount') ?? 0);
+    if (jar_pubkey) setConfirmBanner({ jar_pubkey, amount_usdc });
   }, []);
 
   // Normalize on-chain JarAccount → JarType display shape
@@ -224,8 +256,32 @@ export default function Dashboard() {
 
       {/* ──────────────────────────────────────────────────────────────── MAIN */}
       <main className="flex-1 overflow-y-auto">
+        {/* Confirm banner from push notification */}
+        {confirmBanner && (
+          <div className="sticky top-0 z-20 flex items-center justify-between bg-sol-purple px-6 py-3 text-sm font-medium text-white shadow">
+            <span>
+              ⏰ Час поповнити банку — ${(confirmBanner.amount_usdc / 100).toFixed(2)} → Jar {confirmBanner.jar_pubkey.slice(0, 4)}…{confirmBanner.jar_pubkey.slice(-4)}
+            </span>
+            <button onClick={() => setConfirmBanner(null)} className="ml-4 rounded-full p-1 hover:bg-white/20">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         {activePage === "dashboard" && (
-          <DashboardPage onNewJar={() => setModal("new-jar")} scenario={scenario} setScenario={setScenario} jars={jars} greeting={greeting} apy={apy} />
+          <DashboardPage
+            onNewJar={() => setModal("new-jar")}
+            scenario={scenario}
+            setScenario={setScenario}
+            jars={jars}
+            greeting={greeting}
+            apy={apy}
+            schedules={schedules}
+            onStopSchedule={async (id) => {
+              await stopScheduleApi(id);
+              setSchedules(s => s.filter(x => x.id !== id));
+            }}
+            groups={groups}
+          />
         )}
         {activePage === "jars" && <JarsPage onNewJar={() => setModal("new-jar")} jars={jars} />}
         {activePage === "analytics" && <AnalyticsPage />}
@@ -245,13 +301,22 @@ export default function Dashboard() {
                 return;
               }
               const childWallet = publicKey.toBase58();
+              let jarPubkey: string;
               if (params.currency === "usdc") {
-                await createUsdcJarOnChain(wallet.adapter as never, connection, { ...params, childWallet });
+                ({ jarPubkey } = await createUsdcJarOnChain(wallet.adapter as never, connection, { ...params, childWallet }));
               } else {
-                await createJarOnChain(wallet.adapter as never, connection, { ...params, childWallet });
+                ({ jarPubkey } = await createJarOnChain(wallet.adapter as never, connection, { ...params, childWallet }));
+              }
+              if (params.recurring) {
+                await createScheduleApi({ jar_pubkey: jarPubkey, owner_pubkey: publicKey.toBase58(), ...params.recurring });
+                setSchedules(await fetchSchedules(publicKey.toBase58()));
+              }
+              if (params.groupTrip) {
+                await createGroupApi({ jar_pubkey: jarPubkey, owner_pubkey: publicKey.toBase58(), ...params.groupTrip });
+                setGroups(await fetchGroupsByOwner(publicKey.toBase58()));
               }
               setModal(null);
-              showToast("Jar created 🏺");
+              showToast(params.groupTrip ? "Групову поїздку створено ✈️" : "Jar created 🏺");
             } catch (e: unknown) {
               const msg = e instanceof Error ? e.message : "Unknown error";
               showToast("Failed: " + msg.slice(0, 60));
@@ -281,6 +346,9 @@ function DashboardPage({
   jars,
   greeting,
   apy,
+  schedules,
+  onStopSchedule,
+  groups,
 }: {
   onNewJar: () => void;
   scenario: string;
@@ -288,6 +356,9 @@ function DashboardPage({
   jars: typeof JARS;
   greeting: string | null;
   apy: { usdc_kamino: number; sol_marinade: number };
+  schedules: Schedule[];
+  onStopSchedule: (id: string) => Promise<void>;
+  groups: GroupInfo[];
 }) {
   return (
     <>
@@ -403,6 +474,89 @@ function DashboardPage({
             </div>
           )}
         </Card>
+
+        {/* Group Trip jars */}
+        {groups.length > 0 && (
+          <Card
+            title="Групові поїздки ✈️"
+            action={
+              <button onClick={onNewJar} className="rounded-full px-3 py-1 text-xs font-medium text-sol-purple hover:bg-surface-lavender">
+                + Нова
+              </button>
+            }
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              {groups.map((g) => {
+                const daysLeft = Math.max(0, Math.ceil((g.trip_date * 1000 - Date.now()) / 86_400_000));
+                return (
+                  <a
+                    key={g.jar_pubkey}
+                    href={`/trip/${g.jar_pubkey}`}
+                    className="block rounded-2xl border border-black/5 bg-[#FAFAF8] p-4 transition hover:-translate-y-0.5 hover:border-sol-purple hover:shadow-md"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="text-3xl">{g.destination_emoji}</div>
+                      <span className="rounded-full bg-surface-sky px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                        {daysLeft > 0 ? `${daysLeft} днів` : "Скоро!"}
+                      </span>
+                    </div>
+                    <div className="mt-2 font-display text-base font-semibold">{g.trip_name}</div>
+                    <div className="text-xs text-ink-muted">{g.members.length} учасників · ${(g.budget_per_person_cents / 100).toLocaleString()}/особу</div>
+                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-black/5">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-sol-purple to-sol-blue"
+                        style={{ width: `${g.total_progress_pct}%` }}
+                      />
+                    </div>
+                    <div className="mt-1.5 flex justify-between text-[11px] text-ink-faint">
+                      <span>{g.total_progress_pct}% зібрано</span>
+                      <span>Відкрити →</span>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          </Card>
+        )}
+
+        {/* Recurring schedules */}
+        {schedules.length > 0 && (
+          <Card
+            title="Мої автовнески"
+            action={
+              <span className="flex items-center gap-1 rounded-full bg-surface-lavender px-3 py-1 text-[11px] font-semibold text-sol-purple">
+                <RefreshCw className="h-3 w-3" /> {schedules.length} активних
+              </span>
+            }
+          >
+            <div className="space-y-2">
+              {schedules.map((s) => {
+                const days = ['Нд','Пн','Вт','Ср','Чт','Пт','Сб']
+                const timeLabel = `${String(s.hour).padStart(2,'0')}:${String(s.minute).padStart(2,'0')}`
+                const dayLabel = s.frequency === 'weekly'
+                  ? `кожного ${days[s.day] ?? s.day}`
+                  : `кожного ${s.day}-го числа`
+                return (
+                  <div key={s.id} className="flex items-center gap-3 rounded-xl border border-black/5 bg-[#FAFAF8] px-4 py-3">
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-surface-lavender text-sol-purple">
+                      <Clock className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold">${(s.amount_usdc / 100).toFixed(2)} {dayLabel} о {timeLabel}</div>
+                      <div className="truncate text-[11px] text-ink-muted">Jar {s.jar_pubkey.slice(0,4)}…{s.jar_pubkey.slice(-4)}</div>
+                    </div>
+                    <button
+                      onClick={() => onStopSchedule(s.id)}
+                      className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-ink-muted hover:border-red-300 hover:text-red-500"
+                    >
+                      Зупинити
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </Card>
+        )}
 
         {/* Activity + Contributors */}
         <div className="mt-5 grid gap-5 lg:grid-cols-2">
@@ -679,13 +833,39 @@ function BalanceChart() {
 // MODAL
 // ---------------------------------------------------------------------------
 
+type GroupTripParams = {
+  trip_name: string;
+  destination_emoji: string;
+  trip_date: number;
+  budget_per_person_cents: number;
+  owner_nickname: string;
+};
+
+type RecurringParams = {
+  amount_usdc: number;
+  frequency: "weekly" | "monthly";
+  day: number;
+  hour: number;
+  minute: number;
+};
+
+function recurLabel(amount: string, frequency: string, day: string, time: string): string {
+  const [hh = "09", mm = "00"] = time.split(":");
+  const t = `${hh}:${mm}`;
+  if (frequency === "weekly") {
+    const names = ["неділі","понеділка","вівторка","середи","четверга","п'ятниці","суботи"];
+    return `Буду відкладати $${amount || "?"} кожного ${names[+day] ?? "?"} о ${t}`;
+  }
+  return `Буду відкладати $${amount || "?"} кожного ${day || "?"}-го числа о ${t}`;
+}
+
 function NewJarModal({
   onClose,
   onCreate,
   apy,
 }: {
   onClose: () => void;
-  onCreate: (params: { mode: number; unlockDate: number; goalAmount: number; currency: "usdc" | "sol" }) => Promise<void>;
+  onCreate: (params: { mode: number; unlockDate: number; goalAmount: number; currency: "usdc" | "sol"; recurring: RecurringParams | null; groupTrip: GroupTripParams | null }) => Promise<void>;
   apy: { usdc_kamino: number; sol_marinade: number };
 }) {
   const [unlockType, setUnlockType] = useState<"goal" | "date" | "both">("goal");
@@ -694,6 +874,22 @@ function NewJarModal({
   const [goalInput, setGoalInput] = useState("");
   const [dateInput, setDateInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Jar type: personal | group
+  const [jarType, setJarType] = useState<"personal" | "group">("personal");
+  // Group trip state
+  const [tripName, setTripName] = useState("");
+  const [tripEmoji, setTripEmoji] = useState("✈️");
+  const [tripDate, setTripDate] = useState("");
+  const [budgetPerPerson, setBudgetPerPerson] = useState("");
+  const [myNickname, setMyNickname] = useState("");
+
+  // Recurring deposit state
+  const [recurEnabled, setRecurEnabled] = useState(false);
+  const [recurAmount, setRecurAmount] = useState("");
+  const [recurFrequency, setRecurFrequency] = useState<"weekly" | "monthly">("monthly");
+  const [recurDay, setRecurDay] = useState("1");
+  const [recurTime, setRecurTime] = useState("09:00");
 
   return (
     <div
@@ -716,6 +912,88 @@ function NewJarModal({
           </button>
         </div>
 
+        {/* Jar type */}
+        <div className="mt-6">
+          <div className="grid grid-cols-2 gap-2">
+            {([["personal", "🏺 Особиста", "Ціль, дата, регулярні внески"], ["group", "✈️ Групова поїздка", "Спільна мета для кількох людей"]] as const).map(([type, label, sub]) => (
+              <button
+                key={type}
+                onClick={() => setJarType(type)}
+                className={`rounded-xl border-2 px-4 py-3 text-left transition ${jarType === type ? "border-sol-purple bg-surface-lavender" : "border-black/10 hover:border-black/20"}`}
+              >
+                <div className="text-sm font-semibold">{label}</div>
+                <div className="mt-0.5 text-[11px] text-ink-muted">{sub}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {jarType === "group" ? (
+          /* ─── GROUP TRIP FIELDS ─── */
+          <div className="mt-5 space-y-4">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">Назва поїздки</label>
+              <input
+                placeholder="Японія 2026, Балі з друзями…"
+                value={tripName}
+                onChange={e => setTripName(e.target.value)}
+                className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">Emoji напрямку</label>
+              <div className="mt-1.5 flex gap-2 flex-wrap">
+                {["✈️","🗾","🏖️","🏔️","🗺️","🏝️","🌍","🎌","🌏","🇮🇹"].map(e => (
+                  <button
+                    key={e}
+                    onClick={() => setTripEmoji(e)}
+                    className={`h-10 w-10 rounded-xl text-xl transition ${tripEmoji === e ? "bg-surface-lavender ring-2 ring-sol-purple" : "bg-[#FAFAF8] hover:bg-black/5"}`}
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">Дата поїздки</label>
+                <input
+                  type="date"
+                  value={tripDate}
+                  onChange={e => setTripDate(e.target.value)}
+                  className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">Бюджет / особу ($)</label>
+                <input
+                  type="number"
+                  placeholder="1500"
+                  value={budgetPerPerson}
+                  onChange={e => setBudgetPerPerson(e.target.value)}
+                  className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">Твоє ім&apos;я у групі</label>
+              <input
+                placeholder="Аня, Vasyl…"
+                value={myNickname}
+                onChange={e => setMyNickname(e.target.value)}
+                className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
+              />
+            </div>
+            {tripName && budgetPerPerson && (
+              <div className="rounded-xl bg-surface-lavender p-3 text-xs text-sol-purple font-medium">
+                {tripEmoji} {tripName} · ${parseFloat(budgetPerPerson || "0").toLocaleString()} / особу{tripDate ? ` · ${new Date(tripDate).toLocaleDateString("uk-UA", { day: "numeric", month: "long", year: "numeric" })}` : ""}
+              </div>
+            )}
+          </div>
+        ) : (
+
+        /* ─── PERSONAL JAR FIELDS ─── */
+        <>
         {/* Currency */}
         <div className="mt-6">
           <label className="mb-2 block text-xs font-semibold uppercase tracking-widest text-ink-muted">
@@ -843,7 +1121,95 @@ function NewJarModal({
               </div>
             </button>
           </div>
+
+          {/* Recurring deposit toggle */}
+          <div>
+            <button
+              onClick={() => setRecurEnabled(!recurEnabled)}
+              className="flex w-full items-center justify-between rounded-xl border border-black/10 px-4 py-3 text-left hover:border-black/20"
+            >
+              <div>
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <RefreshCw className="h-4 w-4 text-sol-purple" /> Регулярний внесок від мене
+                </div>
+                <div className="text-xs text-ink-muted">Push-нагадування + авто-план поповнень</div>
+              </div>
+              <div className={`h-6 w-10 rounded-full p-0.5 transition ${recurEnabled ? "bg-sol-purple" : "bg-black/10"}`}>
+                <div className={`h-5 w-5 rounded-full bg-white transition ${recurEnabled ? "translate-x-4" : ""}`} />
+              </div>
+            </button>
+
+            {recurEnabled && (
+              <div className="mt-3 space-y-3 rounded-xl border border-sol-purple/20 bg-surface-lavender p-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-widest text-ink-muted">Сума ($)</label>
+                    <input
+                      type="number"
+                      placeholder="50"
+                      value={recurAmount}
+                      onChange={(e) => setRecurAmount(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-sol-purple"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-widest text-ink-muted">Час</label>
+                    <input
+                      type="time"
+                      value={recurTime}
+                      onChange={(e) => setRecurTime(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-sol-purple"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-widest text-ink-muted">Частота</label>
+                  <div className="mt-1 grid grid-cols-2 gap-2">
+                    {(["weekly","monthly"] as const).map((f) => (
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() => setRecurFrequency(f)}
+                        className={`rounded-xl border-2 py-2 text-sm font-medium transition ${recurFrequency === f ? "border-sol-purple bg-white" : "border-transparent bg-white/60 hover:border-black/10"}`}
+                      >
+                        {f === "weekly" ? "Щотижня" : "Щомісяця"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-widest text-ink-muted">
+                    {recurFrequency === "weekly" ? "День тижня" : "Число місяця (1–28)"}
+                  </label>
+                  {recurFrequency === "weekly" ? (
+                    <select
+                      value={recurDay}
+                      onChange={(e) => setRecurDay(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-sol-purple"
+                    >
+                      {["Неділя","Понеділок","Вівторок","Середа","Четвер","П'ятниця","Субота"].map((d, i) => (
+                        <option key={i} value={i}>{d}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="number"
+                      min={1} max={28}
+                      value={recurDay}
+                      onChange={(e) => setRecurDay(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-sol-purple"
+                    />
+                  )}
+                </div>
+                <div className="rounded-xl bg-white/70 px-4 py-2.5 text-xs font-medium text-sol-purple">
+                  {recurLabel(recurAmount, recurFrequency, recurDay, recurTime)}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+        </>
+        )} {/* end jarType conditional */}
 
         <div className="mt-6 flex gap-3">
           <button
@@ -856,21 +1222,54 @@ function NewJarModal({
           <button
             disabled={submitting}
             onClick={async () => {
-              const mode = unlockType === "goal" ? 1 : unlockType === "date" ? 0 : 2;
-              const unlockDate = dateInput ? Math.floor(new Date(dateInput).getTime() / 1000) : 0;
-              // USDC goal: dollars → micro-units (6 dec). SOL goal: SOL → lamports (9 dec)
-              const goalAmount = goalInput
-                ? currency === "usdc"
-                  ? Math.round(parseFloat(goalInput) * 1_000_000)
-                  : Math.round(parseFloat(goalInput) * 1_000_000_000)
-                : 0;
               setSubmitting(true);
-              await onCreate({ mode, unlockDate, goalAmount, currency });
-              setSubmitting(false);
+              try {
+                if (jarType === "group") {
+                  const tripDateTs = tripDate ? Math.floor(new Date(tripDate).getTime() / 1000) : 0;
+                  const budgetCents = Math.round(parseFloat(budgetPerPerson || "0") * 100);
+                  const goalAmount = Math.round(parseFloat(budgetPerPerson || "0") * 1_000_000); // USDC micro-units
+                  await onCreate({
+                    mode: 0,
+                    unlockDate: tripDateTs,
+                    goalAmount,
+                    currency: "usdc",
+                    recurring: null,
+                    groupTrip: {
+                      trip_name: tripName,
+                      destination_emoji: tripEmoji,
+                      trip_date: tripDateTs,
+                      budget_per_person_cents: budgetCents,
+                      owner_nickname: myNickname,
+                    },
+                  });
+                } else {
+                  const mode = unlockType === "goal" ? 1 : unlockType === "date" ? 0 : 2;
+                  const unlockDate = dateInput ? Math.floor(new Date(dateInput).getTime() / 1000) : 0;
+                  const goalAmount = goalInput
+                    ? currency === "usdc"
+                      ? Math.round(parseFloat(goalInput) * 1_000_000)
+                      : Math.round(parseFloat(goalInput) * 1_000_000_000)
+                    : 0;
+                  let recurring: RecurringParams | null = null;
+                  if (recurEnabled && recurAmount) {
+                    const [hh, mm] = recurTime.split(":");
+                    recurring = {
+                      amount_usdc: Math.round(parseFloat(recurAmount) * 100),
+                      frequency: recurFrequency,
+                      day: parseInt(recurDay, 10),
+                      hour: parseInt(hh ?? "9", 10),
+                      minute: parseInt(mm ?? "0", 10),
+                    };
+                  }
+                  await onCreate({ mode, unlockDate, goalAmount, currency, recurring, groupTrip: null });
+                }
+              } finally {
+                setSubmitting(false);
+              }
             }}
             className="flex-1 rounded-full bg-ink py-3 text-sm font-medium text-white disabled:opacity-40"
           >
-            {submitting ? "Creating…" : "Create Jar"}
+            {submitting ? "Creating…" : jarType === "group" ? "Створити поїздку ✈️" : "Create Jar"}
           </button>
         </div>
       </div>

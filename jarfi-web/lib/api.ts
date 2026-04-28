@@ -51,6 +51,145 @@ export async function fetchApy(): Promise<ApyResponse> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Schedule API
+// ---------------------------------------------------------------------------
+
+export type Schedule = {
+  id: string;
+  jar_pubkey: string;
+  owner_pubkey: string;
+  amount_usdc: number;  // cents
+  frequency: "weekly" | "monthly";
+  day: number;
+  hour: number;
+  minute: number;
+  cron_expr: string;
+  active: boolean;
+  created_at: number;
+  last_fired: number | null;
+};
+
+export async function createScheduleApi(params: {
+  jar_pubkey: string;
+  owner_pubkey: string;
+  amount_usdc: number;
+  frequency: "weekly" | "monthly";
+  day: number;
+  hour: number;
+  minute: number;
+}): Promise<{ ok: boolean; schedule: Schedule }> {
+  const res = await fetch(`${API_URL}/schedule/create`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) throw new Error("Failed to create schedule");
+  return res.json();
+}
+
+export async function fetchSchedules(ownerPubkey: string): Promise<Schedule[]> {
+  try {
+    const res = await fetch(`${API_URL}/schedule/${ownerPubkey}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.schedules ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function stopScheduleApi(id: string): Promise<void> {
+  await fetch(`${API_URL}/schedule/${id}`, { method: "DELETE" });
+}
+
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Group Trip API
+// ---------------------------------------------------------------------------
+
+export type GroupMember = {
+  pubkey: string;
+  nickname: string;
+  joined_at: number;
+  contributed_cents: number;
+  progress_pct: number;
+};
+
+export type GroupInfo = {
+  jar_pubkey: string;
+  trip_name: string;
+  destination_emoji: string;
+  trip_date: number;
+  budget_per_person_cents: number;
+  total_goal_cents: number;
+  total_contributed: number;
+  total_progress_pct: number;
+  members: GroupMember[];
+};
+
+export async function createGroupApi(params: {
+  jar_pubkey: string;
+  trip_name: string;
+  destination_emoji: string;
+  trip_date: number;
+  budget_per_person_cents: number;
+  owner_pubkey: string;
+  owner_nickname: string;
+}): Promise<GroupInfo> {
+  const res = await fetch(`${API_URL}/group/create`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) throw new Error("Failed to create group");
+  const data = await res.json();
+  return data.group;
+}
+
+export async function fetchGroup(jar_pubkey: string): Promise<GroupInfo | null> {
+  try {
+    const res = await fetch(`${API_URL}/group/${jar_pubkey}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.group ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function joinGroupApi(
+  jar_pubkey: string,
+  params: { owner_pubkey: string; nickname: string }
+): Promise<GroupInfo | null> {
+  try {
+    const res = await fetch(`${API_URL}/group/${jar_pubkey}/join`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.group ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchGroupsByOwner(ownerPubkey: string): Promise<GroupInfo[]> {
+  try {
+    const res = await fetch(`${API_URL}/group/by-owner/${ownerPubkey}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.groups ?? [];
+  } catch {
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+
 export async function createJarViaApi(params: {
   mode: number;
   unlockDate: number;
