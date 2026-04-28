@@ -38,18 +38,58 @@ jarfi/
 - `GET /apy` — live Kamino + Marinade APY from backend
 
 ## Current status (2026-04-28)
-- Phase 1 (USDC Foundation) — ✅ contract + backend + web done
-- Phase 2 (Kamino staking) — 🔄 in progress
-- Phase 3 (Jupiter Terminal widget) — pending
-- Phase 4 (Recurring deposits + push notifications) — pending
+- Phase 1 (USDC Foundation) — ✅ done
+- Phase 2 (Kamino staking) — ✅ done
+- Phase 3 (Jupiter Terminal swap widget) — ✅ done
+- Phase 4 (Recurring deposits + push notifications) — 🔄 in progress
+  - 4A (schedule engine) — ✅ done
+  - 4B (VAPID web push) — ⏳ next
+  - 4C (service worker + push permission in web) — pending
+  - 4D (UI: recurring toggle in create jar modal) — pending
 - Phase 5 (Group Trip jar) — pending
 - Transak API Secret — ✅ set in Railway
-- Cloudflare Pages auto-deploy — ⚠️ often fails on `npm ci` lock file mismatch, use manual deploy
+- Cloudflare Pages auto-deploy — ✅ fixed with jarfi-web/.npmrc (legacy-peer-deps=true)
+
+## Phase 4A — what was done
+- `jarfi-backend/scheduleService.js` — schedule engine:
+  - `addSchedule({ jar_pubkey, owner_pubkey, amount_usdc, frequency, day, hour, minute })` → builds cron expr, saves to `schedules.json`
+  - `getSchedulesByOwner(owner_pubkey)` / `deleteSchedule(id)`
+  - `savePushSubscription(owner_pubkey, subscription)` / `getPushSubscription(owner_pubkey)` → `push-subscriptions.json`
+  - `startCronRunner(onFire)` — runs node-cron tasks, re-syncs every 60s
+- New endpoints in `index.js`:
+  - `POST /schedule/create` — body: `{ jar_pubkey, owner_pubkey, amount_usdc, frequency, day, hour, minute }`
+  - `GET /schedule/:owner_pubkey`
+  - `DELETE /schedule/:id`
+  - `POST /push/subscribe` — body: `{ owner_pubkey, subscription }`
+- cron runner starts with server, placeholder callback (logs); Phase 4B will wire real VAPID push
+
+## Phase 4B — what to do next
+1. Generate VAPID keys: `npx web-push generate-vapid-keys` → add to Railway env vars: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL`
+2. In `scheduleService.js` or `index.js`: import `web-push`, configure with VAPID keys
+3. Replace the placeholder `onFire` callback in `app.listen` with real `webpush.sendNotification(subscription, payload)`
+4. Push payload: `{ title: "Час поповнити банку 🏺", body: "$10 → Jar abcd…1234", data: { jar_pubkey, amount_usdc } }`
+5. `GET /push/vapid-public-key` — expose public key for frontend subscription
+
+## Phase 4C — what to do next (web)
+- `jarfi-web/public/sw.js` — service worker:
+  - `push` event: show notification with "Підтвердити" / "Пізніше" actions
+  - `notificationclick`: open `/dashboard?confirm=JAR_PUBKEY&amount=AMOUNT`
+- `jarfi-web/lib/push.ts` — `subscribeToPush(ownerPubkey)`: registers SW, calls `Notification.requestPermission()`, calls `POST /push/subscribe`
+- Dashboard: on wallet connect → call `subscribeToPush()`
+- URL `/dashboard?confirm=...` → auto-open wallet pop-up for deposit
+
+## Phase 4D — what to do next (web UI)
+- In `NewJarModal` (dashboard/page.tsx): toggle "Регулярний внесок від мене"
+- Fields: amount ($), frequency (weekly/monthly), day (1-28), time (HH:MM)
+- Preview label: "Буду відкладати $100 кожного 5-го числа о 10:00"
+- On jar create: also `POST /schedule/create`
+- Dashboard section "Мої автовнески": `GET /schedule/:owner_pubkey` → list with "Зупинити" button
 
 ## Known issues
-- Cloudflare Pages auto-deploy fails if package-lock.json drifts — fix: `npm install --legacy-peer-deps` + commit
+- Cloudflare Pages auto-deploy used to fail on peer-dep conflict — fixed with `.npmrc`
 - Marinade CPI in contract is a mock (staking_shares field exists but no real CPI calls)
 - Jupiter swap for SOL jars (when Transak sends USDC → needs swap before deposit) — TODO in backend
+- `schedules.json` and `push-subscriptions.json` on Railway are ephemeral (reset on deploy) — fine for hackathon MVP
 
 ## Commands
 ```bash
