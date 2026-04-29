@@ -2,6 +2,9 @@ require('dotenv').config()
 const express = require('express')
 const cors = require('cors')
 const crypto = require('crypto')
+const helmet = require('helmet')
+const rateLimit = require('express-rate-limit')
+const jwt = require('jsonwebtoken')
 const anchor = require('@coral-xyz/anchor')
 const {
   Connection,
@@ -21,6 +24,7 @@ const IDL = require('./idl.json')
 const { depositToKamino, getYieldEarned, getLiveApyPublic } = require('./kaminoService')
 const { stakeWithMarinade } = require('./marinadeService')
 const { swapUsdcToSol } = require('./jupiterService')
+const { isWebhookProcessed, markWebhookProcessed } = require('./db')
 const { createGroup, getGroup, joinGroup, listGroupsByOwner } = require('./groupService')
 const {
   addSchedule,
@@ -109,8 +113,23 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   console.warn('[push] VAPID keys not set — push notifications disabled')
 }
 
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : ['https://jarfi.xyz', 'https://www.jarfi.xyz', 'http://localhost:3000']
+
 const app = express()
-app.use(cors())
+app.use(helmet())
+app.use(cors({ origin: ALLOWED_ORIGINS, optionsSuccessStatus: 200 }))
+
+const apiLimiter = rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false })
+const webhookLimiter = rateLimit({ windowMs: 60_000, max: 30 })
+app.use('/jar', apiLimiter)
+app.use('/schedule', apiLimiter)
+app.use('/group', apiLimiter)
+app.use('/push', apiLimiter)
+app.use('/transak-webhook',    webhookLimiter)
+app.use('/moonpay-webhook',    webhookLimiter)
+app.use('/guardarian-webhook', webhookLimiter)
 
 app.use('/moonpay-webhook',     express.raw({ type: '*/*' }))
 app.use('/guardarian-webhook',  express.raw({ type: '*/*' }))
@@ -122,12 +141,7 @@ app.use(express.json())
 // ---------------------------------------------------------------------------
 
 app.get('/', (req, res) => {
-  res.json({
-    ok: true,
-    message: 'JAR backend running',
-    wallet: serverKeypair.publicKey.toBase58(),
-    rpc: RPC_URL,
-  })
+  res.json({ ok: true, message: 'JAR backend running' })
 })
 
 // ---------------------------------------------------------------------------
@@ -349,7 +363,6 @@ app.post('/transak-webhook', async (req, res) => {
     let payload
     const secret = process.env.TRANSAK_API_SECRET
     if (secret) {
-      const jwt = require('jsonwebtoken')
       payload = jwt.verify(rawBody, secret)
     } else {
       payload = JSON.parse(rawBody)
@@ -368,6 +381,11 @@ app.post('/transak-webhook', async (req, res) => {
     const cryptoAmount  = Number(data.cryptoAmount  || data.crypto_amount  || 0)
     const partnerOrderId = data.partnerOrderId || data.partner_order_id || ''
     const transakOrderId = data.id || ''
+
+    if (transakOrderId && isWebhookProcessed(transakOrderId)) {
+      console.log('[transak-webhook] duplicate, skipping:', transakOrderId)
+      return res.json({ ok: true, skipped: true, reason: 'duplicate' })
+    }
 
     const parts = partnerOrderId.split('__')
     const contributorMessage = parts.length >= 3
@@ -395,6 +413,8 @@ app.post('/transak-webhook', async (req, res) => {
     })
 
     let txSignature
+
+    if (transakOrderId) markWebhookProcessed(transakOrderId, 'transak')
 
     if (isUsdcJar) {
       const usdcMicroUnits = Math.round(cryptoAmount * 1_000_000)
@@ -486,10 +506,26 @@ app.post('/moonpay-webhook', async (req, res) => {
 
 app.post('/guardarian-webhook', async (req, res) => {
   try {
+    const guardarianSecret = process.env.GUARDARIAN_WEBHOOK_SECRET
+    if (guardarianSecret) {
+      const provided = req.headers['x-guardarian-signature'] || req.headers['authorization'] || ''
+      if (provided !== guardarianSecret) {
+        console.warn('[guardarian-webhook] invalid signature')
+        return res.status(401).json({ ok: false, error: 'Unauthorized' })
+      }
+    } else {
+      console.warn('[guardarian-webhook] GUARDARIAN_WEBHOOK_SECRET not set — skipping verification')
+    }
+
     const rawBody = Buffer.isBuffer(req.body) ? req.body.toString() : JSON.stringify(req.body)
     const payload = rawBody ? JSON.parse(rawBody) : {}
     const status  = payload.status || payload.transaction_status
     if (status !== 'finished') return res.json({ ok: true, skipped: true, status })
+
+    const orderId = String(payload.id || payload.order_id || '')
+    if (orderId && isWebhookProcessed(orderId)) {
+      return res.json({ ok: true, skipped: true, reason: 'duplicate' })
+    }
     const jarPubkeyStr = payload.payout_address || payload.wallet_address
     const amountPaid   = Number(payload.from_amount || 0)
     const comment      = String(payload.output_hash || '').slice(0, 120)
@@ -501,6 +537,7 @@ app.post('/guardarian-webhook', async (req, res) => {
       .accounts({ jar: jarPubkey, contribution: contributionKeypair.publicKey, contributor: serverKeypair.publicKey, systemProgram: anchor.web3.SystemProgram.programId })
       .signers([contributionKeypair])
       .rpc()
+    if (orderId) markWebhookProcessed(orderId, 'guardarian')
     res.json({ ok: true, txSignature: tx })
   } catch (err) {
     console.error('[guardarian-webhook]', err.message)

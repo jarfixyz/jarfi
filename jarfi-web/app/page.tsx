@@ -411,8 +411,8 @@ export default function Landing() {
             />
             <TrustItem
               icon={<Sparkles className="h-5 w-5" />}
-              title="Audit coming"
-              body="Smart contract not yet audited. OtterSec review planned before mainnet. Hackathon build runs on Solana Devnet."
+              title="Audit in progress"
+              body="Smart contract security review underway. JAR runs on Solana mainnet. Use at your own risk — not financial advice."
             />
           </div>
         </div>

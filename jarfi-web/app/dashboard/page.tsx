@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
   LayoutGrid,
@@ -12,11 +12,11 @@ import {
   Lock,
   TrendingUp,
   Copy,
-  ArrowUpRight,
   X,
   Loader2,
   RefreshCw,
   Clock,
+  Menu,
 } from "lucide-react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletButton } from "@/components/wallet-button";
@@ -26,15 +26,58 @@ import { createJarOnChain, createUsdcJarOnChain } from "@/lib/create-jar";
 import { CURRENCY_USDC } from "@/lib/program";
 import {
   fetchApy,
-  createScheduleApi, fetchSchedules, stopScheduleApi, type Schedule,
-  createGroupApi, fetchGroupsByOwner, type GroupInfo,
-  fetchContributionsForJar, type JarContribution,
+  createScheduleApi,
+  fetchSchedules,
+  stopScheduleApi,
+  type Schedule,
+  createGroupApi,
+  fetchGroupsByOwner,
+  type GroupInfo,
+  fetchContributionsForJar,
+  type JarContribution,
 } from "@/lib/api";
 import { subscribeToPush } from "@/lib/push";
 import TransakWidget from "@/components/TransakWidget";
 
 // ---------------------------------------------------------------------------
-// Mock data — will be replaced with on-chain reads in Stage 2
+// Jar name storage (localStorage) — on-chain jars have no name field
+// ---------------------------------------------------------------------------
+
+function getJarName(pubkey: string): string {
+  if (typeof window === "undefined") return shortPubkey(pubkey);
+  return localStorage.getItem(`jar_name_${pubkey}`) ?? shortPubkey(pubkey);
+}
+
+function saveJarName(pubkey: string, name: string) {
+  if (typeof window === "undefined") return;
+  if (name.trim()) localStorage.setItem(`jar_name_${pubkey}`, name.trim());
+}
+
+function shortPubkey(pubkey: string) {
+  return `Jar ${pubkey.slice(0, 4)}…${pubkey.slice(-4)}`;
+}
+
+// ---------------------------------------------------------------------------
+// Forecast helper — monthly compounding
+// ---------------------------------------------------------------------------
+
+function calcForecast(
+  currentBalance: number,
+  monthlyDeposit: number,
+  years: number,
+  apr: number
+): number {
+  const months = years * 12;
+  const rate = apr / 100 / 12;
+  let balance = currentBalance;
+  for (let m = 0; m < months; m++) {
+    balance = balance * (1 + rate) + monthlyDeposit;
+  }
+  return Math.round(balance);
+}
+
+// ---------------------------------------------------------------------------
+// Types
 // ---------------------------------------------------------------------------
 
 type JarType = {
@@ -42,64 +85,16 @@ type JarType = {
   emoji: string;
   name: string;
   description: string;
-  amount: number;   // display amount (already in $)
-  goal: number;     // display goal (in $)
+  amount: number;
+  goal: number;
   locked: boolean;
   unlockLabel: string;
   currency: "usdc" | "sol";
+  unlockDate: number;
 };
 
-const JARS: JarType[] = [
-  {
-    id: "anya",
-    emoji: "👧",
-    name: "Anya's Future",
-    description: "Unlocks March 2036",
-    amount: 847.3,
-    goal: 2000,
-    locked: true,
-    unlockLabel: "by date",
-    currency: "usdc",
-  },
-  {
-    id: "japan",
-    emoji: "✈️",
-    name: "Japan Trip",
-    description: "4 contributors · June 2026",
-    amount: 340,
-    goal: 1000,
-    locked: false,
-    unlockLabel: "by goal",
-    currency: "usdc",
-  },
-  {
-    id: "moto",
-    emoji: "🏍️",
-    name: "Motorcycle Fund",
-    description: "$5,000 or 6 months",
-    amount: 1200,
-    goal: 5000,
-    locked: false,
-    unlockLabel: "goal or date",
-    currency: "sol",
-  },
-];
-
-const ACTIVITY = [
-  { icon: "💝", tone: "green", title: "Grandma contributed", sub: "Anya's Future · \"With love\" · 2h ago", amount: "+$50" },
-  { icon: "📈", tone: "blue", title: "Staking reward", sub: "All jars · Marinade · Today", amount: "+$3.10" },
-  { icon: "💝", tone: "green", title: "Grandpa contributed", sub: "Anya's Future · \"Ice cream\" · Apr 9", amount: "+$30" },
-  { icon: "💳", tone: "purple", title: "Your deposit", sub: "Motorcycle Fund · Apr 8", amount: "+$200" },
-  { icon: "📈", tone: "blue", title: "Staking reward", sub: "All jars · Apr 4", amount: "+$2.90" },
-];
-
-const CONTRIBUTORS = [
-  { name: "Grandma Lyuda", comment: "💝 With love, always", amount: "+$180", gradient: "from-sol-purple to-sol-blue" },
-  { name: "Grandpa Mykhailo", comment: "🍦 For ice cream", amount: "+$150", gradient: "from-sol-green to-sol-blue" },
-  { name: "Aunt Tanya", comment: "🎂 Happy birthday!", amount: "+$70", gradient: "from-orange-400 to-yellow-400" },
-  { name: "Uncle Vasyl", comment: "📚 Study hard", amount: "+$36", gradient: "from-red-400 to-orange-400" },
-];
-
+// ---------------------------------------------------------------------------
+// Dashboard root
 // ---------------------------------------------------------------------------
 
 export default function Dashboard() {
@@ -108,7 +103,8 @@ export default function Dashboard() {
   >("dashboard");
   const [modal, setModal] = useState<"new-jar" | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [scenario, setScenario] = useState("$50/mo");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [scenario, setScenario] = useState(50);
 
   const { publicKey, wallet } = useWallet();
   const { connection } = useConnection();
@@ -117,76 +113,99 @@ export default function Dashboard() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [contributions, setContributions] = useState<JarContribution[]>([]);
-  const [confirmBanner, setConfirmBanner] = useState<{ jar_pubkey: string; amount_usdc: number } | null>(null);
+  const [confirmBanner, setConfirmBanner] = useState<{
+    jar_pubkey: string;
+    amount_usdc: number;
+  } | null>(null);
   const [showDepositTransak, setShowDepositTransak] = useState(false);
 
   useEffect(() => {
-    fetchApy().then(data => setApy({ usdc_kamino: data.usdc_kamino, sol_marinade: data.sol_marinade }));
+    fetchApy().then((d) =>
+      setApy({ usdc_kamino: d.usdc_kamino, sol_marinade: d.sol_marinade })
+    );
   }, []);
 
-  // Push subscription when wallet connects
   useEffect(() => {
     if (!publicKey) return;
     subscribeToPush(publicKey.toBase58()).catch(() => {});
   }, [publicKey]);
 
-  // Fetch schedules + groups when wallet connects
   useEffect(() => {
-    if (!publicKey) { setSchedules([]); setGroups([]); return; }
+    if (!publicKey) {
+      setSchedules([]);
+      setGroups([]);
+      return;
+    }
     fetchSchedules(publicKey.toBase58()).then(setSchedules);
     fetchGroupsByOwner(publicKey.toBase58()).then(setGroups);
   }, [publicKey]);
 
-  // Fetch contributions for first jar (activity + contributors feed)
   useEffect(() => {
-    if (!liveJars.length) { setContributions([]); return; }
+    if (!liveJars.length) {
+      setContributions([]);
+      return;
+    }
     fetchContributionsForJar(liveJars[0].pubkey).then(setContributions);
   }, [liveJars]);
 
-  // Handle ?confirm=JAR_PUBKEY&amount=AMOUNT from push notification click
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
     const p = new URLSearchParams(window.location.search);
-    const jar_pubkey = p.get('confirm');
-    const amount_usdc = Number(p.get('amount') ?? 0);
+    const jar_pubkey = p.get("confirm");
+    const amount_usdc = Number(p.get("amount") ?? 0);
     if (jar_pubkey) setConfirmBanner({ jar_pubkey, amount_usdc });
   }, []);
 
-  // Normalize on-chain JarAccount → JarType display shape
-  const normalizedLive: JarType[] = liveJars.map((j) => {
-    const isUsdc = j.jarCurrency === CURRENCY_USDC;
-    const modeLabel = j.mode === 0 ? "by date" : j.mode === 1 ? "by goal" : "goal or date";
-    const unlockDate = j.unlockDate > 0
-      ? new Date(j.unlockDate * 1000).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
-      : null;
+  // Close sidebar when navigating
+  const navigate = useCallback(
+    (page: typeof activePage) => {
+      setActivePage(page);
+      setSidebarOpen(false);
+    },
+    []
+  );
 
-    // USDC: balance in micro-units (6 dec) → dollars
-    // SOL:  balance in lamports (9 dec) → SOL displayed as dollars equivalent (mock rate)
-    const displayAmount = isUsdc
-      ? j.usdcBalance / 1_000_000
-      : j.balance / 1_000_000_000;
+  // Normalize on-chain JarAccount → JarType
+  const normalizedLive: JarType[] = useMemo(
+    () =>
+      liveJars.map((j) => {
+        const isUsdc = j.jarCurrency === CURRENCY_USDC;
+        const modeLabel =
+          j.mode === 0 ? "by date" : j.mode === 1 ? "by goal" : "goal or date";
+        const unlockDate = j.unlockDate;
+        const unlockDateStr =
+          unlockDate > 0
+            ? new Date(unlockDate * 1000).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })
+            : null;
 
-    const displayGoal = isUsdc
-      ? j.goalAmount / 1_000_000
-      : j.goalAmount / 1_000_000_000;
+        const displayAmount = isUsdc
+          ? j.usdcBalance / 1_000_000
+          : j.balance / 1_000_000_000;
+        const displayGoal = isUsdc
+          ? j.goalAmount / 1_000_000
+          : j.goalAmount / 1_000_000_000;
 
-    return {
-      id: j.pubkey,
-      emoji: isUsdc ? "💵" : "◎",
-      name: `Jar ${j.pubkey.slice(0, 4)}…${j.pubkey.slice(-4)}`,
-      description: unlockDate ? `Unlocks ${unlockDate}` : `${isUsdc ? "$" : "◎"}${displayAmount.toFixed(2)} deposited`,
-      amount: displayAmount,
-      goal: displayGoal > 0 ? displayGoal : 1000,
-      locked: !j.unlocked,
-      unlockLabel: modeLabel,
-      currency: isUsdc ? "usdc" : "sol",
-    };
-  });
-
-  // Fall back to mock data only when wallet not connected (demo mode)
-  const jars = publicKey
-    ? normalizedLive
-    : JARS;
+        return {
+          id: j.pubkey,
+          emoji: isUsdc ? "💵" : "◎",
+          name: getJarName(j.pubkey),
+          description: unlockDateStr
+            ? `Unlocks ${unlockDateStr}`
+            : `${isUsdc ? "$" : "◎"}${displayAmount.toFixed(2)} deposited`,
+          amount: displayAmount,
+          goal: displayGoal > 0 ? displayGoal : 1000,
+          locked: !j.unlocked,
+          unlockLabel: modeLabel,
+          currency: isUsdc ? "usdc" : "sol",
+          unlockDate,
+        };
+      }),
+    [liveJars]
+  );
 
   const greeting = publicKey
     ? `${publicKey.toBase58().slice(0, 4)}…${publicKey.toBase58().slice(-4)}`
@@ -201,9 +220,29 @@ export default function Dashboard() {
 
   return (
     <div className="flex min-h-screen bg-[#FAFAF8]">
-      {/* ─────────────────────────────────────────────────────────── SIDEBAR */}
-      <aside className="flex w-60 flex-shrink-0 flex-col border-r border-black/5 bg-white py-8">
-        <Link href="/" className="mb-8 flex items-center gap-2 px-6">
+      {/* ── Mobile overlay ─────────────────────────────────────────────────── */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* ── Sidebar ────────────────────────────────────────────────────────── */}
+      <aside
+        className={`
+          fixed inset-y-0 left-0 z-40 flex w-60 flex-shrink-0 flex-col
+          border-r border-black/5 bg-white py-8
+          transition-transform duration-200
+          md:relative md:translate-x-0
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+        `}
+      >
+        <Link
+          href="/"
+          className="mb-8 flex items-center gap-2 px-6"
+          onClick={() => setSidebarOpen(false)}
+        >
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-sol-purple to-sol-blue text-lg">
             🏺
           </div>
@@ -218,59 +257,59 @@ export default function Dashboard() {
             label="Dashboard"
             icon={<LayoutGrid className="h-4 w-4" />}
             active={activePage === "dashboard"}
-            onClick={() => setActivePage("dashboard")}
+            onClick={() => navigate("dashboard")}
           />
           <NavItem
             label="My Jars"
             icon={<Package className="h-4 w-4" />}
             active={activePage === "jars"}
-            onClick={() => setActivePage("jars")}
+            onClick={() => navigate("jars")}
           />
           <NavItem
             label="Analytics"
             icon={<BarChart3 className="h-4 w-4" />}
             active={activePage === "analytics"}
-            onClick={() => setActivePage("analytics")}
+            onClick={() => navigate("analytics")}
           />
         </div>
 
         {(firstJarName || !publicKey) && (
-        <div className="mt-6 px-3">
-          <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-widest text-ink-faint">
-            {firstJarName ?? "Anya's Jar"}
+          <div className="mt-6 px-3">
+            <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-widest text-ink-faint">
+              {firstJarName ?? "Your first jar"}
+            </div>
+            <NavItem
+              label="Contributors"
+              icon={<Users className="h-4 w-4" />}
+              active={activePage === "contributors"}
+              onClick={() => navigate("contributors")}
+            />
+            <NavItem
+              label="Gift Link"
+              icon={<Send className="h-4 w-4" />}
+              active={activePage === "gift"}
+              onClick={() => navigate("gift")}
+            />
           </div>
-          <NavItem
-            label="Contributors"
-            icon={<Users className="h-4 w-4" />}
-            active={activePage === "contributors"}
-            onClick={() => setActivePage("contributors")}
-          />
-          <NavItem
-            label="Gift Link"
-            icon={<Send className="h-4 w-4" />}
-            active={activePage === "gift"}
-            onClick={() => setActivePage("gift")}
-          />
-        </div>
         )}
 
-        <div className="mt-auto border-t border-black/5 px-3 pt-4">
-          <WalletButton />
-          {jarsLoading && (
-            <div className="mt-2 flex items-center gap-2 px-3 text-[11px] text-ink-faint">
-              <Loader2 className="h-3 w-3 animate-spin" /> Loading jars…
-            </div>
-          )}
-        </div>
+        {jarsLoading && (
+          <div className="mt-4 flex items-center gap-2 px-6 text-[11px] text-ink-faint">
+            <Loader2 className="h-3 w-3 animate-spin" /> Loading jars…
+          </div>
+        )}
       </aside>
 
-      {/* ──────────────────────────────────────────────────────────────── MAIN */}
-      <main className="flex-1 overflow-y-auto">
-        {/* Confirm banner from push notification */}
+      {/* ── Main ───────────────────────────────────────────────────────────── */}
+      <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
+        {/* Push confirm banner */}
         {confirmBanner && (
           <div className="sticky top-0 z-20 flex items-center justify-between bg-sol-purple px-6 py-3 text-sm font-medium text-white shadow">
             <span>
-              ⏰ Час поповнити банку — ${(confirmBanner.amount_usdc / 100).toFixed(2)} → Jar {confirmBanner.jar_pubkey.slice(0, 4)}…{confirmBanner.jar_pubkey.slice(-4)}
+              ⏰ Час поповнити банку — $
+              {(confirmBanner.amount_usdc / 100).toFixed(2)} → Jar{" "}
+              {confirmBanner.jar_pubkey.slice(0, 4)}…
+              {confirmBanner.jar_pubkey.slice(-4)}
             </span>
             <div className="ml-4 flex items-center gap-2">
               <button
@@ -279,46 +318,80 @@ export default function Dashboard() {
               >
                 Поповнити
               </button>
-              <button onClick={() => setConfirmBanner(null)} className="rounded-full p-1 hover:bg-white/20">
+              <button
+                onClick={() => setConfirmBanner(null)}
+                className="rounded-full p-1 hover:bg-white/20"
+              >
                 <X className="h-4 w-4" />
               </button>
             </div>
           </div>
         )}
+
         {showDepositTransak && confirmBanner && (
           <TransakWidget
             vaultAddress={confirmBanner.jar_pubkey}
             fiatAmount={confirmBanner.amount_usdc / 100}
             contributorMessage="Recurring deposit"
-            onSuccess={() => { setShowDepositTransak(false); setConfirmBanner(null); showToast("Депозит підтверджено ✅"); }}
+            onSuccess={() => {
+              setShowDepositTransak(false);
+              setConfirmBanner(null);
+              showToast("Депозит підтверджено ✅");
+            }}
             onClose={() => setShowDepositTransak(false)}
           />
         )}
+
         {activePage === "dashboard" && (
           <DashboardPage
             onNewJar={() => setModal("new-jar")}
             scenario={scenario}
             setScenario={setScenario}
-            jars={jars}
             liveJars={normalizedLive}
             greeting={greeting}
             apy={apy}
             schedules={schedules}
             onStopSchedule={async (id) => {
               await stopScheduleApi(id);
-              setSchedules(s => s.filter(x => x.id !== id));
+              setSchedules((s) => s.filter((x) => x.id !== id));
             }}
             groups={groups}
             contributions={contributions}
+            onMenuToggle={() => setSidebarOpen((v) => !v)}
           />
         )}
-        {activePage === "jars" && <JarsPage onNewJar={() => setModal("new-jar")} jars={jars} />}
-        {activePage === "analytics" && <AnalyticsPage />}
-        {activePage === "contributors" && <ContributorsPage />}
-        {activePage === "gift" && <GiftPage onCopy={() => showToast("Link copied 📋")} />}
+        {activePage === "jars" && (
+          <JarsPage
+            onNewJar={() => setModal("new-jar")}
+            liveJars={normalizedLive}
+            onMenuToggle={() => setSidebarOpen((v) => !v)}
+          />
+        )}
+        {activePage === "analytics" && (
+          <AnalyticsPage
+            liveJars={normalizedLive}
+            contributions={contributions}
+            apy={apy}
+            onMenuToggle={() => setSidebarOpen((v) => !v)}
+          />
+        )}
+        {activePage === "contributors" && (
+          <ContributorsPage
+            contributions={contributions}
+            liveJars={normalizedLive}
+            onMenuToggle={() => setSidebarOpen((v) => !v)}
+          />
+        )}
+        {activePage === "gift" && (
+          <GiftPage
+            onCopy={() => showToast("Link copied 📋")}
+            liveJars={normalizedLive}
+            onMenuToggle={() => setSidebarOpen((v) => !v)}
+          />
+        )}
       </main>
 
-      {/* ───────────────────────────────────────────────────────── NEW JAR MODAL */}
+      {/* ── New Jar Modal ──────────────────────────────────────────────────── */}
       {modal === "new-jar" && (
         <NewJarModal
           apy={apy}
@@ -332,20 +405,39 @@ export default function Dashboard() {
               const childWallet = publicKey.toBase58();
               let jarPubkey: string;
               if (params.currency === "usdc") {
-                ({ jarPubkey } = await createUsdcJarOnChain(wallet.adapter as never, connection, { ...params, childWallet }));
+                ({ jarPubkey } = await createUsdcJarOnChain(
+                  wallet.adapter as never,
+                  connection,
+                  { ...params, childWallet }
+                ));
               } else {
-                ({ jarPubkey } = await createJarOnChain(wallet.adapter as never, connection, { ...params, childWallet }));
+                ({ jarPubkey } = await createJarOnChain(
+                  wallet.adapter as never,
+                  connection,
+                  { ...params, childWallet }
+                ));
               }
+              if (params.jarName) saveJarName(jarPubkey, params.jarName);
               if (params.recurring) {
-                await createScheduleApi({ jar_pubkey: jarPubkey, owner_pubkey: publicKey.toBase58(), ...params.recurring });
+                await createScheduleApi({
+                  jar_pubkey: jarPubkey,
+                  owner_pubkey: publicKey.toBase58(),
+                  ...params.recurring,
+                });
                 setSchedules(await fetchSchedules(publicKey.toBase58()));
               }
               if (params.groupTrip) {
-                await createGroupApi({ jar_pubkey: jarPubkey, owner_pubkey: publicKey.toBase58(), ...params.groupTrip });
+                await createGroupApi({
+                  jar_pubkey: jarPubkey,
+                  owner_pubkey: publicKey.toBase58(),
+                  ...params.groupTrip,
+                });
                 setGroups(await fetchGroupsByOwner(publicKey.toBase58()));
               }
               setModal(null);
-              showToast(params.groupTrip ? "Групову поїздку створено ✈️" : "Jar created 🏺");
+              showToast(
+                params.groupTrip ? "Групову поїздку створено ✈️" : "Jar created 🏺"
+              );
             } catch (e: unknown) {
               const msg = e instanceof Error ? e.message : "Unknown error";
               showToast("Failed: " + msg.slice(0, 60));
@@ -354,12 +446,50 @@ export default function Dashboard() {
         />
       )}
 
-      {/* ────────────────────────────────────────────────────────────── TOAST */}
+      {/* ── Toast ──────────────────────────────────────────────────────────── */}
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 rounded-full bg-ink px-5 py-3 text-sm font-medium text-white shadow-2xl">
           {toast}
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TopBar — shared header with hamburger for mobile
+// ---------------------------------------------------------------------------
+
+function TopBar({
+  title,
+  subtitle,
+  onMenuToggle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  onMenuToggle: () => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="sticky top-0 z-10 flex items-center justify-between border-b border-black/5 bg-white/80 px-4 py-4 backdrop-blur md:px-8">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onMenuToggle}
+          className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-black/5 md:hidden"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <div>
+          <div className="font-display text-lg font-semibold md:text-xl">
+            {title}
+          </div>
+          {subtitle && (
+            <div className="text-xs text-ink-muted">{subtitle}</div>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">{children}</div>
     </div>
   );
 }
@@ -372,7 +502,6 @@ function DashboardPage({
   onNewJar,
   scenario,
   setScenario,
-  jars,
   liveJars,
   greeting,
   apy,
@@ -380,281 +509,397 @@ function DashboardPage({
   onStopSchedule,
   groups,
   contributions,
+  onMenuToggle,
 }: {
   onNewJar: () => void;
-  scenario: string;
-  setScenario: (s: string) => void;
-  jars: typeof JARS;
-  liveJars: typeof JARS;
+  scenario: number;
+  setScenario: (s: number) => void;
+  liveJars: JarType[];
   greeting: string | null;
   apy: { usdc_kamino: number; sol_marinade: number };
   schedules: Schedule[];
   onStopSchedule: (id: string) => Promise<void>;
   groups: GroupInfo[];
   contributions: JarContribution[];
+  onMenuToggle: () => void;
 }) {
-  // ── Real stats from on-chain jars ──────────────────────────────────────
-  const totalSaved = jars.reduce((s, j) => s + j.amount, 0);
-  const lockedCount = jars.filter(j => j.locked).length;
-  const estimatedYieldMonthly = jars.reduce((s, j) => {
-    const rate = j.currency === "usdc" ? apy.usdc_kamino / 100 : apy.sol_marinade / 100;
-    return s + (j.amount * rate / 12);
+  const hasWallet = !!greeting;
+
+  const totalSaved = liveJars.reduce((s, j) => s + j.amount, 0);
+  const lockedCount = liveJars.filter((j) => j.locked).length;
+  const estimatedYieldMonthly = liveJars.reduce((s, j) => {
+    const rate =
+      j.currency === "usdc" ? apy.usdc_kamino / 100 : apy.sol_marinade / 100;
+    return s + (j.amount * rate) / 12;
   }, 0);
-  const uniqueContributors = new Set(contributions.map(c => c.contributor)).size;
-  const totalContributed = contributions.reduce((s, c) => s + c.amount / 1_000_000, 0);
-  // ────────────────────────────────────────────────────────────────────────
+  const uniqueContributors = new Set(contributions.map((c) => c.contributor))
+    .size;
+  const totalContributed = contributions.reduce(
+    (s, c) => s + c.amount / 1_000_000,
+    0
+  );
+
+  // Forecast: primary jar APY, 18 years remaining
+  const primaryApr =
+    liveJars[0]?.currency === "sol"
+      ? apy.sol_marinade
+      : apy.usdc_kamino;
+  const yearsRemaining = useMemo(() => {
+    const jar = liveJars[0];
+    if (!jar || jar.unlockDate <= 0) return 18;
+    const remaining = Math.max(
+      1,
+      Math.ceil((jar.unlockDate - Date.now() / 1000) / (365.25 * 86400))
+    );
+    return Math.min(remaining, 25);
+  }, [liveJars]);
+
+  const forecastScenarios = useMemo(
+    () => [
+      { label: "$50/mo", monthly: 50 },
+      { label: "$100/mo", monthly: 100 },
+      { label: "$200/mo", monthly: 200 },
+    ].map((s) => ({
+      ...s,
+      value: calcForecast(totalSaved, s.monthly, yearsRemaining, primaryApr),
+    })),
+    [totalSaved, yearsRemaining, primaryApr]
+  );
 
   return (
     <>
-      <TopBar title="Dashboard" subtitle={greeting ? `Good morning, ${greeting} ☀️` : "Good morning ☀️"}>
-        <div className="flex items-center gap-2">
-          <JupiterSwapButton className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-5 py-2.5 text-sm font-medium text-ink transition hover:bg-black/5" />
-          <button
-            onClick={onNewJar}
-            className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white transition hover:bg-ink/90"
-          >
-            <Plus className="h-4 w-4" /> New Jar
-          </button>
-        </div>
+      <TopBar
+        title="Dashboard"
+        subtitle={greeting ? `Good morning, ${greeting} ☀️` : "Good morning ☀️"}
+        onMenuToggle={onMenuToggle}
+      >
+        <JupiterSwapButton className="hidden items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-ink transition hover:bg-black/5 md:inline-flex" />
+        <button
+          onClick={onNewJar}
+          className="inline-flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-sm font-medium text-white transition hover:bg-ink/90"
+        >
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline">New Jar</span>
+        </button>
+        <WalletButton compact />
       </TopBar>
 
-      <div className="px-8 py-7">
-        {/* Stats */}
-        <div className="mb-6 grid gap-4 md:grid-cols-4">
-          <StatCard
-            label="Total Saved"
-            value={jars === JARS ? "$2,387.30" : `$${totalSaved.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-            change={jars === JARS ? "↑ +$147.30 this month" : `${jars.length} jar${jars.length !== 1 ? "s" : ""} · Kamino + Marinade`}
-            tint="bg-surface-lavender"
-          />
-          <StatCard
-            label="Staking Earned (est.)"
-            value={jars === JARS ? "$84.20" : `~$${estimatedYieldMonthly.toFixed(2)}/mo`}
-            change={`Kamino ${apy.usdc_kamino}% · Marinade ${apy.sol_marinade}% APY`}
-            tint="bg-surface-mint"
-          />
-          <StatCard
-            label="Active Jars"
-            value={jars === JARS ? "3" : String(jars.length)}
-            change={jars === JARS ? "1 locked · 2 open" : `${lockedCount} locked · ${jars.length - lockedCount} open`}
-            tint="bg-surface-sky"
-          />
-          <StatCard
-            label="Contributors"
-            value={jars === JARS ? "5" : String(uniqueContributors || contributions.length)}
-            change={jars === JARS ? "↑ Grandma sent $50 today" : uniqueContributors > 0 ? `$${totalContributed.toFixed(2)} contributed` : "Share your gift link"}
-            tint="bg-surface-cream"
-          />
-        </div>
-
-        {/* Chart + Forecast */}
-        <div className="mb-5 grid gap-5 lg:grid-cols-[2fr_1fr]">
-          <Card
-            title="Balance Growth · Anya's Jar"
-            action={
-              <span className="rounded-full bg-sol-purple/10 px-3 py-1 text-[11px] font-semibold text-sol-purple">
-                + Staking
-              </span>
-            }
-          >
-            <BalanceChart />
-          </Card>
-
-          <Card title="Forecast">
-            <div className="mb-4 text-xs text-ink-muted">
-              Kamino {apy.usdc_kamino}% · Marinade {apy.sol_marinade}% APY
+      <div className="px-4 py-6 md:px-8 md:py-7">
+        {/* No wallet — empty state */}
+        {!hasWallet && (
+          <div className="mb-6 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-black/10 bg-white py-16 text-center">
+            <div className="mb-3 text-6xl">🏺</div>
+            <div className="mb-1 font-display text-xl font-semibold">
+              Connect your wallet to start
             </div>
-            <div className="space-y-2">
-              {[
-                { label: "$50/mo", value: "$11,200", dot: "#14F195" },
-                { label: "$100/mo", value: "$21,800", dot: "#9945FF" },
-                { label: "$200/mo", value: "$43,100", dot: "#00C2FF" },
-              ].map((s) => (
-                <button
-                  key={s.label}
-                  onClick={() => setScenario(s.label)}
-                  className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 transition ${
-                    scenario === s.label
-                      ? "border-sol-purple bg-surface-lavender"
-                      : "border-black/5 hover:border-black/10"
-                  }`}
-                >
-                  <div
-                    className="h-2 w-2 flex-shrink-0 rounded-full"
-                    style={{ background: s.dot }}
-                  />
-                  <span className="flex-1 text-left text-sm">{s.label}</span>
-                  <span className="font-display text-base font-semibold">
-                    {s.value}
+            <div className="mb-6 text-sm text-ink-muted">
+              See your jars, track yield, share gift links
+            </div>
+            <WalletButton />
+          </div>
+        )}
+
+        {hasWallet && (
+          <>
+            {/* Stats */}
+            <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <StatCard
+                label="Total Saved"
+                value={`$${totalSaved.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                change={`${liveJars.length} jar${liveJars.length !== 1 ? "s" : ""} · Kamino + Marinade`}
+                tint="bg-surface-lavender"
+              />
+              <StatCard
+                label="Staking Earned (est.)"
+                value={`~$${estimatedYieldMonthly.toFixed(2)}/mo`}
+                change={`Kamino ${apy.usdc_kamino}% · Marinade ${apy.sol_marinade}% APY`}
+                tint="bg-surface-mint"
+              />
+              <StatCard
+                label="Active Jars"
+                value={String(liveJars.length)}
+                change={`${lockedCount} locked · ${liveJars.length - lockedCount} open`}
+                tint="bg-surface-sky"
+              />
+              <StatCard
+                label="Contributors"
+                value={String(uniqueContributors || contributions.length)}
+                change={
+                  uniqueContributors > 0
+                    ? `$${totalContributed.toFixed(2)} contributed`
+                    : "Share your gift link"
+                }
+                tint="bg-surface-cream"
+              />
+            </div>
+
+            {/* Chart + Forecast */}
+            <div className="mb-5 grid gap-5 lg:grid-cols-[2fr_1fr]">
+              <Card
+                title={
+                  liveJars[0]
+                    ? `Balance Growth · ${liveJars[0].name}`
+                    : "Balance Growth"
+                }
+                action={
+                  <span className="rounded-full bg-sol-purple/10 px-3 py-1 text-[11px] font-semibold text-sol-purple">
+                    + Staking
                   </span>
-                </button>
-              ))}
-            </div>
-            <div className="mt-4 rounded-xl bg-[#FAFAF8] p-3 text-xs text-ink-muted">
-              🔒 Locked until <strong className="text-ink">Mar 15, 2036</strong> · 11 years
-            </div>
-          </Card>
-        </div>
-
-        {/* Jars grid */}
-        <Card title="My Jars" action={<CardAction label="View all →" />}>
-          {jars.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="mb-3 text-5xl">🏺</div>
-              <div className="mb-1 font-display text-lg font-semibold">No jars yet</div>
-              <div className="mb-5 text-sm text-ink-muted">Create your first jar and share a gift link</div>
-              <button
-                onClick={onNewJar}
-                className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white hover:bg-ink/90"
+                }
               >
-                <Plus className="h-4 w-4" /> Create your first jar
-              </button>
-            </div>
-          ) : (
-            <div className="grid gap-3 md:grid-cols-3">
-              {jars.map((j) => (
-                <JarCard key={j.id} jar={j} />
-              ))}
-            </div>
-          )}
-        </Card>
+                <BalanceChart contributions={contributions} />
+              </Card>
 
-        {/* Group Trip jars */}
-        {groups.length > 0 && (
-          <Card
-            title="Групові поїздки ✈️"
-            action={
-              <button onClick={onNewJar} className="rounded-full px-3 py-1 text-xs font-medium text-sol-purple hover:bg-surface-lavender">
-                + Нова
-              </button>
-            }
-          >
-            <div className="grid gap-3 sm:grid-cols-2">
-              {groups.map((g) => {
-                const daysLeft = Math.max(0, Math.ceil((g.trip_date * 1000 - Date.now()) / 86_400_000));
-                return (
-                  <a
-                    key={g.jar_pubkey}
-                    href={`/trip/${g.jar_pubkey}`}
-                    className="block rounded-2xl border border-black/5 bg-[#FAFAF8] p-4 transition hover:-translate-y-0.5 hover:border-sol-purple hover:shadow-md"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="text-3xl">{g.destination_emoji}</div>
-                      <span className="rounded-full bg-surface-sky px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                        {daysLeft > 0 ? `${daysLeft} днів` : "Скоро!"}
-                      </span>
-                    </div>
-                    <div className="mt-2 font-display text-base font-semibold">{g.trip_name}</div>
-                    <div className="text-xs text-ink-muted">{g.members.length} учасників · ${(g.budget_per_person_cents / 100).toLocaleString()}/особу</div>
-                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-black/5">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-sol-purple to-sol-blue"
-                        style={{ width: `${g.total_progress_pct}%` }}
-                      />
-                    </div>
-                    <div className="mt-1.5 flex justify-between text-[11px] text-ink-faint">
-                      <span>{g.total_progress_pct}% зібрано</span>
-                      <span>Відкрити →</span>
-                    </div>
-                  </a>
-                );
-              })}
-            </div>
-          </Card>
-        )}
-
-        {/* Recurring schedules */}
-        {schedules.length > 0 && (
-          <Card
-            title="Мої автовнески"
-            action={
-              <span className="flex items-center gap-1 rounded-full bg-surface-lavender px-3 py-1 text-[11px] font-semibold text-sol-purple">
-                <RefreshCw className="h-3 w-3" /> {schedules.length} активних
-              </span>
-            }
-          >
-            <div className="space-y-2">
-              {schedules.map((s) => {
-                const days = ['Нд','Пн','Вт','Ср','Чт','Пт','Сб']
-                const timeLabel = `${String(s.hour).padStart(2,'0')}:${String(s.minute).padStart(2,'0')}`
-                const dayLabel = s.frequency === 'weekly'
-                  ? `кожного ${days[s.day] ?? s.day}`
-                  : `кожного ${s.day}-го числа`
-                return (
-                  <div key={s.id} className="flex items-center gap-3 rounded-xl border border-black/5 bg-[#FAFAF8] px-4 py-3">
-                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-surface-lavender text-sol-purple">
-                      <Clock className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold">${(s.amount_usdc / 100).toFixed(2)} {dayLabel} о {timeLabel}</div>
-                      <div className="truncate text-[11px] text-ink-muted">Jar {s.jar_pubkey.slice(0,4)}…{s.jar_pubkey.slice(-4)}</div>
-                    </div>
-                    <button
-                      onClick={() => onStopSchedule(s.id)}
-                      className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-ink-muted hover:border-red-300 hover:text-red-500"
-                    >
-                      Зупинити
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          </Card>
-        )}
-
-        {/* Activity + Contributors */}
-        <div className="mt-5 grid gap-5 lg:grid-cols-2">
-          <Card title="Recent Activity" action={<CardAction label="All →" />}>
-            {jars !== JARS && contributions.length === 0 ? (
-              <div className="py-8 text-center text-sm text-ink-muted">
-                Поки немає активності — поділись gift-посиланням 🎁
-              </div>
-            ) : (
-              <div className="space-y-1">
-                {(jars === JARS ? ACTIVITY.map((a, i) => <ActivityRow key={i} {...a} />) :
-                  contributions.slice(0, 5).map((c) => {
-                    const shortAddr = `${c.contributor.slice(0, 4)}…${c.contributor.slice(-4)}`;
-                    const ago = (() => {
-                      const s = Math.floor(Date.now() / 1000 - c.createdAt);
-                      if (s < 3600) return `${Math.floor(s / 60)}хв тому`;
-                      if (s < 86400) return `${Math.floor(s / 3600)}г тому`;
-                      return `${Math.floor(s / 86400)}д тому`;
-                    })();
-                    return (
-                      <ActivityRow
-                        key={c.pubkey}
-                        icon="💝"
-                        tone="green"
-                        title={`${shortAddr} contributed`}
-                        sub={`${c.comment ? `"${c.comment.slice(0, 40)}" · ` : ""}${ago}`}
-                        amount={`+$${(c.amount / 1_000_000).toFixed(2)}`}
-                      />
-                    );
-                  })
-                )}
-              </div>
-            )}
-          </Card>
-
-          <Card
-            title={jars !== JARS && liveJars[0] ? `Contributors · Jar ${liveJars[0].id.slice(0,4)}…${liveJars[0].id.slice(-4)}` : "Contributors · Anya's"}
-            action={<CardAction label="See all →" />}
-          >
-            {jars !== JARS && contributions.length === 0 ? (
-              <div className="py-6 text-center text-sm text-ink-muted">Ще немає внесків</div>
-            ) : (
-              <>
-                <div className="mb-3 text-xs text-ink-muted">
-                  {jars !== JARS
-                    ? <>Всього: <strong className="text-ink">${totalContributed.toFixed(2)}</strong></>
-                    : <>Family total: <strong className="text-ink">$436</strong></>
-                  }
+              <Card title="Forecast">
+                <div className="mb-4 text-xs text-ink-muted">
+                  {primaryApr.toFixed(1)}% APY · {yearsRemaining}y remaining
+                  {totalSaved > 0 && ` · starts at $${totalSaved.toFixed(0)}`}
                 </div>
-                <div className="space-y-3">
-                  {jars === JARS
-                    ? CONTRIBUTORS.slice(0, 4).map((c, i) => <ContributorRow key={i} {...c} />)
-                    : contributions.slice(0, 4).map((c, i) => {
-                        const gradients = ["from-sol-purple to-sol-blue","from-sol-green to-sol-blue","from-orange-400 to-yellow-400","from-red-400 to-orange-400"];
+                <div className="space-y-2">
+                  {forecastScenarios.map((s) => (
+                    <button
+                      key={s.label}
+                      onClick={() => setScenario(s.monthly)}
+                      className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 transition ${
+                        scenario === s.monthly
+                          ? "border-sol-purple bg-surface-lavender"
+                          : "border-black/5 hover:border-black/10"
+                      }`}
+                    >
+                      <div
+                        className="h-2 w-2 flex-shrink-0 rounded-full"
+                        style={{
+                          background:
+                            s.monthly === 50
+                              ? "#14F195"
+                              : s.monthly === 100
+                              ? "#9945FF"
+                              : "#00C2FF",
+                        }}
+                      />
+                      <span className="flex-1 text-left text-sm">
+                        {s.label}
+                      </span>
+                      <span className="font-display text-base font-semibold">
+                        ${s.value.toLocaleString()}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                {liveJars[0] && liveJars[0].unlockDate > 0 && (
+                  <div className="mt-4 rounded-xl bg-[#FAFAF8] p-3 text-xs text-ink-muted">
+                    🔒 Locked until{" "}
+                    <strong className="text-ink">
+                      {new Date(liveJars[0].unlockDate * 1000).toLocaleDateString(
+                        "en-US",
+                        { year: "numeric", month: "short", day: "numeric" }
+                      )}
+                    </strong>
+                  </div>
+                )}
+              </Card>
+            </div>
+
+            {/* Jars grid */}
+            <Card title="My Jars" action={<CardAction label="View all →" />}>
+              {liveJars.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="mb-3 text-5xl">🏺</div>
+                  <div className="mb-1 font-display text-lg font-semibold">
+                    No jars yet
+                  </div>
+                  <div className="mb-5 text-sm text-ink-muted">
+                    Create your first jar and share a gift link
+                  </div>
+                  <button
+                    onClick={onNewJar}
+                    className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white hover:bg-ink/90"
+                  >
+                    <Plus className="h-4 w-4" /> Create your first jar
+                  </button>
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                  {liveJars.map((j) => (
+                    <JarCard key={j.id} jar={j} />
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            {/* Group Trip jars */}
+            {groups.length > 0 && (
+              <Card
+                title="Групові поїздки ✈️"
+                action={
+                  <button
+                    onClick={onNewJar}
+                    className="rounded-full px-3 py-1 text-xs font-medium text-sol-purple hover:bg-surface-lavender"
+                  >
+                    + Нова
+                  </button>
+                }
+              >
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {groups.map((g) => {
+                    const daysLeft = Math.max(
+                      0,
+                      Math.ceil(
+                        (g.trip_date * 1000 - Date.now()) / 86_400_000
+                      )
+                    );
+                    return (
+                      <a
+                        key={g.jar_pubkey}
+                        href={`/trip/${g.jar_pubkey}`}
+                        className="block rounded-2xl border border-black/5 bg-[#FAFAF8] p-4 transition hover:-translate-y-0.5 hover:border-sol-purple hover:shadow-md"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="text-3xl">{g.destination_emoji}</div>
+                          <span className="rounded-full bg-surface-sky px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                            {daysLeft > 0 ? `${daysLeft} днів` : "Скоро!"}
+                          </span>
+                        </div>
+                        <div className="mt-2 font-display text-base font-semibold">
+                          {g.trip_name}
+                        </div>
+                        <div className="text-xs text-ink-muted">
+                          {g.members.length} учасників · $
+                          {(g.budget_per_person_cents / 100).toLocaleString()}
+                          /особу
+                        </div>
+                        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-black/5">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-sol-purple to-sol-blue"
+                            style={{ width: `${g.total_progress_pct}%` }}
+                          />
+                        </div>
+                        <div className="mt-1.5 flex justify-between text-[11px] text-ink-faint">
+                          <span>{g.total_progress_pct}% зібрано</span>
+                          <span>Відкрити →</span>
+                        </div>
+                      </a>
+                    );
+                  })}
+                </div>
+              </Card>
+            )}
+
+            {/* Recurring schedules */}
+            {schedules.length > 0 && (
+              <Card
+                title="Мої автовнески"
+                action={
+                  <span className="flex items-center gap-1 rounded-full bg-surface-lavender px-3 py-1 text-[11px] font-semibold text-sol-purple">
+                    <RefreshCw className="h-3 w-3" /> {schedules.length}{" "}
+                    активних
+                  </span>
+                }
+              >
+                <div className="space-y-2">
+                  {schedules.map((s) => {
+                    const days = ["Нд", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+                    const timeLabel = `${String(s.hour).padStart(2, "0")}:${String(s.minute).padStart(2, "0")}`;
+                    const dayLabel =
+                      s.frequency === "weekly"
+                        ? `кожного ${days[s.day] ?? s.day}`
+                        : `кожного ${s.day}-го числа`;
+                    return (
+                      <div
+                        key={s.id}
+                        className="flex items-center gap-3 rounded-xl border border-black/5 bg-[#FAFAF8] px-4 py-3"
+                      >
+                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-surface-lavender text-sol-purple">
+                          <Clock className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-semibold">
+                            ${(s.amount_usdc / 100).toFixed(2)} {dayLabel} о{" "}
+                            {timeLabel}
+                          </div>
+                          <div className="truncate text-[11px] text-ink-muted">
+                            {getJarName(s.jar_pubkey)}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => onStopSchedule(s.id)}
+                          className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-ink-muted hover:border-red-300 hover:text-red-500"
+                        >
+                          Зупинити
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            )}
+
+            {/* Activity + Contributors */}
+            <div className="mt-5 grid gap-5 lg:grid-cols-2">
+              <Card title="Recent Activity" action={<CardAction label="All →" />}>
+                {contributions.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-ink-muted">
+                    Поки немає активності — поділись gift-посиланням 🎁
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {[...contributions]
+                      .sort((a, b) => b.createdAt - a.createdAt)
+                      .slice(0, 6)
+                      .map((c) => {
+                        const shortAddr = `${c.contributor.slice(0, 4)}…${c.contributor.slice(-4)}`;
+                        const ago = (() => {
+                          const s = Math.floor(
+                            Date.now() / 1000 - c.createdAt
+                          );
+                          if (s < 3600) return `${Math.floor(s / 60)}хв тому`;
+                          if (s < 86400)
+                            return `${Math.floor(s / 3600)}г тому`;
+                          return `${Math.floor(s / 86400)}д тому`;
+                        })();
+                        return (
+                          <ActivityRow
+                            key={c.pubkey}
+                            icon="💝"
+                            tone="green"
+                            title={`${shortAddr} contributed`}
+                            sub={`${c.comment ? `"${c.comment.slice(0, 40)}" · ` : ""}${ago}`}
+                            amount={`+$${(c.amount / 1_000_000).toFixed(2)}`}
+                          />
+                        );
+                      })}
+                  </div>
+                )}
+              </Card>
+
+              <Card
+                title={
+                  liveJars[0]
+                    ? `Contributors · ${liveJars[0].name}`
+                    : "Contributors"
+                }
+                action={<CardAction label="See all →" />}
+              >
+                {contributions.length === 0 ? (
+                  <div className="py-6 text-center text-sm text-ink-muted">
+                    Ще немає внесків
+                  </div>
+                ) : (
+                  <>
+                    <div className="mb-3 text-xs text-ink-muted">
+                      Всього:{" "}
+                      <strong className="text-ink">
+                        ${totalContributed.toFixed(2)}
+                      </strong>
+                    </div>
+                    <div className="space-y-3">
+                      {contributions.slice(0, 4).map((c, i) => {
+                        const gradients = [
+                          "from-sol-purple to-sol-blue",
+                          "from-sol-green to-sol-blue",
+                          "from-orange-400 to-yellow-400",
+                          "from-red-400 to-orange-400",
+                        ];
                         const short = `${c.contributor.slice(0, 4)}…${c.contributor.slice(-4)}`;
                         return (
                           <ContributorRow
@@ -665,49 +910,67 @@ function DashboardPage({
                             gradient={gradients[i % gradients.length]}
                           />
                         );
-                      })
-                  }
-                </div>
-              </>
-            )}
-            {jars !== JARS && liveJars[0] && (
-              <div className="mt-4 flex items-center justify-between rounded-xl bg-[#FAFAF8] px-4 py-2.5">
-                <span className="font-mono text-xs text-ink-muted truncate">
-                  jarfi.xyz/gift/{liveJars[0].id.slice(0, 8)}
-                </span>
-                <button
-                  onClick={() => navigator.clipboard.writeText(`${window.location.origin}/gift/${liveJars[0].id}`)}
-                  className="ml-2 flex-shrink-0 rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-medium"
-                >
-                  Copy
-                </button>
-              </div>
-            )}
-          </Card>
-        </div>
+                      })}
+                    </div>
+                  </>
+                )}
+                {liveJars[0] && (
+                  <div className="mt-4 flex items-center justify-between rounded-xl bg-[#FAFAF8] px-4 py-2.5">
+                    <span className="truncate font-mono text-xs text-ink-muted">
+                      jarfi.xyz/gift/{liveJars[0].id.slice(0, 8)}…
+                    </span>
+                    <button
+                      onClick={() =>
+                        navigator.clipboard.writeText(
+                          `${window.location.origin}/gift/${liveJars[0].id}`
+                        )
+                      }
+                      className="ml-2 flex-shrink-0 rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-medium"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                )}
+              </Card>
+            </div>
+          </>
+        )}
       </div>
     </>
   );
 }
 
 // ---------------------------------------------------------------------------
-// JARS / ANALYTICS / CONTRIBUTORS / GIFT — lighter pages
+// JARS PAGE
 // ---------------------------------------------------------------------------
 
-function JarsPage({ onNewJar, jars }: { onNewJar: () => void; jars: typeof JARS }) {
+function JarsPage({
+  onNewJar,
+  liveJars,
+  onMenuToggle,
+}: {
+  onNewJar: () => void;
+  liveJars: JarType[];
+  onMenuToggle: () => void;
+}) {
   return (
     <>
-      <TopBar title="My Jars" subtitle={`${jars.length} active`}>
+      <TopBar
+        title="My Jars"
+        subtitle={`${liveJars.length} active`}
+        onMenuToggle={onMenuToggle}
+      >
         <button
           onClick={onNewJar}
-          className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white"
+          className="inline-flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm font-medium text-white"
         >
           <Plus className="h-4 w-4" /> New Jar
         </button>
+        <WalletButton compact />
       </TopBar>
-      <div className="px-8 py-7">
-        <div className="grid gap-4 md:grid-cols-3">
-          {jars.map((j) => (
+      <div className="px-4 py-6 md:px-8 md:py-7">
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+          {liveJars.map((j) => (
             <JarCard key={j.id} jar={j} />
           ))}
           <button
@@ -725,207 +988,408 @@ function JarsPage({ onNewJar, jars }: { onNewJar: () => void; jars: typeof JARS 
   );
 }
 
-function AnalyticsPage() {
+// ---------------------------------------------------------------------------
+// ANALYTICS PAGE — real data
+// ---------------------------------------------------------------------------
+
+function AnalyticsPage({
+  liveJars,
+  contributions,
+  apy,
+  onMenuToggle,
+}: {
+  liveJars: JarType[];
+  contributions: JarContribution[];
+  apy: { usdc_kamino: number; sol_marinade: number };
+  onMenuToggle: () => void;
+}) {
+  const totalDeposited = liveJars.reduce((s, j) => s + j.amount, 0);
+  const estimatedStaking = liveJars.reduce((s, j) => {
+    const rate =
+      j.currency === "usdc" ? apy.usdc_kamino / 100 : apy.sol_marinade / 100;
+    return s + j.amount * rate;
+  }, 0);
+  const familyContributed = contributions.reduce(
+    (s, c) => s + c.amount / 1_000_000,
+    0
+  );
+  const depositsCount = contributions.length;
+
+  const sortedContribs = [...contributions].sort(
+    (a, b) => b.createdAt - a.createdAt
+  );
+
   return (
     <>
-      <TopBar title="Analytics" subtitle="Full history across all jars" />
-      <div className="px-8 py-7">
-        <div className="mb-6 grid gap-4 md:grid-cols-4">
-          <StatCard label="Total deposited" value="$1,200.30" change="by you" tint="bg-surface-lavender" />
-          <StatCard label="Staking earned" value="$84.20" change="↑ via Kamino + Marinade" tint="bg-surface-mint" />
-          <StatCard label="Family contributed" value="$436.00" change="5 contributors" tint="bg-surface-sky" />
-          <StatCard label="Deposits count" value="24" change="across all jars" tint="bg-surface-cream" />
+      <TopBar
+        title="Analytics"
+        subtitle="Full history across all jars"
+        onMenuToggle={onMenuToggle}
+      >
+        <WalletButton compact />
+      </TopBar>
+      <div className="px-4 py-6 md:px-8 md:py-7">
+        <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="Total saved"
+            value={`$${totalDeposited.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            change="across all jars"
+            tint="bg-surface-lavender"
+          />
+          <StatCard
+            label="Staking earned (est.)"
+            value={`~$${estimatedStaking.toFixed(2)}/yr`}
+            change={`Kamino ${apy.usdc_kamino}% + Marinade ${apy.sol_marinade}%`}
+            tint="bg-surface-mint"
+          />
+          <StatCard
+            label="Family contributed"
+            value={`$${familyContributed.toFixed(2)}`}
+            change={`${new Set(contributions.map((c) => c.contributor)).size} contributors`}
+            tint="bg-surface-sky"
+          />
+          <StatCard
+            label="Total deposits"
+            value={String(depositsCount)}
+            change="on-chain transactions"
+            tint="bg-surface-cream"
+          />
         </div>
         <Card title="All transactions">
-          <div className="space-y-1">
-            {ACTIVITY.map((a, i) => (
-              <ActivityRow key={i} {...a} />
-            ))}
-          </div>
+          {sortedContribs.length === 0 ? (
+            <div className="py-8 text-center text-sm text-ink-muted">
+              Немає транзакцій. Поділись gift-посиланням 🎁
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {sortedContribs.map((c) => {
+                const ago = (() => {
+                  const s = Math.floor(Date.now() / 1000 - c.createdAt);
+                  if (s < 3600) return `${Math.floor(s / 60)}хв тому`;
+                  if (s < 86400) return `${Math.floor(s / 3600)}г тому`;
+                  return `${Math.floor(s / 86400)}д тому`;
+                })();
+                return (
+                  <ActivityRow
+                    key={c.pubkey}
+                    icon="💝"
+                    tone="green"
+                    title={`${c.contributor.slice(0, 4)}…${c.contributor.slice(-4)}`}
+                    sub={`${c.comment ? `"${c.comment.slice(0, 50)}" · ` : ""}${ago}`}
+                    amount={`+$${(c.amount / 1_000_000).toFixed(2)}`}
+                  />
+                );
+              })}
+            </div>
+          )}
         </Card>
       </div>
     </>
   );
 }
 
-function ContributorsPage() {
+// ---------------------------------------------------------------------------
+// CONTRIBUTORS PAGE — real data
+// ---------------------------------------------------------------------------
+
+function ContributorsPage({
+  contributions,
+  liveJars,
+  onMenuToggle,
+}: {
+  contributions: JarContribution[];
+  liveJars: JarType[];
+  onMenuToggle: () => void;
+}) {
+  const gradients = [
+    "from-sol-purple to-sol-blue",
+    "from-sol-green to-sol-blue",
+    "from-orange-400 to-yellow-400",
+    "from-red-400 to-orange-400",
+  ];
+
+  const total = contributions.reduce((s, c) => s + c.amount / 1_000_000, 0);
+  const uniqueAddrs = [...new Set(contributions.map((c) => c.contributor))];
+  const breakdown = uniqueAddrs.map((addr) => {
+    const contributed = contributions
+      .filter((c) => c.contributor === addr)
+      .reduce((s, c) => s + c.amount / 1_000_000, 0);
+    return {
+      addr,
+      contributed,
+      pct: total > 0 ? Math.round((contributed / total) * 100) : 0,
+    };
+  });
+
+  const jarLabel = liveJars[0]?.name ?? "your jar";
+
   return (
     <>
-      <TopBar title="Contributors" subtitle="5 contributors · $436 total" />
-      <div className="px-8 py-7">
-        <div className="grid gap-5 lg:grid-cols-2">
-          <Card title="All contributors">
-            <div className="space-y-4">
-              {CONTRIBUTORS.map((c, i) => (
-                <ContributorRow key={i} {...c} large />
-              ))}
+      <TopBar
+        title="Contributors"
+        subtitle={
+          contributions.length > 0
+            ? `${uniqueAddrs.length} contributors · $${total.toFixed(2)} total`
+            : "No contributions yet"
+        }
+        onMenuToggle={onMenuToggle}
+      >
+        <WalletButton compact />
+      </TopBar>
+      <div className="px-4 py-6 md:px-8 md:py-7">
+        {contributions.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-black/10 bg-white py-16 text-center">
+            <div className="mb-3 text-5xl">🎁</div>
+            <div className="mb-1 font-display text-lg font-semibold">
+              No contributions yet
             </div>
-          </Card>
-          <Card title="Breakdown">
-            <div className="space-y-4 pt-1">
-              {[
-                { name: "Grandma Lyuda", pct: 41, gradient: "from-sol-purple to-sol-blue" },
-                { name: "Grandpa Mykhailo", pct: 34, gradient: "from-sol-green to-sol-blue" },
-                { name: "Aunt Tanya", pct: 16, gradient: "from-orange-400 to-yellow-400" },
-                { name: "Uncle Vasyl", pct: 9, gradient: "from-red-400 to-orange-400" },
-              ].map((r) => (
-                <div key={r.name}>
-                  <div className="mb-1.5 flex justify-between text-sm">
-                    <span>{r.name}</span>
-                    <span className="font-semibold">{r.pct}%</span>
+            <div className="text-sm text-ink-muted">
+              Share your gift link to start collecting
+            </div>
+          </div>
+        ) : (
+          <div className="grid gap-5 lg:grid-cols-2">
+            <Card title={`All contributors · ${jarLabel}`}>
+              <div className="space-y-4">
+                {contributions.slice(0, 10).map((c, i) => (
+                  <ContributorRow
+                    key={c.pubkey}
+                    name={`${c.contributor.slice(0, 4)}…${c.contributor.slice(-4)}`}
+                    comment={c.comment || "—"}
+                    amount={`+$${(c.amount / 1_000_000).toFixed(2)}`}
+                    gradient={gradients[i % gradients.length]}
+                    large
+                  />
+                ))}
+              </div>
+            </Card>
+            <Card title="Breakdown">
+              <div className="space-y-4 pt-1">
+                {breakdown.map((r, i) => (
+                  <div key={r.addr}>
+                    <div className="mb-1.5 flex justify-between text-sm">
+                      <span className="font-mono">
+                        {r.addr.slice(0, 4)}…{r.addr.slice(-4)}
+                      </span>
+                      <span className="font-semibold">{r.pct}%</span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-black/5">
+                      <div
+                        className={`h-full rounded-full bg-gradient-to-r ${gradients[i % gradients.length]}`}
+                        style={{ width: `${r.pct}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-black/5">
-                    <div
-                      className={`h-full rounded-full bg-gradient-to-r ${r.gradient}`}
-                      style={{ width: `${r.pct}%` }}
-                    />
-                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// GIFT PAGE — real jar data
+// ---------------------------------------------------------------------------
+
+function GiftPage({
+  onCopy,
+  liveJars,
+  onMenuToggle,
+}: {
+  onCopy: () => void;
+  liveJars: JarType[];
+  onMenuToggle: () => void;
+}) {
+  const firstJar = liveJars[0];
+  const giftUrl = firstJar
+    ? `${typeof window !== "undefined" ? window.location.origin : "https://jarfi.xyz"}/gift/${firstJar.id}`
+    : null;
+  const displayUrl = firstJar
+    ? `jarfi.xyz/gift/${firstJar.id.slice(0, 8)}…`
+    : null;
+  const jarName = firstJar?.name ?? "—";
+  const jarPct = firstJar
+    ? Math.min(100, Math.round((firstJar.amount / firstJar.goal) * 100))
+    : 0;
+
+  return (
+    <>
+      <TopBar
+        title="Gift Link"
+        subtitle="Share with family — no crypto needed"
+        onMenuToggle={onMenuToggle}
+      >
+        <WalletButton compact />
+      </TopBar>
+      <div className="px-4 py-6 md:px-8 md:py-7">
+        {!firstJar ? (
+          <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-black/10 bg-white py-16 text-center">
+            <div className="mb-3 text-5xl">🔗</div>
+            <div className="mb-1 font-display text-lg font-semibold">
+              No jars yet
+            </div>
+            <div className="text-sm text-ink-muted">
+              Create a jar first to get a gift link
+            </div>
+          </div>
+        ) : (
+          <div className="grid gap-5 lg:grid-cols-2">
+            <Card title="Your gift link">
+              <p className="mb-5 text-sm text-ink-muted">
+                Anyone opens this link and contributes with a regular card — no
+                wallet, no registration.
+              </p>
+              <div className="rounded-2xl bg-gradient-to-br from-surface-lavender via-white to-surface-mint p-7 text-center">
+                <div className="mb-2 text-5xl">🏺</div>
+                <div className="font-display text-xl font-semibold">
+                  {jarName}
                 </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-      </div>
-    </>
-  );
-}
+                <div className="mt-1 text-xs text-ink-muted">
+                  ${firstJar.amount.toFixed(2)} saved · {jarPct}% of goal
+                </div>
+                <div className="mt-3 font-mono text-sm font-semibold text-sol-purple">
+                  {displayUrl}
+                </div>
+              </div>
+              <div className="mt-4">
+                <button
+                  onClick={() => {
+                    if (giftUrl) navigator.clipboard.writeText(giftUrl);
+                    onCopy();
+                  }}
+                  className="w-full rounded-full bg-ink px-4 py-3 text-sm font-medium text-white"
+                >
+                  <Copy className="mr-2 inline h-4 w-4" /> Copy Link
+                </button>
+              </div>
+            </Card>
 
-function GiftPage({ onCopy }: { onCopy: () => void }) {
-  return (
-    <>
-      <TopBar title="Gift Link" subtitle="Share with family — no crypto needed" />
-      <div className="px-8 py-7">
-        <div className="grid gap-5 lg:grid-cols-2">
-          <Card title="Your gift link">
-            <p className="mb-5 text-sm text-ink-muted">
-              Anyone opens this link and contributes with a regular card — no
-              wallet, no registration.
-            </p>
-            <div className="rounded-2xl bg-gradient-to-br from-surface-lavender via-white to-surface-mint p-7 text-center">
-              <div className="mb-2 text-5xl">🏺</div>
-              <div className="font-display text-xl font-semibold">Anya&apos;s Future</div>
-              <div className="mt-1 text-xs text-ink-muted">
-                $847 saved · 11 years to goal
+            <Card title="Preview — what family sees">
+              <div className="rounded-2xl border border-black/5 bg-[#FAFAF8] p-6">
+                <div className="font-display text-2xl font-semibold">
+                  🏺 {jarName}
+                </div>
+                <div className="mb-2 mt-4 flex justify-between text-sm">
+                  <span>${firstJar.amount.toFixed(2)} saved</span>
+                  <span>Goal: ${firstJar.goal.toLocaleString()}</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-black/5">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-sol-purple to-sol-blue"
+                    style={{ width: `${jarPct}%` }}
+                  />
+                </div>
+                <label className="mt-5 block text-xs font-medium text-ink-muted">
+                  Amount ($)
+                </label>
+                <input
+                  type="number"
+                  placeholder="50"
+                  className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
+                />
+                <label className="mt-3 block text-xs font-medium text-ink-muted">
+                  Message
+                </label>
+                <input
+                  type="text"
+                  placeholder="With love from grandma 💝"
+                  className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
+                />
+                <button className="mt-5 w-full rounded-full bg-ink py-3 text-sm font-medium text-white">
+                  Pay by card
+                </button>
               </div>
-              <div className="mt-3 font-mono text-sm font-semibold text-sol-purple">
-                jarfi.xyz/gift/anya
-              </div>
-            </div>
-            <div className="mt-4 flex gap-3">
-              <button
-                onClick={onCopy}
-                className="flex-1 rounded-full bg-ink px-4 py-3 text-sm font-medium text-white"
-              >
-                <Copy className="mr-2 inline h-4 w-4" /> Copy Link
-              </button>
-              <button className="flex-1 rounded-full border border-black/10 bg-white px-4 py-3 text-sm font-medium">
-                Download QR
-              </button>
-            </div>
-          </Card>
-
-          <Card title="Preview — what family sees">
-            <div className="rounded-2xl border border-black/5 bg-[#FAFAF8] p-6">
-              <div className="font-display text-2xl font-semibold">🏺 Anya&apos;s Future</div>
-              <div className="mt-1 text-xs text-ink-muted">11 years until unlock</div>
-              <div className="mt-4 mb-2 flex justify-between text-sm">
-                <span>$847 saved</span>
-                <span>Goal: $2,000</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-black/5">
-                <div className="h-full rounded-full bg-gradient-to-r from-sol-purple to-sol-blue" style={{ width: "42%" }} />
-              </div>
-              <label className="mt-5 block text-xs font-medium text-ink-muted">
-                Amount ($)
-              </label>
-              <input
-                type="number"
-                placeholder="50"
-                className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
-              />
-              <label className="mt-3 block text-xs font-medium text-ink-muted">
-                Message
-              </label>
-              <input
-                type="text"
-                placeholder="With love from grandma 💝"
-                className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
-              />
-              <button className="mt-5 w-full rounded-full bg-ink py-3 text-sm font-medium text-white">
-                Pay by card
-              </button>
-            </div>
-          </Card>
-        </div>
+            </Card>
+          </div>
+        )}
       </div>
     </>
   );
 }
 
 // ---------------------------------------------------------------------------
-// CHART — inline SVG balance growth (purple actual, green baseline)
+// BALANCE CHART — generated from real contributions
 // ---------------------------------------------------------------------------
 
-function BalanceChart() {
+function BalanceChart({ contributions }: { contributions: JarContribution[] }) {
+  const points = useMemo(() => {
+    if (contributions.length === 0) return null;
+
+    const sorted = [...contributions].sort((a, b) => a.createdAt - b.createdAt);
+    let cumulative = 0;
+    const data = sorted.map((c) => {
+      cumulative += c.amount / 1_000_000;
+      return { t: c.createdAt, v: cumulative };
+    });
+
+    const minT = data[0].t;
+    const maxT = data[data.length - 1].t || minT + 1;
+    const maxV = data[data.length - 1].v || 1;
+
+    const W = 540;
+    const H = 130;
+    const PAD = 30;
+
+    const pts = data.map((d) => ({
+      x: PAD + ((d.t - minT) / (maxT - minT || 1)) * (W - PAD * 2),
+      y: H - PAD - ((d.v / maxV) * (H - PAD * 2)),
+    }));
+
+    const pathD = pts
+      .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
+      .join(" ");
+
+    const areaD = `${pathD} L${pts[pts.length - 1].x.toFixed(1)} ${H} L${pts[0].x.toFixed(1)} ${H} Z`;
+
+    return { pathD, areaD, maxV, last: pts[pts.length - 1] };
+  }, [contributions]);
+
+  if (!points) {
+    return (
+      <div className="flex h-40 items-center justify-center text-sm text-ink-faint">
+        No data yet — contributions will appear here
+      </div>
+    );
+  }
+
   return (
     <div className="h-40">
-      <svg viewBox="0 0 600 160" className="h-full w-full" preserveAspectRatio="none">
+      <svg viewBox="0 0 540 130" className="h-full w-full" preserveAspectRatio="none">
         <defs>
-          <linearGradient id="gP" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#9945FF" stopOpacity="0.2" />
             <stop offset="100%" stopColor="#9945FF" stopOpacity="0" />
           </linearGradient>
-          <linearGradient id="gG" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#14F195" stopOpacity="0.15" />
-            <stop offset="100%" stopColor="#14F195" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id="lG" x1="0" y1="0" x2="1" y2="0">
+          <linearGradient id="chartLine" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="#9945FF" />
             <stop offset="100%" stopColor="#00C2FF" />
           </linearGradient>
         </defs>
-        <line x1="0" y1="40" x2="600" y2="40" stroke="#E8EAF2" />
-        <line x1="0" y1="80" x2="600" y2="80" stroke="#E8EAF2" />
-        <line x1="0" y1="120" x2="600" y2="120" stroke="#E8EAF2" />
-        <text x="0" y="38" fill="#A0A6C8" fontSize="10">$900</text>
-        <text x="0" y="78" fill="#A0A6C8" fontSize="10">$700</text>
-        <text x="0" y="118" fill="#A0A6C8" fontSize="10">$500</text>
-
+        <path d={points.areaD} fill="url(#chartFill)" />
         <path
-          d="M30 110 C80 105 130 100 180 95 C230 90 280 86 330 82 C380 78 430 75 480 70 C510 67 540 64 570 60 L570 155 L30 155Z"
-          fill="url(#gG)"
-        />
-        <path
-          d="M30 110 C80 105 130 100 180 95 C230 90 280 86 330 82 C380 78 430 75 480 70 C510 67 540 64 570 60"
+          d={points.pathD}
           fill="none"
-          stroke="#14F195"
-          strokeWidth="1.5"
-          strokeDasharray="4 3"
-          opacity="0.7"
-        />
-        <path
-          d="M30 120 C80 112 130 100 180 88 C230 76 260 70 300 62 C340 54 380 48 420 44 C460 40 510 36 570 30 L570 155 L30 155Z"
-          fill="url(#gP)"
-        />
-        <path
-          d="M30 120 C80 112 130 100 180 88 C230 76 260 70 300 62 C340 54 380 48 420 44 C460 40 510 36 570 30"
-          fill="none"
-          stroke="url(#lG)"
+          stroke="url(#chartLine)"
           strokeWidth="2.5"
           strokeLinecap="round"
+          strokeLinejoin="round"
         />
-        <circle cx="570" cy="30" r="5" fill="url(#lG)" />
-
-        <text x="30" y="155" fill="#A0A6C8" fontSize="10">Jan</text>
-        <text x="260" y="155" fill="#A0A6C8" fontSize="10">Mar</text>
-        <text x="530" y="155" fill="#A0A6C8" fontSize="10">Now</text>
+        <circle cx={points.last.x} cy={points.last.y} r="5" fill="url(#chartLine)" />
+        <text x="30" y="125" fill="#A0A6C8" fontSize="10">Start</text>
+        <text x="490" y="125" fill="#A0A6C8" fontSize="10">Now</text>
+        <text x="30" y="20" fill="#A0A6C8" fontSize="10">
+          ${points.maxV.toFixed(0)}
+        </text>
       </svg>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// MODAL
+// NEW JAR MODAL
 // ---------------------------------------------------------------------------
 
 type GroupTripParams = {
@@ -944,11 +1408,24 @@ type RecurringParams = {
   minute: number;
 };
 
-function recurLabel(amount: string, frequency: string, day: string, time: string): string {
+function recurLabel(
+  amount: string,
+  frequency: string,
+  day: string,
+  time: string
+): string {
   const [hh = "09", mm = "00"] = time.split(":");
   const t = `${hh}:${mm}`;
   if (frequency === "weekly") {
-    const names = ["неділі","понеділка","вівторка","середи","четверга","п'ятниці","суботи"];
+    const names = [
+      "неділі",
+      "понеділка",
+      "вівторка",
+      "середи",
+      "четверга",
+      "п'ятниці",
+      "суботи",
+    ];
     return `Буду відкладати $${amount || "?"} кожного ${names[+day] ?? "?"} о ${t}`;
   }
   return `Буду відкладати $${amount || "?"} кожного ${day || "?"}-го числа о ${t}`;
@@ -960,26 +1437,31 @@ function NewJarModal({
   apy,
 }: {
   onClose: () => void;
-  onCreate: (params: { mode: number; unlockDate: number; goalAmount: number; currency: "usdc" | "sol"; recurring: RecurringParams | null; groupTrip: GroupTripParams | null }) => Promise<void>;
+  onCreate: (params: {
+    jarName: string;
+    mode: number;
+    unlockDate: number;
+    goalAmount: number;
+    currency: "usdc" | "sol";
+    recurring: RecurringParams | null;
+    groupTrip: GroupTripParams | null;
+  }) => Promise<void>;
   apy: { usdc_kamino: number; sol_marinade: number };
 }) {
   const [unlockType, setUnlockType] = useState<"goal" | "date" | "both">("goal");
   const [currency, setCurrency] = useState<"usdc" | "sol">("usdc");
-  const [multisig, setMultisig] = useState(false);
+  const [jarName, setJarName] = useState("");
   const [goalInput, setGoalInput] = useState("");
   const [dateInput, setDateInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Jar type: personal | group
   const [jarType, setJarType] = useState<"personal" | "group">("personal");
-  // Group trip state
   const [tripName, setTripName] = useState("");
   const [tripEmoji, setTripEmoji] = useState("✈️");
   const [tripDate, setTripDate] = useState("");
   const [budgetPerPerson, setBudgetPerPerson] = useState("");
   const [myNickname, setMyNickname] = useState("");
 
-  // Recurring deposit state
   const [recurEnabled, setRecurEnabled] = useState(false);
   const [recurAmount, setRecurAmount] = useState("");
   const [recurFrequency, setRecurFrequency] = useState<"weekly" | "monthly">("monthly");
@@ -992,12 +1474,15 @@ function NewJarModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-3xl bg-white p-8 shadow-2xl"
+        className="w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-8 shadow-2xl"
+        style={{ maxHeight: "90vh" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between">
           <div>
-            <div className="font-display text-2xl font-semibold">Create a Jar 🏺</div>
+            <div className="font-display text-2xl font-semibold">
+              Create a Jar 🏺
+            </div>
             <div className="mt-1 text-sm text-ink-muted">
               Set a goal, a date, or both. Smart contract unlocks automatically.
             </div>
@@ -1008,41 +1493,57 @@ function NewJarModal({
         </div>
 
         {/* Jar type */}
-        <div className="mt-6">
-          <div className="grid grid-cols-2 gap-2">
-            {([["personal", "🏺 Особиста", "Ціль, дата, регулярні внески"], ["group", "✈️ Групова поїздка", "Спільна мета для кількох людей"]] as const).map(([type, label, sub]) => (
-              <button
-                key={type}
-                onClick={() => setJarType(type)}
-                className={`rounded-xl border-2 px-4 py-3 text-left transition ${jarType === type ? "border-sol-purple bg-surface-lavender" : "border-black/10 hover:border-black/20"}`}
-              >
-                <div className="text-sm font-semibold">{label}</div>
-                <div className="mt-0.5 text-[11px] text-ink-muted">{sub}</div>
-              </button>
-            ))}
-          </div>
+        <div className="mt-6 grid grid-cols-2 gap-2">
+          {(
+            [
+              ["personal", "🏺 Особиста", "Ціль, дата, регулярні внески"],
+              ["group", "✈️ Групова поїздка", "Спільна мета для кількох людей"],
+            ] as const
+          ).map(([type, label, sub]) => (
+            <button
+              key={type}
+              onClick={() => setJarType(type)}
+              className={`rounded-xl border-2 px-4 py-3 text-left transition ${
+                jarType === type
+                  ? "border-sol-purple bg-surface-lavender"
+                  : "border-black/10 hover:border-black/20"
+              }`}
+            >
+              <div className="text-sm font-semibold">{label}</div>
+              <div className="mt-0.5 text-[11px] text-ink-muted">{sub}</div>
+            </button>
+          ))}
         </div>
 
         {jarType === "group" ? (
-          /* ─── GROUP TRIP FIELDS ─── */
           <div className="mt-5 space-y-4">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">Назва поїздки</label>
+              <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">
+                Назва поїздки
+              </label>
               <input
                 placeholder="Японія 2026, Балі з друзями…"
                 value={tripName}
-                onChange={e => setTripName(e.target.value)}
+                onChange={(e) => setTripName(e.target.value)}
                 className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">Emoji напрямку</label>
-              <div className="mt-1.5 flex gap-2 flex-wrap">
-                {["✈️","🗾","🏖️","🏔️","🗺️","🏝️","🌍","🎌","🌏","🇮🇹"].map(e => (
+              <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">
+                Emoji напрямку
+              </label>
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {[
+                  "✈️","🗾","🏖️","🏔️","🗺️","🏝️","🌍","🎌","🌏","🇮🇹",
+                ].map((e) => (
                   <button
                     key={e}
                     onClick={() => setTripEmoji(e)}
-                    className={`h-10 w-10 rounded-xl text-xl transition ${tripEmoji === e ? "bg-surface-lavender ring-2 ring-sol-purple" : "bg-[#FAFAF8] hover:bg-black/5"}`}
+                    className={`h-10 w-10 rounded-xl text-xl transition ${
+                      tripEmoji === e
+                        ? "bg-surface-lavender ring-2 ring-sol-purple"
+                        : "bg-[#FAFAF8] hover:bg-black/5"
+                    }`}
                   >
                     {e}
                   </button>
@@ -1051,260 +1552,280 @@ function NewJarModal({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">Дата поїздки</label>
+                <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">
+                  Дата поїздки
+                </label>
                 <input
                   type="date"
                   value={tripDate}
-                  onChange={e => setTripDate(e.target.value)}
+                  onChange={(e) => setTripDate(e.target.value)}
                   className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">Бюджет / особу ($)</label>
+                <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">
+                  Бюджет / особу ($)
+                </label>
                 <input
                   type="number"
                   placeholder="1500"
                   value={budgetPerPerson}
-                  onChange={e => setBudgetPerPerson(e.target.value)}
+                  onChange={(e) => setBudgetPerPerson(e.target.value)}
                   className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">Твоє ім&apos;я у групі</label>
+              <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">
+                Твоє ім&apos;я у групі
+              </label>
               <input
                 placeholder="Аня, Vasyl…"
                 value={myNickname}
-                onChange={e => setMyNickname(e.target.value)}
+                onChange={(e) => setMyNickname(e.target.value)}
                 className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
               />
             </div>
             {tripName && budgetPerPerson && (
-              <div className="rounded-xl bg-surface-lavender p-3 text-xs text-sol-purple font-medium">
-                {tripEmoji} {tripName} · ${parseFloat(budgetPerPerson || "0").toLocaleString()} / особу{tripDate ? ` · ${new Date(tripDate).toLocaleDateString("uk-UA", { day: "numeric", month: "long", year: "numeric" })}` : ""}
+              <div className="rounded-xl bg-surface-lavender p-3 text-xs font-medium text-sol-purple">
+                {tripEmoji} {tripName} · $
+                {parseFloat(budgetPerPerson || "0").toLocaleString()} / особу
+                {tripDate
+                  ? ` · ${new Date(tripDate).toLocaleDateString("uk-UA", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}`
+                  : ""}
               </div>
             )}
           </div>
         ) : (
-
-        /* ─── PERSONAL JAR FIELDS ─── */
-        <>
-        {/* Currency */}
-        <div className="mt-6">
-          <label className="mb-2 block text-xs font-semibold uppercase tracking-widest text-ink-muted">
-            Currency
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setCurrency("usdc")}
-              className={`rounded-xl border-2 px-4 py-3 text-left transition ${
-                currency === "usdc"
-                  ? "border-sol-purple bg-surface-lavender"
-                  : "border-black/10 hover:border-black/20"
-              }`}
-            >
-              <div className="text-sm font-semibold">💵 USDC</div>
-              <div className="mt-0.5 text-[11px] text-ink-muted">Stable · ~{apy.usdc_kamino}% APY via Kamino</div>
-            </button>
-            <button
-              onClick={() => setCurrency("sol")}
-              className={`rounded-xl border-2 px-4 py-3 text-left transition ${
-                currency === "sol"
-                  ? "border-sol-purple bg-surface-lavender"
-                  : "border-black/10 hover:border-black/20"
-              }`}
-            >
-              <div className="text-sm font-semibold">◎ SOL</div>
-              <div className="mt-0.5 text-[11px] text-ink-muted">Volatile · ~{apy.sol_marinade}% APY via Marinade</div>
-            </button>
-          </div>
-        </div>
-
-        {/* Unlock condition */}
-        <div className="mt-5">
-          <label className="mb-2 block text-xs font-semibold uppercase tracking-widest text-ink-muted">
-            Unlock condition
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { id: "goal", label: "🎯 Goal" },
-              { id: "date", label: "📅 Date" },
-              { id: "both", label: "🎯 + 📅" },
-            ].map((o) => (
-              <button
-                key={o.id}
-                onClick={() => setUnlockType(o.id as typeof unlockType)}
-                className={`rounded-xl border-2 py-2.5 text-sm font-medium transition ${
-                  unlockType === o.id
-                    ? "border-sol-purple bg-surface-lavender"
-                    : "border-black/10 hover:border-black/20"
-                }`}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-5 space-y-4">
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">
-              Jar name
-            </label>
-            <input
-              placeholder="e.g. Anya's Future, Japan Trip…"
-              className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
-            />
-          </div>
-
-          {unlockType !== "date" && (
-            <div>
+          <>
+            {/* Jar name */}
+            <div className="mt-5">
               <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">
-                Goal amount ($)
+                Jar name
               </label>
               <input
-                type="number"
-                placeholder="5000"
-                value={goalInput}
-                onChange={(e) => setGoalInput(e.target.value)}
+                placeholder="e.g. Anya's Future, Japan Trip…"
+                value={jarName}
+                onChange={(e) => setJarName(e.target.value)}
                 className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
               />
             </div>
-          )}
 
-          {unlockType !== "goal" && (
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">
-                Unlock date
+            {/* Currency */}
+            <div className="mt-5">
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-widest text-ink-muted">
+                Currency
               </label>
-              <input
-                type="date"
-                value={dateInput}
-                onChange={(e) => setDateInput(e.target.value)}
-                className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
-              />
-            </div>
-          )}
-
-          {unlockType === "both" && (
-            <div className="rounded-xl bg-surface-sky p-3 text-xs text-ink-muted">
-              Jar unlocks at whichever condition is met first.
-            </div>
-          )}
-
-          <div>
-            <button
-              onClick={() => setMultisig(!multisig)}
-              className="flex w-full items-center justify-between rounded-xl border border-black/10 px-4 py-3 text-left hover:border-black/20"
-            >
-              <div>
-                <div className="text-sm font-medium">Multi-sig (optional)</div>
-                <div className="text-xs text-ink-muted">
-                  Require co-owners to approve early unlock
-                </div>
-              </div>
-              <div
-                className={`h-6 w-10 rounded-full p-0.5 transition ${
-                  multisig ? "bg-sol-green" : "bg-black/10"
-                }`}
-              >
-                <div
-                  className={`h-5 w-5 rounded-full bg-white transition ${
-                    multisig ? "translate-x-4" : ""
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setCurrency("usdc")}
+                  className={`rounded-xl border-2 px-4 py-3 text-left transition ${
+                    currency === "usdc"
+                      ? "border-sol-purple bg-surface-lavender"
+                      : "border-black/10 hover:border-black/20"
                   }`}
-                />
+                >
+                  <div className="text-sm font-semibold">💵 USDC</div>
+                  <div className="mt-0.5 text-[11px] text-ink-muted">
+                    Stable · ~{apy.usdc_kamino}% APY via Kamino
+                  </div>
+                </button>
+                <button
+                  onClick={() => setCurrency("sol")}
+                  className={`rounded-xl border-2 px-4 py-3 text-left transition ${
+                    currency === "sol"
+                      ? "border-sol-purple bg-surface-lavender"
+                      : "border-black/10 hover:border-black/20"
+                  }`}
+                >
+                  <div className="text-sm font-semibold">◎ SOL</div>
+                  <div className="mt-0.5 text-[11px] text-ink-muted">
+                    Volatile · ~{apy.sol_marinade}% APY via Marinade
+                  </div>
+                </button>
               </div>
-            </button>
-          </div>
+            </div>
 
-          {/* Recurring deposit toggle */}
-          <div>
-            <button
-              onClick={() => setRecurEnabled(!recurEnabled)}
-              className="flex w-full items-center justify-between rounded-xl border border-black/10 px-4 py-3 text-left hover:border-black/20"
-            >
-              <div>
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <RefreshCw className="h-4 w-4 text-sol-purple" /> Регулярний внесок від мене
-                </div>
-                <div className="text-xs text-ink-muted">Push-нагадування + авто-план поповнень</div>
+            {/* Unlock condition */}
+            <div className="mt-5">
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-widest text-ink-muted">
+                Unlock condition
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: "goal", label: "🎯 Goal" },
+                  { id: "date", label: "📅 Date" },
+                  { id: "both", label: "🎯 + 📅" },
+                ].map((o) => (
+                  <button
+                    key={o.id}
+                    onClick={() => setUnlockType(o.id as typeof unlockType)}
+                    className={`rounded-xl border-2 py-2.5 text-sm font-medium transition ${
+                      unlockType === o.id
+                        ? "border-sol-purple bg-surface-lavender"
+                        : "border-black/10 hover:border-black/20"
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
               </div>
-              <div className={`h-6 w-10 rounded-full p-0.5 transition ${recurEnabled ? "bg-sol-purple" : "bg-black/10"}`}>
-                <div className={`h-5 w-5 rounded-full bg-white transition ${recurEnabled ? "translate-x-4" : ""}`} />
-              </div>
-            </button>
+            </div>
 
-            {recurEnabled && (
-              <div className="mt-3 space-y-3 rounded-xl border border-sol-purple/20 bg-surface-lavender p-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-semibold uppercase tracking-widest text-ink-muted">Сума ($)</label>
-                    <input
-                      type="number"
-                      placeholder="50"
-                      value={recurAmount}
-                      onChange={(e) => setRecurAmount(e.target.value)}
-                      className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-sol-purple"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-semibold uppercase tracking-widest text-ink-muted">Час</label>
-                    <input
-                      type="time"
-                      value={recurTime}
-                      onChange={(e) => setRecurTime(e.target.value)}
-                      className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-sol-purple"
-                    />
-                  </div>
-                </div>
+            <div className="mt-5 space-y-4">
+              {unlockType !== "date" && (
                 <div>
-                  <label className="block text-[10px] font-semibold uppercase tracking-widest text-ink-muted">Частота</label>
-                  <div className="mt-1 grid grid-cols-2 gap-2">
-                    {(["weekly","monthly"] as const).map((f) => (
-                      <button
-                        key={f}
-                        type="button"
-                        onClick={() => setRecurFrequency(f)}
-                        className={`rounded-xl border-2 py-2 text-sm font-medium transition ${recurFrequency === f ? "border-sol-purple bg-white" : "border-transparent bg-white/60 hover:border-black/10"}`}
-                      >
-                        {f === "weekly" ? "Щотижня" : "Щомісяця"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold uppercase tracking-widest text-ink-muted">
-                    {recurFrequency === "weekly" ? "День тижня" : "Число місяця (1–28)"}
+                  <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">
+                    Goal amount ($)
                   </label>
-                  {recurFrequency === "weekly" ? (
-                    <select
-                      value={recurDay}
-                      onChange={(e) => setRecurDay(e.target.value)}
-                      className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-sol-purple"
-                    >
-                      {["Неділя","Понеділок","Вівторок","Середа","Четвер","П'ятниця","Субота"].map((d, i) => (
-                        <option key={i} value={i}>{d}</option>
+                  <input
+                    type="number"
+                    placeholder="5000"
+                    value={goalInput}
+                    onChange={(e) => setGoalInput(e.target.value)}
+                    className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
+                  />
+                </div>
+              )}
+
+              {unlockType !== "goal" && (
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">
+                    Unlock date
+                  </label>
+                  <input
+                    type="date"
+                    value={dateInput}
+                    onChange={(e) => setDateInput(e.target.value)}
+                    className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
+                  />
+                </div>
+              )}
+
+              {unlockType === "both" && (
+                <div className="rounded-xl bg-surface-sky p-3 text-xs text-ink-muted">
+                  Jar unlocks at whichever condition is met first.
+                </div>
+              )}
+
+              {/* Recurring deposit */}
+              <button
+                onClick={() => setRecurEnabled(!recurEnabled)}
+                className="flex w-full items-center justify-between rounded-xl border border-black/10 px-4 py-3 text-left hover:border-black/20"
+              >
+                <div>
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <RefreshCw className="h-4 w-4 text-sol-purple" /> Регулярний
+                    внесок від мене
+                  </div>
+                  <div className="text-xs text-ink-muted">
+                    Push-нагадування + авто-план поповнень
+                  </div>
+                </div>
+                <div
+                  className={`h-6 w-10 rounded-full p-0.5 transition ${
+                    recurEnabled ? "bg-sol-purple" : "bg-black/10"
+                  }`}
+                >
+                  <div
+                    className={`h-5 w-5 rounded-full bg-white transition ${
+                      recurEnabled ? "translate-x-4" : ""
+                    }`}
+                  />
+                </div>
+              </button>
+
+              {recurEnabled && (
+                <div className="space-y-3 rounded-xl border border-sol-purple/20 bg-surface-lavender p-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-semibold uppercase tracking-widest text-ink-muted">
+                        Сума ($)
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="50"
+                        value={recurAmount}
+                        onChange={(e) => setRecurAmount(e.target.value)}
+                        className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-sol-purple"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold uppercase tracking-widest text-ink-muted">
+                        Час
+                      </label>
+                      <input
+                        type="time"
+                        value={recurTime}
+                        onChange={(e) => setRecurTime(e.target.value)}
+                        className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-sol-purple"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-widest text-ink-muted">
+                      Частота
+                    </label>
+                    <div className="mt-1 grid grid-cols-2 gap-2">
+                      {(["weekly", "monthly"] as const).map((f) => (
+                        <button
+                          key={f}
+                          type="button"
+                          onClick={() => setRecurFrequency(f)}
+                          className={`rounded-xl border-2 py-2 text-sm font-medium transition ${
+                            recurFrequency === f
+                              ? "border-sol-purple bg-white"
+                              : "border-transparent bg-white/60 hover:border-black/10"
+                          }`}
+                        >
+                          {f === "weekly" ? "Щотижня" : "Щомісяця"}
+                        </button>
                       ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="number"
-                      min={1} max={28}
-                      value={recurDay}
-                      onChange={(e) => setRecurDay(e.target.value)}
-                      className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-sol-purple"
-                    />
-                  )}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-widest text-ink-muted">
+                      {recurFrequency === "weekly"
+                        ? "День тижня"
+                        : "Число місяця (1–28)"}
+                    </label>
+                    {recurFrequency === "weekly" ? (
+                      <select
+                        value={recurDay}
+                        onChange={(e) => setRecurDay(e.target.value)}
+                        className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-sol-purple"
+                      >
+                        {[
+                          "Неділя","Понеділок","Вівторок","Середа","Четвер","П'ятниця","Субота",
+                        ].map((d, i) => (
+                          <option key={i} value={i}>
+                            {d}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="number"
+                        min={1}
+                        max={28}
+                        value={recurDay}
+                        onChange={(e) => setRecurDay(e.target.value)}
+                        className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-sol-purple"
+                      />
+                    )}
+                  </div>
+                  <div className="rounded-xl bg-white/70 px-4 py-2.5 text-xs font-medium text-sol-purple">
+                    {recurLabel(recurAmount, recurFrequency, recurDay, recurTime)}
+                  </div>
                 </div>
-                <div className="rounded-xl bg-white/70 px-4 py-2.5 text-xs font-medium text-sol-purple">
-                  {recurLabel(recurAmount, recurFrequency, recurDay, recurTime)}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-        </>
-        )} {/* end jarType conditional */}
+              )}
+            </div>
+          </>
+        )}
 
         <div className="mt-6 flex gap-3">
           <button
@@ -1320,10 +1841,17 @@ function NewJarModal({
               setSubmitting(true);
               try {
                 if (jarType === "group") {
-                  const tripDateTs = tripDate ? Math.floor(new Date(tripDate).getTime() / 1000) : 0;
-                  const budgetCents = Math.round(parseFloat(budgetPerPerson || "0") * 100);
-                  const goalAmount = Math.round(parseFloat(budgetPerPerson || "0") * 1_000_000); // USDC micro-units
+                  const tripDateTs = tripDate
+                    ? Math.floor(new Date(tripDate).getTime() / 1000)
+                    : 0;
+                  const budgetCents = Math.round(
+                    parseFloat(budgetPerPerson || "0") * 100
+                  );
+                  const goalAmount = Math.round(
+                    parseFloat(budgetPerPerson || "0") * 1_000_000
+                  );
                   await onCreate({
+                    jarName: tripName,
                     mode: 0,
                     unlockDate: tripDateTs,
                     goalAmount,
@@ -1338,8 +1866,15 @@ function NewJarModal({
                     },
                   });
                 } else {
-                  const mode = unlockType === "goal" ? 1 : unlockType === "date" ? 0 : 2;
-                  const unlockDate = dateInput ? Math.floor(new Date(dateInput).getTime() / 1000) : 0;
+                  const mode =
+                    unlockType === "goal"
+                      ? 1
+                      : unlockType === "date"
+                      ? 0
+                      : 2;
+                  const unlockDate = dateInput
+                    ? Math.floor(new Date(dateInput).getTime() / 1000)
+                    : 0;
                   const goalAmount = goalInput
                     ? currency === "usdc"
                       ? Math.round(parseFloat(goalInput) * 1_000_000)
@@ -1356,7 +1891,15 @@ function NewJarModal({
                       minute: parseInt(mm ?? "0", 10),
                     };
                   }
-                  await onCreate({ mode, unlockDate, goalAmount, currency, recurring, groupTrip: null });
+                  await onCreate({
+                    jarName,
+                    mode,
+                    unlockDate,
+                    goalAmount,
+                    currency,
+                    recurring,
+                    groupTrip: null,
+                  });
                 }
               } finally {
                 setSubmitting(false);
@@ -1364,7 +1907,11 @@ function NewJarModal({
             }}
             className="flex-1 rounded-full bg-ink py-3 text-sm font-medium text-white disabled:opacity-40"
           >
-            {submitting ? "Creating…" : jarType === "group" ? "Створити поїздку ✈️" : "Create Jar"}
+            {submitting
+              ? "Creating…"
+              : jarType === "group"
+              ? "Створити поїздку ✈️"
+              : "Create Jar"}
           </button>
         </div>
       </div>
@@ -1373,28 +1920,8 @@ function NewJarModal({
 }
 
 // ---------------------------------------------------------------------------
-// REUSABLE BUILDING BLOCKS
+// SHARED COMPONENTS
 // ---------------------------------------------------------------------------
-
-function TopBar({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  children?: React.ReactNode;
-}) {
-  return (
-    <div className="sticky top-0 z-10 flex items-center justify-between border-b border-black/5 bg-white/80 px-8 py-4 backdrop-blur">
-      <div>
-        <div className="font-display text-xl font-semibold">{title}</div>
-        <div className="text-xs text-ink-muted">{subtitle}</div>
-      </div>
-      <div className="flex items-center gap-2">{children}</div>
-    </div>
-  );
-}
 
 function NavItem({
   label,
@@ -1435,7 +1962,9 @@ function StatCard({
   return (
     <div className={`relative overflow-hidden rounded-2xl ${tint} p-5`}>
       <div className="text-xs font-medium text-ink-muted">{label}</div>
-      <div className="mt-2 font-display text-3xl font-semibold">{value}</div>
+      <div className="mt-2 font-display text-2xl font-semibold md:text-3xl">
+        {value}
+      </div>
       <div className="mt-1 text-xs text-ink-muted">{change}</div>
     </div>
   );
@@ -1451,7 +1980,7 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-black/5 bg-white p-6">
+    <div className="mt-5 rounded-2xl border border-black/5 bg-white p-6">
       <div className="mb-4 flex items-center justify-between">
         <div className="font-display text-base font-semibold">{title}</div>
         {action}
@@ -1474,8 +2003,14 @@ function JarCard({ jar }: { jar: JarType }) {
   const isUsdc = jar.currency === "usdc";
 
   const fmtAmount = isUsdc
-    ? `$${jar.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    : `◎${jar.amount.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 })}`;
+    ? `$${jar.amount.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`
+    : `◎${jar.amount.toLocaleString(undefined, {
+        minimumFractionDigits: 4,
+        maximumFractionDigits: 4,
+      })}`;
 
   const fmtGoal = isUsdc
     ? `$${jar.goal.toLocaleString()}`
@@ -1486,14 +2021,22 @@ function JarCard({ jar }: { jar: JarType }) {
       <div className="flex items-start justify-between">
         <div className="text-3xl">{jar.emoji}</div>
         <div className="flex items-center gap-1.5">
-          <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${
-            isUsdc ? "bg-surface-mint text-green-700" : "bg-surface-sky text-blue-700"
-          }`}>
+          <span
+            className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${
+              isUsdc
+                ? "bg-surface-mint text-green-700"
+                : "bg-surface-sky text-blue-700"
+            }`}
+          >
             {isUsdc ? "USDC" : "SOL"}
           </span>
-          <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-            jar.locked ? "bg-surface-lavender text-sol-purple" : "bg-surface-cream text-amber-700"
-          }`}>
+          <span
+            className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+              jar.locked
+                ? "bg-surface-lavender text-sol-purple"
+                : "bg-surface-cream text-amber-700"
+            }`}
+          >
             {jar.locked ? "🔒 Locked" : "Open"}
           </span>
         </div>
@@ -1508,7 +2051,9 @@ function JarCard({ jar }: { jar: JarType }) {
         />
       </div>
       <div className="mt-2 flex justify-between text-[11px] text-ink-faint">
-        <span>{pct}% of {fmtGoal}</span>
+        <span>
+          {pct}% of {fmtGoal}
+        </span>
         <span>{jar.unlockLabel}</span>
       </div>
     </div>
@@ -1548,7 +2093,7 @@ function ActivityRow({
         <div className="truncate text-[11px] text-ink-muted">{sub}</div>
       </div>
       <div
-        className={`text-sm font-semibold ${
+        className={`flex-shrink-0 text-sm font-semibold ${
           positive ? "text-green-600" : "text-red-500"
         }`}
       >
@@ -1578,13 +2123,15 @@ function ContributorRow({
           large ? "h-10 w-10 text-base" : "h-8 w-8 text-sm"
         }`}
       >
-        {name[0]}
+        {name[0]?.toUpperCase()}
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-semibold">{name}</div>
         <div className="truncate text-[11px] text-ink-muted">{comment}</div>
       </div>
-      <div className="text-sm font-semibold text-green-600">{amount}</div>
+      <div className="flex-shrink-0 text-sm font-semibold text-green-600">
+        {amount}
+      </div>
     </div>
   );
 }

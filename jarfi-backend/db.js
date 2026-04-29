@@ -49,6 +49,12 @@ db.exec(`
     joined_at    INTEGER NOT NULL,
     PRIMARY KEY (jar_pubkey, owner_pubkey)
   );
+
+  CREATE TABLE IF NOT EXISTS processed_webhooks (
+    order_id    TEXT PRIMARY KEY,
+    provider    TEXT NOT NULL,
+    processed_at INTEGER NOT NULL
+  );
 `)
 
 // ---------------------------------------------------------------------------
@@ -122,7 +128,17 @@ const selectTripsByOwner = db.prepare(`
 // Exported API — same signatures as the old JSON-based services
 // ---------------------------------------------------------------------------
 
+const checkWebhookProcessed = db.prepare(`SELECT 1 FROM processed_webhooks WHERE order_id = ?`)
+const markWebhookProcessed  = db.prepare(`
+  INSERT OR IGNORE INTO processed_webhooks (order_id, provider, processed_at)
+  VALUES (?, ?, ?)
+`)
+
 module.exports = {
+  // Webhooks idempotency
+  isWebhookProcessed(order_id) { return !!checkWebhookProcessed.get(order_id) },
+  markWebhookProcessed(order_id, provider) { markWebhookProcessed.run(order_id, provider, Date.now()) },
+
   // Schedules
   addScheduleRow(row) { return insertSchedule.run(row) },
   getSchedulesByOwner(owner_pubkey) { return selectSchedulesByOwner.all(owner_pubkey) },
