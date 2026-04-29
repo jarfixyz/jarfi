@@ -31,29 +31,75 @@ jarfi/
 - Cloudflare Pages: `NEXT_PUBLIC_BACKEND_URL`, `NEXT_PUBLIC_TRANSAK_API_KEY`, `NEXT_PUBLIC_ENV`
 - Optional: `DB_PATH` (Railway persistent volume path for SQLite, e.g. `/data/jarfi.db`)
 
-## Current status (2026-04-29) — ALL PHASES COMPLETE ✅
+## Current status (2026-04-29) — PROD PREP IN PROGRESS 🚀
 
-### Phases
+### Phases (all complete)
 - Phase 1 (USDC Foundation) — ✅
 - Phase 2 (Kamino staking) — ✅
 - Phase 3 (Jupiter Terminal swap widget) — ✅
 - Phase 4 (Recurring deposits + push notifications) — ✅
-  - 4A schedule engine · 4B VAPID push · 4C service worker · 4D recurring UI
 - Phase 5 (Group Trip jar) — ✅
 
-### Polish / known issues (all resolved 2026-04-29)
-- ✅ Contract `deposit`: now transfers SOL on-chain via system_program CPI (was mock)
-- ✅ Marinade staking: `marinadeService.js` + `record_marinade_stake` instruction
-- ✅ Jupiter swap: `jupiterService.js` — USDC→SOL for SOL jar Transak webhook
-- ✅ Persistent storage: SQLite (`better-sqlite3`) replaces ephemeral JSON files
-- ✅ Dashboard stats: computed from real on-chain data (was hardcoded)
-- ✅ `?confirm=` flow: banner + "Поповнити" button opens Transak widget
-- ✅ Recurring deposit: cron auto-executes deposit + Kamino stake; push on result
+### Prod prep completed (2026-04-29)
+- ✅ Backend: CORS restricted to jarfi.xyz, rate limiting, helmet security headers
+- ✅ Backend: Webhook idempotency (processed_webhooks table) — no double-deposits
+- ✅ Backend: Guardarian webhook signature verification (GUARDARIAN_WEBHOOK_SECRET)
+- ✅ Backend: Server wallet pubkey removed from public GET /
+- ✅ Web: All mock data removed — dashboard/analytics/contributors/gift use real on-chain data
+- ✅ Web: Forecast calculated from real APY + current balance + time to unlock
+- ✅ Web: BalanceChart generates from real contribution timestamps
+- ✅ Web: Jar names in localStorage (jar_name_${pubkey})
+- ✅ Web: Responsive sidebar — mobile slide-in + hamburger, desktop always visible
+- ✅ Web: WalletButton in TopBar (compact), hamburger for mobile
+- ✅ Web: Privy auth integrated — wallet (Phantom/Solflare) OR Google/Twitter/email
+- ✅ Web: Landing trust section updated for mainnet
+- ✅ Deployed to Cloudflare Pages: https://jarfi.xyz
 
-### Remaining minor notes
-- Marinade SDK devnet compatibility untested — staking may need mainnet to work end-to-end
-- Server wallet needs USDC balance for recurring auto-deposits to execute (by design)
-- `DB_PATH` env var should point to a Railway persistent volume for data survival across redeploys
+### Still needed before mainnet launch
+- [ ] Mainnet contract deploy (`anchor deploy --provider.cluster mainnet-beta`)
+- [ ] Update PROGRAM_ID in jarfi-web/lib/program.ts + jarfi-backend/index.js after mainnet deploy
+- [ ] Railway env vars: `SOLANA_NETWORK=mainnet`, `DB_PATH=/data/jarfi.db`, `GUARDARIAN_WEBHOOK_SECRET`
+- [ ] Railway persistent volume for SQLite (`DB_PATH`)
+- [ ] Server wallet funded with USDC for recurring auto-deposits
+- [ ] Cloudflare env: `NEXT_PUBLIC_PRIVY_APP_ID=cmoket6g400170dlkfrc3lk26` ✅ (done)
+- [ ] Transak production API key (currently staging)
+- [ ] Design revision (UI/UX polish) — then run design checklist
+
+### Privy auth
+- App ID: `cmoket6g400170dlkfrc3lk26`
+- Configured in Cloudflare Pages ✅
+- Configured in jarfi-web/.env.local ✅
+- Supports: Phantom, Solflare, Google, Twitter, email
+
+### Design revision checklist (run after UI changes)
+```
+Landing
+  [ ] Hero, CTA кнопки, мобільна версія
+  [ ] APY цифри підтягуються з /apy
+
+Dashboard
+  [ ] Jar баланс відображається (USDC micro-units → $)
+  [ ] Прогрес-бар до goal
+  [ ] Kamino yield показується
+  [ ] Recurring deposit UI — create / delete
+  [ ] Push notification підписка
+  [ ] Sidebar — гамбургер на мобільному (375px)
+  [ ] WalletButton у TopBar — Connect/Sign in → Privy модалка
+
+Gift page /gift/[jar]
+  [ ] Transak widget відкривається
+  [ ] ?confirm= банер показується після оплати
+
+Group trip /trip/[jar]
+  [ ] Join flow працює
+  [ ] Прогрес членів відображається
+
+Загальне
+  [ ] Wallet not connected — empty state з кнопкою
+  [ ] Jar not found — 404 стан
+  [ ] Mobile (375px) — нічого не обрізається
+  [ ] Devtools Console — нема red errors
+```
 
 ## Backend files
 | File | Purpose |
