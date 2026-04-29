@@ -101,6 +101,7 @@ type JarType = {
   unlockLabel: string;
   currency: "usdc" | "sol";
   unlockDate: number;
+  futureValue?: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -199,9 +200,15 @@ export default function Dashboard() {
           ? j.goalAmount / 1_000_000
           : j.goalAmount / 1_000_000_000;
 
+        const yearsLeft = unlockDate > 0
+          ? Math.max(1, (unlockDate - Date.now() / 1000) / (365.25 * 86400))
+          : 5;
+        const apr = isUsdc ? (apy.usdc_kamino / 100) : (apy.sol_marinade / 100);
+        const futureValue = Math.round(displayAmount * Math.pow(1 + apr, yearsLeft) * 100) / 100;
+
         return {
           id: j.pubkey,
-          emoji: getJarEmoji(j.pubkey, isUsdc ? "💵" : "◎"),
+          emoji: getJarEmoji(j.pubkey, isUsdc ? "🫙" : "🫙"),
           name: getJarName(j.pubkey),
           description: unlockDateStr
             ? `Unlocks ${unlockDateStr}`
@@ -212,6 +219,7 @@ export default function Dashboard() {
           unlockLabel: modeLabel,
           currency: isUsdc ? "usdc" : "sol",
           unlockDate,
+          futureValue,
         };
       }),
     [liveJars]
@@ -229,8 +237,8 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#FAFAF8]">
-      {/* ── Mobile overlay ─────────────────────────────────────────────────── */}
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg)", fontFamily: "var(--font)" }}>
+      {/* Mobile overlay */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-30 bg-black/40 md:hidden"
@@ -238,76 +246,43 @@ export default function Dashboard() {
         />
       )}
 
-      {/* ── Sidebar ────────────────────────────────────────────────────────── */}
+      {/* Sidebar */}
       <aside
         className={`
-          fixed inset-y-0 left-0 z-40 flex w-60 flex-shrink-0 flex-col
-          border-r border-black/5 bg-white py-8
-          transition-transform duration-200
+          fixed inset-y-0 left-0 z-40 flex flex-shrink-0 flex-col
           md:relative md:translate-x-0
+          transition-transform duration-200
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
         `}
+        style={{ width: 220, background: "var(--bg)", borderRight: "1px solid var(--border)", padding: "24px 0" }}
       >
         <Link
           href="/"
-          className="mb-8 flex items-center gap-2 px-6"
           onClick={() => setSidebarOpen(false)}
+          style={{ display: "block", padding: "4px 24px 28px", fontSize: 18, fontWeight: 600, textDecoration: "none", color: "var(--text-primary)", letterSpacing: "-0.3px" }}
         >
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-sol-purple to-sol-blue text-lg">
-            🏺
-          </div>
-          <span className="font-display text-2xl font-bold">JAR</span>
+          jar<span style={{ color: "var(--green)" }}>fi</span>
         </Link>
 
-        <div className="px-3">
-          <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-widest text-ink-faint">
-            Overview
-          </div>
-          <NavItem
-            label="Dashboard"
-            icon={<LayoutGrid className="h-4 w-4" />}
-            active={activePage === "dashboard"}
-            onClick={() => navigate("dashboard")}
-          />
-          <NavItem
-            label="My Jars"
-            icon={<Package className="h-4 w-4" />}
-            active={activePage === "jars"}
-            onClick={() => navigate("jars")}
-          />
-          <NavItem
-            label="Analytics"
-            icon={<BarChart3 className="h-4 w-4" />}
-            active={activePage === "analytics"}
-            onClick={() => navigate("analytics")}
-          />
-        </div>
+        <nav style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2, padding: "0 12px" }}>
+          <NavItem label="My jars" icon="🫙" active={activePage === "dashboard" || activePage === "jars"} onClick={() => navigate("dashboard")} />
+          <NavItem label="Create jar" icon="+" active={false} onClick={() => { setSidebarOpen(false); setModal("new-jar"); }} />
+          {normalizedLive.length > 0 && (
+            <NavItem label="Analytics" icon="📊" active={activePage === "analytics"} onClick={() => navigate("analytics")} />
+          )}
+        </nav>
 
-        {(firstJarName || !publicKey) && (
-          <div className="mt-6 px-3">
-            <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-widest text-ink-faint">
-              {firstJarName ?? "Your first jar"}
+        <div style={{ padding: "16px 12px 0", borderTop: "1px solid var(--border)", margin: "0 12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
+            <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--bg-muted)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>
+              {greeting ? greeting.slice(0, 2).toUpperCase() : "—"}
             </div>
-            <NavItem
-              label="Contributors"
-              icon={<Users className="h-4 w-4" />}
-              active={activePage === "contributors"}
-              onClick={() => navigate("contributors")}
-            />
-            <NavItem
-              label="Gift Link"
-              icon={<Send className="h-4 w-4" />}
-              active={activePage === "gift"}
-              onClick={() => navigate("gift")}
-            />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 500 }}>{greeting ?? "Not connected"}</div>
+              {jarsLoading && <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>Loading…</div>}
+            </div>
           </div>
-        )}
-
-        {jarsLoading && (
-          <div className="mt-4 flex items-center gap-2 px-6 text-[11px] text-ink-faint">
-            <Loader2 className="h-3 w-3 animate-spin" /> Loading jars…
-          </div>
-        )}
+        </div>
       </aside>
 
       {/* ── Main ───────────────────────────────────────────────────────────── */}
@@ -720,19 +695,22 @@ function DashboardPage({
             {/* Jars grid */}
             <Card title="My Jars" action={<CardAction label="View all →" />}>
               {liveJars.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <div className="mb-3 text-5xl">🏺</div>
-                  <div className="mb-1 font-display text-lg font-semibold">
-                    No jars yet
-                  </div>
-                  <div className="mb-5 text-sm text-ink-muted">
-                    Create your first jar and share a gift link
+                <div style={{ maxWidth: 360, margin: "40px auto", textAlign: "center" }}>
+                  <div style={{ fontSize: 48, marginBottom: 24 }}>🫙</div>
+                  <div style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.5px", marginBottom: 10 }}>Start your first jar</div>
+                  <div style={{ fontSize: 15, color: "var(--text-secondary)", lineHeight: 1.6, marginBottom: 28 }}>
+                    Save for something that matters.<br />Alone or with people around you.
                   </div>
                   <button
                     onClick={onNewJar}
-                    className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white hover:bg-ink/90"
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 8,
+                      background: "var(--text-primary)", color: "#fff",
+                      fontSize: 14, fontWeight: 500, padding: "11px 22px",
+                      borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "var(--font)",
+                    }}
                   >
-                    <Plus className="h-4 w-4" /> Create your first jar
+                    Create a jar
                   </button>
                 </div>
               ) : (
@@ -1465,509 +1443,235 @@ function NewJarModal({
     groupTrip: GroupTripParams | null;
   }) => Promise<void>;
   apy: { usdc_kamino: number; sol_marinade: number };
-}) {
-  const [unlockType, setUnlockType] = useState<"goal" | "date" | "both">("goal");
-  const [currency, setCurrency] = useState<"usdc" | "sol">("usdc");
+})
+{
+  const EMOJIS = ["🫙","🎯","✈️","🏖️","🏍️","🚗","🏡","👧","👶","🎓","💍","🎸","📱","💪","🌍","🎁","💰","🐕","🌱","🏋️"];
+  const TOTAL_STEPS = 5;
+
+  const [step, setStep] = useState(1);
   const [jarName, setJarName] = useState("");
-  const [jarEmoji, setJarEmoji] = useState("🏺");
+  const [jarEmoji, setJarEmoji] = useState("🫙");
   const [goalInput, setGoalInput] = useState("");
-  const [dateInput, setDateInput] = useState("");
+  const [selectedYears, setSelectedYears] = useState<number | null>(5);
+  const [customDate, setCustomDate] = useState("");
+  const [recurChoice, setRecurChoice] = useState<"monthly" | "once">("monthly");
+  const [recurAmount, setRecurAmount] = useState("100");
   const [submitting, setSubmitting] = useState(false);
 
-  const [jarType, setJarType] = useState<"personal" | "group">("personal");
-  const [tripName, setTripName] = useState("");
-  const [tripEmoji, setTripEmoji] = useState("✈️");
-  const [tripDate, setTripDate] = useState("");
-  const [budgetPerPerson, setBudgetPerPerson] = useState("");
-  const [myNickname, setMyNickname] = useState("");
+  const goalUsd = parseFloat(goalInput) || 0;
+  const years = selectedYears ?? (customDate ? Math.max(1, Math.round((new Date(customDate).getTime() - Date.now()) / (365.25 * 86400 * 1000))) : 5);
+  const monthly = recurChoice === "monthly" ? (parseFloat(recurAmount) || 100) : 0;
+  const rJ = 0.055 / 12;
+  const n = years * 12;
+  const projJarfi = Math.round(monthly * ((Math.pow(1 + rJ, n) - 1) / rJ));
+  const projBank = Math.round(monthly * ((Math.pow(1 + 0.02/12, n) - 1) / (0.02/12)));
 
-  const [recurEnabled, setRecurEnabled] = useState(false);
-  const [recurAmount, setRecurAmount] = useState("");
-  const [recurFrequency, setRecurFrequency] = useState<"weekly" | "monthly">("monthly");
-  const [recurDay, setRecurDay] = useState("1");
-  const [recurTime, setRecurTime] = useState("09:00");
+  async function handleCreate() {
+    setSubmitting(true);
+    try {
+      const unlockDate = customDate
+        ? Math.floor(new Date(customDate).getTime() / 1000)
+        : selectedYears
+        ? Math.floor(Date.now() / 1000) + selectedYears * 365.25 * 86400
+        : 0;
+      const goalAmount = goalUsd > 0 ? Math.round(goalUsd * 1_000_000) : 0;
+      const mode = unlockDate > 0 && goalAmount > 0 ? 2 : goalAmount > 0 ? 1 : 0;
+      const recurring: RecurringParams | null = recurChoice === "monthly" && monthly > 0
+        ? { amount_usdc: Math.round(monthly * 100), frequency: "monthly", day: 1, hour: 9, minute: 0 }
+        : null;
+      await onCreate({ jarName, jarEmoji, mode, unlockDate, goalAmount, currency: "usdc", recurring, groupTrip: null });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const dots = Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1);
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      style={{ position: "fixed", inset: 0, zIndex: 40, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)", padding: 24, backdropFilter: "blur(4px)" }}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-8 shadow-2xl"
-        style={{ maxHeight: "90vh" }}
+        style={{ width: "100%", maxWidth: 480, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 20, padding: 40, maxHeight: "90vh", overflowY: "auto" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="font-display text-2xl font-semibold">
-              Create a Jar 🏺
-            </div>
-            <div className="mt-1 text-sm text-ink-muted">
-              Set a goal, a date, or both. Smart contract unlocks automatically.
-            </div>
-          </div>
-          <button onClick={onClose} className="rounded-full p-2 hover:bg-black/5">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Jar type */}
-        <div className="mt-6 grid grid-cols-2 gap-2">
-          {(
-            [
-              ["personal", "🏺 Особиста", "Ціль, дата, регулярні внески"],
-              ["group", "✈️ Групова поїздка", "Спільна мета для кількох людей"],
-            ] as const
-          ).map(([type, label, sub]) => (
-            <button
-              key={type}
-              onClick={() => setJarType(type)}
-              className={`rounded-xl border-2 px-4 py-3 text-left transition ${
-                jarType === type
-                  ? "border-sol-purple bg-surface-lavender"
-                  : "border-black/10 hover:border-black/20"
-              }`}
-            >
-              <div className="text-sm font-semibold">{label}</div>
-              <div className="mt-0.5 text-[11px] text-ink-muted">{sub}</div>
-            </button>
+        {/* Step dots */}
+        <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "center", marginBottom: 36 }}>
+          {dots.map((d) => (
+            <div key={d} style={{
+              height: 4, borderRadius: 2,
+              width: d === step ? 24 : 8,
+              background: d < step ? "var(--green)" : d === step ? "var(--text-primary)" : "var(--border)",
+              transition: "all 0.3s",
+            }} />
           ))}
         </div>
 
-        {jarType === "group" ? (
-          <div className="mt-5 space-y-4">
+        {/* ── STEP 1: Name ── */}
+        {step === 1 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">
-                Назва поїздки
-              </label>
-              <input
-                placeholder="Японія 2026, Балі з друзями…"
-                value={tripName}
-                onChange={(e) => setTripName(e.target.value)}
-                className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
-              />
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>Step 1 of {TOTAL_STEPS}</div>
+              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>What are you saving for?</div>
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">
-                Emoji напрямку
-              </label>
-              <div className="mt-1.5 flex flex-wrap gap-2">
-                {[
-                  "✈️","🗾","🏖️","🏔️","🗺️","🏝️","🌍","🎌","🌏","🇮🇹",
-                ].map((e) => (
-                  <button
-                    key={e}
-                    onClick={() => setTripEmoji(e)}
-                    className={`h-10 w-10 rounded-xl text-xl transition ${
-                      tripEmoji === e
-                        ? "bg-surface-lavender ring-2 ring-sol-purple"
-                        : "bg-[#FAFAF8] hover:bg-black/5"
-                    }`}
-                  >
-                    {e}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">
-                  Дата поїздки
-                </label>
-                <input
-                  type="date"
-                  value={tripDate}
-                  onChange={(e) => setTripDate(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">
-                  Бюджет / особу ($)
-                </label>
-                <input
-                  type="number"
-                  placeholder="1500"
-                  value={budgetPerPerson}
-                  onChange={(e) => setBudgetPerPerson(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">
-                Твоє ім&apos;я у групі
-              </label>
-              <input
-                placeholder="Аня, Vasyl…"
-                value={myNickname}
-                onChange={(e) => setMyNickname(e.target.value)}
-                className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
-              />
-            </div>
-            {tripName && budgetPerPerson && (
-              <div className="rounded-xl bg-surface-lavender p-3 text-xs font-medium text-sol-purple">
-                {tripEmoji} {tripName} · $
-                {parseFloat(budgetPerPerson || "0").toLocaleString()} / особу
-                {tripDate
-                  ? ` · ${new Date(tripDate).toLocaleDateString("uk-UA", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })}`
-                  : ""}
-              </div>
-            )}
-          </div>
-        ) : (
-          <>
-            {/* Jar name + emoji */}
-            <div className="mt-5">
-              <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">
-                Jar name
-              </label>
-              <div className="mt-1.5 flex gap-2">
+              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
                 <button
-                  type="button"
-                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-black/10 bg-white text-xl hover:bg-black/5"
-                  onClick={() => {
-                    const emojis = [
-                      "🏺","🎯","✈️","🏖️","🏍️","🚗","🏡","👧","👶","🎓",
-                      "💍","🎸","📱","💪","🌍","🎁","💰","🐕","🌱","🏋️",
-                    ];
-                    const next = emojis[(emojis.indexOf(jarEmoji) + 1) % emojis.length];
-                    setJarEmoji(next);
-                  }}
-                  title="Click to cycle emoji"
-                >
-                  {jarEmoji}
-                </button>
+                  style={{ height: 44, width: 44, flexShrink: 0, borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", fontSize: 22, cursor: "pointer" }}
+                  onClick={() => { const i = EMOJIS.indexOf(jarEmoji); setJarEmoji(EMOJIS[(i + 1) % EMOJIS.length]); }}
+                  title="Click to change emoji"
+                >{jarEmoji}</button>
                 <input
-                  placeholder="e.g. Anya's Future, Japan Trip…"
+                  autoFocus
+                  placeholder="E.g. Eva's 18th Birthday"
                   value={jarName}
                   onChange={(e) => setJarName(e.target.value)}
-                  className="flex-1 rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
+                  onKeyDown={(e) => e.key === "Enter" && jarName.trim() && setStep(2)}
+                  style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 8, padding: "11px 14px", fontSize: 17, fontFamily: "var(--font)", outline: "none" }}
                 />
               </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {["🏺","🎯","✈️","🏖️","🏍️","🚗","🏡","👧","👶","🎓","💍","🎸","📱","💪","🌍","🎁","💰","🐕","🌱","🏋️"].map((e) => (
-                  <button
-                    key={e}
-                    type="button"
-                    onClick={() => setJarEmoji(e)}
-                    className={`h-9 w-9 rounded-xl text-lg transition ${
-                      jarEmoji === e
-                        ? "bg-surface-lavender ring-2 ring-sol-purple"
-                        : "bg-[#FAFAF8] hover:bg-black/5"
-                    }`}
-                  >
-                    {e}
-                  </button>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {EMOJIS.map((e) => (
+                  <button key={e} onClick={() => setJarEmoji(e)} style={{ height: 36, width: 36, borderRadius: 8, fontSize: 18, cursor: "pointer", border: "1px solid", borderColor: jarEmoji === e ? "var(--text-primary)" : "var(--border)", background: jarEmoji === e ? "var(--bg-muted)" : "var(--bg)" }}>{e}</button>
                 ))}
               </div>
             </div>
-
-            {/* Currency */}
-            <div className="mt-5">
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-widest text-ink-muted">
-                Currency
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => setCurrency("usdc")}
-                  className={`rounded-xl border-2 px-4 py-3 text-left transition ${
-                    currency === "usdc"
-                      ? "border-sol-purple bg-surface-lavender"
-                      : "border-black/10 hover:border-black/20"
-                  }`}
-                >
-                  <div className="text-sm font-semibold">💵 USDC</div>
-                  <div className="mt-0.5 text-[11px] text-ink-muted">
-                    Stable · ~{apy.usdc_kamino}% APY via Kamino
-                  </div>
-                </button>
-                <button
-                  onClick={() => setCurrency("sol")}
-                  className={`rounded-xl border-2 px-4 py-3 text-left transition ${
-                    currency === "sol"
-                      ? "border-sol-purple bg-surface-lavender"
-                      : "border-black/10 hover:border-black/20"
-                  }`}
-                >
-                  <div className="text-sm font-semibold">◎ SOL</div>
-                  <div className="mt-0.5 text-[11px] text-ink-muted">
-                    Volatile · ~{apy.sol_marinade}% APY via Marinade
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            {/* Unlock condition */}
-            <div className="mt-5">
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-widest text-ink-muted">
-                Unlock condition
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: "goal", label: "🎯 Goal" },
-                  { id: "date", label: "📅 Date" },
-                  { id: "both", label: "🎯 + 📅" },
-                ].map((o) => (
-                  <button
-                    key={o.id}
-                    onClick={() => setUnlockType(o.id as typeof unlockType)}
-                    className={`rounded-xl border-2 py-2.5 text-sm font-medium transition ${
-                      unlockType === o.id
-                        ? "border-sol-purple bg-surface-lavender"
-                        : "border-black/10 hover:border-black/20"
-                    }`}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-5 space-y-4">
-              {unlockType !== "date" && (
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">
-                    Goal amount ($)
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="5000"
-                    value={goalInput}
-                    onChange={(e) => setGoalInput(e.target.value)}
-                    className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
-                  />
-                </div>
-              )}
-
-              {unlockType !== "goal" && (
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">
-                    Unlock date
-                  </label>
-                  <input
-                    type="date"
-                    value={dateInput}
-                    onChange={(e) => setDateInput(e.target.value)}
-                    className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
-                  />
-                </div>
-              )}
-
-              {unlockType === "both" && (
-                <div className="rounded-xl bg-surface-sky p-3 text-xs text-ink-muted">
-                  Jar unlocks at whichever condition is met first.
-                </div>
-              )}
-
-              {/* Recurring deposit */}
-              <button
-                onClick={() => setRecurEnabled(!recurEnabled)}
-                className="flex w-full items-center justify-between rounded-xl border border-black/10 px-4 py-3 text-left hover:border-black/20"
-              >
-                <div>
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <RefreshCw className="h-4 w-4 text-sol-purple" /> Регулярний
-                    внесок від мене
-                  </div>
-                  <div className="text-xs text-ink-muted">
-                    Push-нагадування + авто-план поповнень
-                  </div>
-                </div>
-                <div
-                  className={`h-6 w-10 rounded-full p-0.5 transition ${
-                    recurEnabled ? "bg-sol-purple" : "bg-black/10"
-                  }`}
-                >
-                  <div
-                    className={`h-5 w-5 rounded-full bg-white transition ${
-                      recurEnabled ? "translate-x-4" : ""
-                    }`}
-                  />
-                </div>
-              </button>
-
-              {recurEnabled && (
-                <div className="space-y-3 rounded-xl border border-sol-purple/20 bg-surface-lavender p-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[10px] font-semibold uppercase tracking-widest text-ink-muted">
-                        Сума ($)
-                      </label>
-                      <input
-                        type="number"
-                        placeholder="50"
-                        value={recurAmount}
-                        onChange={(e) => setRecurAmount(e.target.value)}
-                        className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-sol-purple"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-semibold uppercase tracking-widest text-ink-muted">
-                        Час
-                      </label>
-                      <input
-                        type="time"
-                        value={recurTime}
-                        onChange={(e) => setRecurTime(e.target.value)}
-                        className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-sol-purple"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-semibold uppercase tracking-widest text-ink-muted">
-                      Частота
-                    </label>
-                    <div className="mt-1 grid grid-cols-2 gap-2">
-                      {(["weekly", "monthly"] as const).map((f) => (
-                        <button
-                          key={f}
-                          type="button"
-                          onClick={() => setRecurFrequency(f)}
-                          className={`rounded-xl border-2 py-2 text-sm font-medium transition ${
-                            recurFrequency === f
-                              ? "border-sol-purple bg-white"
-                              : "border-transparent bg-white/60 hover:border-black/10"
-                          }`}
-                        >
-                          {f === "weekly" ? "Щотижня" : "Щомісяця"}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-semibold uppercase tracking-widest text-ink-muted">
-                      {recurFrequency === "weekly"
-                        ? "День тижня"
-                        : "Число місяця (1–28)"}
-                    </label>
-                    {recurFrequency === "weekly" ? (
-                      <select
-                        value={recurDay}
-                        onChange={(e) => setRecurDay(e.target.value)}
-                        className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-sol-purple"
-                      >
-                        {[
-                          "Неділя","Понеділок","Вівторок","Середа","Четвер","П'ятниця","Субота",
-                        ].map((d, i) => (
-                          <option key={i} value={i}>
-                            {d}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        type="number"
-                        min={1}
-                        max={28}
-                        value={recurDay}
-                        onChange={(e) => setRecurDay(e.target.value)}
-                        className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-sol-purple"
-                      />
-                    )}
-                  </div>
-                  <div className="rounded-xl bg-white/70 px-4 py-2.5 text-xs font-medium text-sol-purple">
-                    {recurLabel(recurAmount, recurFrequency, recurDay, recurTime)}
-                  </div>
-                </div>
-              )}
-            </div>
-          </>
+            <FlowNav onNext={() => setStep(2)} nextDisabled={!jarName.trim()} />
+          </div>
         )}
 
-        <div className="mt-6 flex gap-3">
-          <button
-            onClick={onClose}
-            disabled={submitting}
-            className="flex-1 rounded-full border border-black/10 py-3 text-sm font-medium disabled:opacity-40"
-          >
-            Cancel
-          </button>
-          <button
-            disabled={submitting}
-            onClick={async () => {
-              setSubmitting(true);
-              try {
-                if (jarType === "group") {
-                  const tripDateTs = tripDate
-                    ? Math.floor(new Date(tripDate).getTime() / 1000)
-                    : 0;
-                  const budgetCents = Math.round(
-                    parseFloat(budgetPerPerson || "0") * 100
-                  );
-                  const goalAmount = Math.round(
-                    parseFloat(budgetPerPerson || "0") * 1_000_000
-                  );
-                  await onCreate({
-                    jarName: tripName,
-                    jarEmoji: tripEmoji,
-                    mode: 0,
-                    unlockDate: tripDateTs,
-                    goalAmount,
-                    currency: "usdc",
-                    recurring: null,
-                    groupTrip: {
-                      trip_name: tripName,
-                      destination_emoji: tripEmoji,
-                      trip_date: tripDateTs,
-                      budget_per_person_cents: budgetCents,
-                      owner_nickname: myNickname,
-                    },
-                  });
-                } else {
-                  const mode =
-                    unlockType === "goal"
-                      ? 1
-                      : unlockType === "date"
-                      ? 0
-                      : 2;
-                  const unlockDate = dateInput
-                    ? Math.floor(new Date(dateInput).getTime() / 1000)
-                    : 0;
-                  const goalAmount = goalInput
-                    ? currency === "usdc"
-                      ? Math.round(parseFloat(goalInput) * 1_000_000)
-                      : Math.round(parseFloat(goalInput) * 1_000_000_000)
-                    : 0;
-                  let recurring: RecurringParams | null = null;
-                  if (recurEnabled && recurAmount) {
-                    const [hh, mm] = recurTime.split(":");
-                    recurring = {
-                      amount_usdc: Math.round(parseFloat(recurAmount) * 100),
-                      frequency: recurFrequency,
-                      day: parseInt(recurDay, 10),
-                      hour: parseInt(hh ?? "9", 10),
-                      minute: parseInt(mm ?? "0", 10),
-                    };
-                  }
-                  await onCreate({
-                    jarName,
-                    jarEmoji,
-                    mode,
-                    unlockDate,
-                    goalAmount,
-                    currency,
-                    recurring,
-                    groupTrip: null,
-                  });
-                }
-              } finally {
-                setSubmitting(false);
-              }
-            }}
-            className="flex-1 rounded-full bg-ink py-3 text-sm font-medium text-white disabled:opacity-40"
-          >
-            {submitting
-              ? "Creating…"
-              : jarType === "group"
-              ? "Створити поїздку ✈️"
-              : "Create Jar"}
-          </button>
-        </div>
+        {/* ── STEP 2: Goal ── */}
+        {step === 2 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>Step 2 of {TOTAL_STEPS}</div>
+              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>Set a goal</div>
+              <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, marginTop: 6 }}>Optional, but helps you stay on track.</div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ padding: "11px 14px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 15, fontWeight: 600, background: "var(--bg-muted)", color: "var(--text-secondary)", minWidth: 48, textAlign: "center" }}>$</div>
+              <input
+                autoFocus
+                type="number"
+                placeholder="10,000"
+                value={goalInput}
+                onChange={(e) => setGoalInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && setStep(3)}
+                style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 8, padding: "11px 14px", fontSize: 15, fontFamily: "var(--font)", outline: "none" }}
+              />
+            </div>
+            <FlowNav onBack={() => setStep(1)} onNext={() => setStep(3)} />
+          </div>
+        )}
+
+        {/* ── STEP 3: Timeline ── */}
+        {step === 3 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>Step 3 of {TOTAL_STEPS}</div>
+              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>When do you need it?</div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+              {[1, 3, 5, 10, 18, 0].map((y) => (
+                <button key={y} onClick={() => { setSelectedYears(y || null); setCustomDate(""); }}
+                  style={{ padding: 12, border: "1px solid", borderColor: selectedYears === y ? "var(--text-primary)" : "var(--border)", borderRadius: 8, cursor: "pointer", background: selectedYears === y ? "var(--bg-muted)" : "var(--bg)", fontFamily: "var(--font)", textAlign: "center" }}>
+                  <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: "-0.5px" }}>{y || "—"}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2 }}>{y === 0 ? "no deadline" : y === 1 ? "year" : "years"}</div>
+                </button>
+              ))}
+            </div>
+            <div>
+              <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 6 }}>Or pick a specific date</div>
+              <input
+                type="date"
+                value={customDate}
+                onChange={(e) => { setCustomDate(e.target.value); setSelectedYears(null); }}
+                style={{ width: "100%", border: "1px solid var(--border)", borderRadius: 8, padding: "11px 14px", fontSize: 15, fontFamily: "var(--font)", outline: "none" }}
+              />
+            </div>
+            <FlowNav onBack={() => setStep(2)} onNext={() => setStep(4)} />
+          </div>
+        )}
+
+        {/* ── STEP 4: Recurring ── */}
+        {step === 4 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>Step 4 of {TOTAL_STEPS}</div>
+              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>Will you add funds regularly?</div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {[
+                { val: "monthly", icon: "🔄", title: "Yes — monthly", desc: "Set a recurring amount each month" },
+                { val: "once",    icon: "💸", title: "No — one-time",  desc: "Just an initial deposit" },
+              ].map((o) => (
+                <button key={o.val} onClick={() => setRecurChoice(o.val as typeof recurChoice)}
+                  style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", border: "1px solid", borderColor: recurChoice === o.val ? "var(--text-primary)" : "var(--border)", borderRadius: 12, cursor: "pointer", background: recurChoice === o.val ? "var(--bg-muted)" : "var(--bg)", fontFamily: "var(--font)", textAlign: "left" }}>
+                  <span style={{ fontSize: 22, width: 36, textAlign: "center" }}>{o.icon}</span>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 500, color: "var(--text-primary)" }}>{o.title}</div>
+                    <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 2 }}>{o.desc}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            {recurChoice === "monthly" && (
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>Monthly amount</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ padding: "11px 14px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 15, fontWeight: 600, background: "var(--bg-muted)", color: "var(--text-secondary)", minWidth: 48, textAlign: "center" }}>$</div>
+                  <input type="number" value={recurAmount} onChange={(e) => setRecurAmount(e.target.value)} style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 8, padding: "11px 14px", fontSize: 15, fontFamily: "var(--font)", outline: "none" }} />
+                </div>
+              </div>
+            )}
+            <FlowNav onBack={() => setStep(3)} onNext={() => setStep(5)} />
+          </div>
+        )}
+
+        {/* ── STEP 5: Projection + Create ── */}
+        {step === 5 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>Step 5 of {TOTAL_STEPS}</div>
+              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>If you continue, you&apos;ll have:</div>
+            </div>
+            <div style={{ background: "var(--bg-muted)", borderRadius: 12, padding: 24 }}>
+              <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginBottom: 8 }}>Estimated future value</div>
+              <div style={{ fontSize: 44, fontWeight: 600, color: "var(--green)", letterSpacing: "-1.5px", lineHeight: 1 }}>
+                ${projJarfi.toLocaleString()}
+              </div>
+              <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>in {years} {years === 1 ? "year" : "years"}</div>
+              <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                  <span style={{ color: "var(--text-secondary)" }}>Do nothing</span>
+                  <span style={{ fontWeight: 500, color: "var(--text-tertiary)" }}>$0</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                  <span style={{ color: "var(--text-secondary)" }}>In a bank (2%)</span>
+                  <span style={{ fontWeight: 500, color: "var(--text-secondary)" }}>${projBank.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+            <div style={{ fontSize: 13, color: "var(--text-tertiary)", lineHeight: 1.6 }}>
+              This includes your contributions and growth over time.
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: "var(--bg-muted)", borderRadius: 8, fontSize: 13, color: "var(--text-secondary)" }}>
+              <span>🔐</span>
+              <span>To create your jar, you&apos;ll need to connect a wallet. It only takes a moment.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <button onClick={() => setStep(4)} style={{ fontSize: 14, color: "var(--text-secondary)", cursor: "pointer", padding: "13px 0", border: "none", background: "none", fontFamily: "var(--font)" }}>Back</button>
+              <button
+                onClick={handleCreate}
+                disabled={submitting}
+                style={{ flex: 1, background: "var(--text-primary)", color: "#fff", fontSize: 15, fontWeight: 500, padding: "13px 20px", borderRadius: 8, border: "none", cursor: submitting ? "not-allowed" : "pointer", fontFamily: "var(--font)", opacity: submitting ? 0.6 : 1 }}
+              >
+                {submitting ? "Creating…" : "Create your jar — connect wallet"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1977,66 +1681,54 @@ function NewJarModal({
 // SHARED COMPONENTS
 // ---------------------------------------------------------------------------
 
-function NavItem({
-  label,
-  icon,
-  active,
-  onClick,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  active: boolean;
-  onClick: () => void;
-}) {
+function FlowNav({ onBack, onNext, nextDisabled, nextLabel }: { onBack?: () => void; onNext?: () => void; nextDisabled?: boolean; nextLabel?: string; }) {
   return (
-    <button
-      onClick={onClick}
-      className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition ${
-        active
-          ? "bg-surface-lavender text-sol-purple"
-          : "text-ink-muted hover:bg-black/5 hover:text-ink"
-      }`}
-    >
-      {icon} {label}
-    </button>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  change,
-  tint,
-}: {
-  label: string;
-  value: string;
-  change: string;
-  tint: string;
-}) {
-  return (
-    <div className={`relative overflow-hidden rounded-2xl ${tint} p-5`}>
-      <div className="text-xs font-medium text-ink-muted">{label}</div>
-      <div className="mt-2 font-display text-2xl font-semibold md:text-3xl">
-        {value}
-      </div>
-      <div className="mt-1 text-xs text-ink-muted">{change}</div>
+    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      {onBack && <button onClick={onBack} style={{ fontSize: 14, color: "var(--text-secondary)", cursor: "pointer", padding: "13px 0", border: "none", background: "none", fontFamily: "var(--font)" }}>Back</button>}
+      {onNext && <button onClick={onNext} disabled={nextDisabled} style={{ flex: 1, background: "var(--text-primary)", color: "#fff", fontSize: 15, fontWeight: 500, padding: "13px 20px", borderRadius: 8, border: "none", cursor: nextDisabled ? "not-allowed" : "pointer", fontFamily: "var(--font)", opacity: nextDisabled ? 0.4 : 1 }}>{nextLabel ?? "Continue"}</button>}
     </div>
   );
 }
 
-function Card({
-  title,
-  action,
-  children,
-}: {
-  title: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
+function NavItem({ label, icon, active, onClick }: {
+  label: string; icon: string; active: boolean; onClick: () => void;
 }) {
   return (
-    <div className="mt-5 rounded-2xl border border-black/5 bg-white p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="font-display text-base font-semibold">{title}</div>
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", gap: 10, width: "100%",
+        padding: "9px 12px", borderRadius: 8,
+        background: active ? "var(--bg-muted)" : "transparent",
+        color: active ? "var(--text-primary)" : "var(--text-secondary)",
+        fontWeight: active ? 500 : 400, fontSize: 14,
+        cursor: "pointer", border: "none", fontFamily: "var(--font)",
+        textAlign: "left", transition: "all 0.15s",
+      }}
+    >
+      <span style={{ fontSize: 16, width: 20, textAlign: "center" }}>{icon}</span>
+      {label}
+    </button>
+  );
+}
+
+function StatCard({ label, value, change, highlight }: { label: string; value: string; change: string; highlight?: boolean; tint?: string; }) {
+  return (
+    <div style={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--bg)", padding: 20 }}>
+      <div style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 500 }}>{label}</div>
+      <div style={{ marginTop: 8, fontSize: 28, fontWeight: 600, letterSpacing: "-0.8px", color: highlight ? "var(--green)" : "var(--text-primary)" }}>
+        {value}
+      </div>
+      <div style={{ marginTop: 4, fontSize: 12, color: "var(--text-tertiary)" }}>{change}</div>
+    </div>
+  );
+}
+
+function Card({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode; }) {
+  return (
+    <div style={{ marginTop: 20, borderRadius: 16, border: "1px solid var(--border)", background: "var(--bg)", padding: 24 }}>
+      <div style={{ marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ fontSize: 16, fontWeight: 500, letterSpacing: "-0.3px" }}>{title}</div>
         {action}
       </div>
       {children}
@@ -2046,69 +1738,67 @@ function Card({
 
 function CardAction({ label }: { label: string }) {
   return (
-    <button className="rounded-full px-3 py-1 text-xs font-medium text-sol-purple hover:bg-surface-lavender">
+    <button style={{ fontSize: 13, color: "var(--text-secondary)", cursor: "pointer", border: "none", background: "none", fontFamily: "var(--font)" }}>
       {label}
     </button>
   );
 }
 
 function JarCard({ jar }: { jar: JarType }) {
-  const pct = Math.min(100, Math.round((jar.amount / jar.goal) * 100));
+  const pct = Math.min(100, Math.round((jar.amount / Math.max(jar.goal, 0.01)) * 100));
   const isUsdc = jar.currency === "usdc";
-
-  const fmtAmount = isUsdc
-    ? `$${jar.amount.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}`
-    : `◎${jar.amount.toLocaleString(undefined, {
-        minimumFractionDigits: 4,
-        maximumFractionDigits: 4,
-      })}`;
-
-  const fmtGoal = isUsdc
-    ? `$${jar.goal.toLocaleString()}`
-    : `◎${jar.goal.toLocaleString()}`;
+  const future = jar.futureValue ?? jar.amount;
+  const fmtFuture = isUsdc ? `$${future.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : `◎${future.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  const fmtSaved = isUsdc ? `$${jar.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : `◎${jar.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })}`;
+  const yearsLeft = jar.unlockDate > 0 ? Math.max(0, Math.round((jar.unlockDate - Date.now() / 1000) / (365.25 * 86400))) : null;
 
   return (
-    <div className="cursor-pointer rounded-2xl border border-black/5 bg-[#FAFAF8] p-5 transition hover:-translate-y-0.5 hover:border-sol-purple hover:shadow-lg">
-      <div className="flex items-start justify-between">
-        <div className="text-3xl">{jar.emoji}</div>
-        <div className="flex items-center gap-1.5">
-          <span
-            className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${
-              isUsdc
-                ? "bg-surface-mint text-green-700"
-                : "bg-surface-sky text-blue-700"
-            }`}
-          >
-            {isUsdc ? "USDC" : "SOL"}
-          </span>
-          <span
-            className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-              jar.locked
-                ? "bg-surface-lavender text-sol-purple"
-                : "bg-surface-cream text-amber-700"
-            }`}
-          >
-            {jar.locked ? "🔒 Locked" : "Open"}
-          </span>
+    <div
+      style={{
+        background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 16,
+        padding: 28, display: "flex", flexDirection: "column", gap: 0,
+        cursor: "pointer", transition: "box-shadow 0.15s",
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "0 4px 24px rgba(0,0,0,0.07)")}
+      onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+        <div style={{ fontSize: 15, fontWeight: 500 }}>{jar.emoji} {jar.name}</div>
+        {yearsLeft !== null && (
+          <div style={{ fontSize: 12, color: "var(--text-tertiary)", background: "var(--bg-muted)", padding: "3px 9px", borderRadius: 20 }}>
+            {yearsLeft > 0 ? `${yearsLeft} yr${yearsLeft !== 1 ? "s" : ""} left` : "unlocking"}
+          </div>
+        )}
+      </div>
+
+      {/* Future value — primary */}
+      <div style={{ marginBottom: 4 }}>
+        <div style={{ fontSize: 40, fontWeight: 600, color: "var(--green)", letterSpacing: "-1.5px", lineHeight: 1 }}>
+          {fmtFuture}
+        </div>
+        <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 3, display: "flex", alignItems: "center", gap: 4 }}>
+          Estimated future value
+          <span title="Projected value if you continue saving at this pace" style={{ width: 13, height: 13, borderRadius: "50%", border: "1px solid var(--text-tertiary)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 8, cursor: "help" }}>?</span>
         </div>
       </div>
-      <div className="mt-3 font-display text-lg font-semibold">{jar.name}</div>
-      <div className="text-xs text-ink-muted">{jar.description}</div>
-      <div className="mt-3 font-display text-2xl font-semibold">{fmtAmount}</div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/5">
-        <div
-          className="h-full rounded-full bg-gradient-to-r from-sol-purple to-sol-blue"
-          style={{ width: `${pct}%` }}
-        />
+
+      {/* Saved — secondary */}
+      <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 16, marginBottom: 12 }}>
+        <strong style={{ color: "var(--text-primary)", fontWeight: 600 }}>{fmtSaved}</strong> saved so far
       </div>
-      <div className="mt-2 flex justify-between text-[11px] text-ink-faint">
-        <span>
-          {pct}% of {fmtGoal}
-        </span>
-        <span>{jar.unlockLabel}</span>
+
+      {/* Progress */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-tertiary)", marginBottom: 6 }}>
+          <span>Progress to goal</span><span>{pct}%</span>
+        </div>
+        <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden" }}>
+          <div style={{ width: `${pct}%`, height: "100%", background: "var(--green)", borderRadius: 2 }} />
+        </div>
+      </div>
+
+      <div style={{ fontSize: 13, color: "var(--text-tertiary)" }}>
+        {jar.locked ? "🔒 Locked" : "Open"} · {jar.unlockLabel}
       </div>
     </div>
   );

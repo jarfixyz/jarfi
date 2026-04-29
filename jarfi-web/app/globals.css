@@ -2,96 +2,62 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;0,9..144,800;0,9..144,900;1,9..144,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap");
-
 :root {
-  --font-display: "Fraunces", Georgia, serif;
-  --font-sans: "DM Sans", -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", monospace;
+  --bg: #FFFFFF;
+  --bg-muted: #F7F8F7;
+  --text-primary: #111111;
+  --text-secondary: #666666;
+  --text-tertiary: #999999;
+  --border: #EAEAEA;
+  --green: #1F8A5B;
+  --green-light: #EAF4EE;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-html {
-  scroll-behavior: smooth;
-}
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
 
 body {
-  font-family: var(--font-sans);
-  color: #0F1020;
-  background: #FAFAF8;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-.font-display {
-  font-family: var(--font-display);
-  letter-spacing: -0.02em;
-}
-
-/* Grain texture overlay */
-.grain::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.04;
-  mix-blend-mode: multiply;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-
-/* Soft blob background */
-.blob-bg {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px) }
-  50% { transform: translateY(-12px) }
-}
-.float { animation: float 6s ease-in-out infinite; }
-
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.fade-up { animation: fadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
-
-/* Hide scrollbar for range inputs cleanly */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
   background: transparent;
   cursor: pointer;
+  width: 100%;
 }
 input[type="range"]::-webkit-slider-runnable-track {
   height: 4px;
-  background: #E8EAF2;
-  border-radius: 10px;
+  background: var(--border);
+  border-radius: 2px;
 }
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  margin-top: -8px;
-  height: 20px;
-  width: 20px;
+  margin-top: -7px;
+  height: 18px;
+  width: 18px;
   border-radius: 50%;
-  background: #0F1020;
-  border: 3px solid #14F195;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  background: var(--text-primary);
+  cursor: pointer;
 }
 input[type="range"]::-moz-range-track {
   height: 4px;
-  background: #E8EAF2;
-  border-radius: 10px;
+  background: var(--border);
+  border-radius: 2px;
 }
 input[type="range"]::-moz-range-thumb {
-  height: 20px;
-  width: 20px;
+  height: 18px;
+  width: 18px;
   border-radius: 50%;
-  background: #0F1020;
-  border: 3px solid #14F195;
+  background: var(--text-primary);
   cursor: pointer;
+  border: none;
 }

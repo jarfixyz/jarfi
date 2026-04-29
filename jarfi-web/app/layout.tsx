@@ -1,18 +1,25 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "JAR — Save together. Lock it. Grow it.",
+  title: "Jarfi — Save together. Grow automatically.",
   description:
-    "On-chain savings jars with auto-staking yield. Set a goal, a date, or both. Family contributes by card — no crypto needed.",
+    "Create a savings jar, share a link, and let anyone contribute — even without crypto. Your funds grow onchain while you focus on what matters.",
   metadataBase: new URL("https://jarfi.xyz"),
   openGraph: {
-    title: "JAR — Save together. Lock it. Grow it.",
+    title: "Jarfi — Save together. Grow automatically.",
     description:
-      "On-chain savings jars with auto-staking yield. Set a goal, a date, or both.",
+      "Create a savings jar, share a link, and let anyone contribute — even without crypto.",
     url: "https://jarfi.xyz",
-    siteName: "JAR",
+    siteName: "Jarfi",
     type: "website",
   },
 };
@@ -23,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.variable}>
       <body>
         <Providers>{children}</Providers>
       </body>

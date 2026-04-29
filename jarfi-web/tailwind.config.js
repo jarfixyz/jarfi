@@ -3,31 +3,54 @@ module.exports = {
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./lib/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     extend: {
       colors: {
+        green: {
+          DEFAULT: "#1F8A5B",
+          light: "#EAF4EE",
+          mid: "#2E7D57",
+        },
+        border: "#EAEAEA",
+        muted: "#F7F8F7",
+        primary: "#111111",
+        secondary: "#666666",
+        tertiary: "#999999",
+        // legacy aliases — keep so existing dashboard code doesn't break
         sol: {
-          purple: "#9945FF",
-          green: "#14F195",
-          blue: "#00C2FF",
+          purple: "#1F8A5B",
+          green: "#1F8A5B",
+          blue: "#1F8A5B",
         },
         surface: {
-          lavender: "#F0EAFF",
-          mint: "#E6FDF5",
-          sky: "#E6F9FF",
-          cream: "#FFF9F0",
+          lavender: "#EAF4EE",
+          mint: "#EAF4EE",
+          sky: "#F7F8F7",
+          cream: "#F7F8F7",
         },
         ink: {
-          DEFAULT: "#0F1020",
-          muted: "#6B7094",
-          faint: "#A0A6C8",
+          DEFAULT: "#111111",
+          muted: "#666666",
+          faint: "#999999",
         },
       },
       fontFamily: {
-        display: ["var(--font-display)", "serif"],
-        sans: ["var(--font-sans)", "sans-serif"],
-        mono: ["var(--font-mono)", "monospace"],
+        sans: ["var(--font-inter)", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
+        display: ["var(--font-inter)", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
+        mono: ["ui-monospace", "monospace"],
+      },
+      borderRadius: {
+        sm: "8px",
+        md: "12px",
+        lg: "16px",
+        xl: "20px",
+        "2xl": "24px",
+      },
+      letterSpacing: {
+        tight: "-0.03em",
+        tighter: "-0.05em",
       },
     },
   },
