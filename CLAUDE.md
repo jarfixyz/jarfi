@@ -87,9 +87,8 @@ jarfi/
 
 ## Known issues
 - Cloudflare Pages auto-deploy used to fail on peer-dep conflict — fixed with `.npmrc`
-- Marinade CPI in contract is a mock (staking_shares field exists but no real CPI calls)
-- Jupiter swap for SOL jars (when Transak sends USDC → needs swap before deposit) — TODO in backend
-- `schedules.json` and `push-subscriptions.json` on Railway are ephemeral (reset on deploy) — fine for hackathon MVP
+- Marinade SDK devnet compatibility untested (staking flow may need mainnet)
+- Server wallet needs USDC balance for recurring auto-deposits to execute
 
 ## Commands
 ```bash
