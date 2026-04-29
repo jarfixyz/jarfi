@@ -24,7 +24,7 @@ const IDL = require('./idl.json')
 const { depositToKamino, getYieldEarned, getLiveApyPublic } = require('./kaminoService')
 const { stakeWithMarinade } = require('./marinadeService')
 const { swapUsdcToSol } = require('./jupiterService')
-const { isWebhookProcessed, markWebhookProcessed } = require('./db')
+const { isWebhookProcessed, markWebhookProcessed, saveJarMeta, getJarMeta } = require('./db')
 const { createGroup, getGroup, joinGroup, listGroupsByOwner } = require('./groupService')
 const {
   addSchedule,
@@ -229,6 +229,21 @@ app.post('/jar/create', async (req, res) => {
 })
 
 // ---------------------------------------------------------------------------
+// POST /jar/meta  — save off-chain name + emoji for a jar
+// ---------------------------------------------------------------------------
+
+app.post('/jar/meta', (req, res) => {
+  try {
+    const { pubkey, name, emoji } = req.body
+    if (!pubkey) return res.status(400).json({ ok: false, error: 'pubkey required' })
+    saveJarMeta(pubkey, name ?? '', emoji ?? '🏺')
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message })
+  }
+})
+
+// ---------------------------------------------------------------------------
 // GET /jar/:pubkey
 // ---------------------------------------------------------------------------
 
@@ -258,11 +273,15 @@ app.get('/jar/:pubkey', async (req, res) => {
       }
     }
 
+    const meta = getJarMeta(jarPubkey.toBase58())
+
     res.json({
       ok: true,
       jar: {
         pubkey:               jarPubkey.toBase58(),
         owner:                jar.owner.toBase58(),
+        name:                 meta?.name || null,
+        emoji:                meta?.emoji || null,
         mode:                 jar.mode,
         unlockDate:           jar.unlockDate.toNumber(),
         goalAmount:           jar.goalAmount.toNumber(),

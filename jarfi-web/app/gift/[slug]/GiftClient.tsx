@@ -14,31 +14,17 @@ export type DisplayJar = {
   contributors: number;
 };
 
-const MOCK_JARS: Record<string, DisplayJar> = {
-  anya: {
-    name: "Anya's Future",
-    emoji: "👧",
-    amountCents: 84730,
-    goalCents: 200000,
-    unlockLabel: "Opens March 15, 2036",
-    contributors: 5,
-  },
-  japan: {
-    name: "Japan Trip",
-    emoji: "✈️",
-    amountCents: 34000,
-    goalCents: 100000,
-    unlockLabel: "Opens when $1,000 collected",
-    contributors: 4,
-  },
-  moto: {
-    name: "Motorcycle Fund",
-    emoji: "🏍️",
-    amountCents: 120000,
-    goalCents: 500000,
-    unlockLabel: "Opens at $5,000 or in 6 months",
-    contributors: 2,
-  },
+// Demo jars — real on-chain accounts on devnet
+const SLUG_TO_PUBKEY: Record<string, string> = {
+  anya:  "FeAzYeZuvo6eaPcsVp1Yguegcp2AhwwPWTfPV5Z4B9hC",
+  japan: "ExvN6nxRbWpqQJrpG6shY9tbcWTtHKEaJDmFVebxFqu4",
+  moto:  "28teBgT2U1y25ARUkgGfHjeyBHhnJXorVtLs6Qk93ppc",
+};
+
+const SLUG_META: Record<string, { name: string; emoji: string }> = {
+  anya:  { name: "Anya's Future", emoji: "👧" },
+  japan: { name: "Japan Trip",    emoji: "✈️" },
+  moto:  { name: "Motorcycle Fund", emoji: "🏍️" },
 };
 
 const IS_SOLANA_PUBKEY = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -46,10 +32,10 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:300
 const FALLBACK_APY = 6.85;
 
 export default function GiftClient({ slug }: { slug: string }) {
-  const isRealJar = IS_SOLANA_PUBKEY.test(slug);
-  const mockJar = MOCK_JARS[slug] ?? null;
+  const resolvedSlug = SLUG_TO_PUBKEY[slug] ?? slug;
+  const isRealJar = IS_SOLANA_PUBKEY.test(resolvedSlug);
 
-  const [jar, setJar] = useState<DisplayJar | null>(mockJar);
+  const [jar, setJar] = useState<DisplayJar | null>(null);
   const [jarNotFound, setJarNotFound] = useState(false);
   const [apy, setApy] = useState<number>(FALLBACK_APY);
   const [amount, setAmount] = useState<number>(50);
@@ -69,15 +55,15 @@ export default function GiftClient({ slug }: { slug: string }) {
   }, []);
 
   useEffect(() => {
-    if (!isRealJar || mockJar) return;
+    if (!isRealJar) { setJarNotFound(true); return; }
 
     const timeout = setTimeout(() => setJarNotFound(true), 6000);
 
-    fetch(`${BACKEND_URL}/jar/${slug}`)
+    fetch(`${BACKEND_URL}/jar/${resolvedSlug}`)
       .then((r) => r.json())
       .then((data: {
         ok: boolean;
-        jar?: { mode: number; unlockDate: number; goalAmount: number; balance: number };
+        jar?: { mode: number; unlockDate: number; goalAmount: number; balance: number; usdcBalance?: number | null; name?: string | null; emoji?: string | null };
         contributions?: unknown[];
       }) => {
         if (!data.ok || !data.jar) return;
@@ -87,17 +73,22 @@ export default function GiftClient({ slug }: { slug: string }) {
               month: "long", day: "numeric", year: "numeric",
             })
           : null;
-        const goalUsd = (j.goalAmount / 100).toLocaleString();
+        const goalUsd = (j.goalAmount / 1_000_000).toLocaleString();
         let unlockLabel = "";
         if (j.mode === 0) unlockLabel = date ? `Opens ${date}` : "Locked";
         else if (j.mode === 1) unlockLabel = `Opens when $${goalUsd} collected`;
         else unlockLabel = `Opens at $${goalUsd}${date ? ` or on ${date}` : ""}`;
 
+        const slugMeta = SLUG_META[slug];
+        // USDC: micro-units (6 dec) → cents (/10_000). SOL: lamports (9 dec) → cents (/10_000_000).
+        const rawBalance = j.usdcBalance ?? j.balance ?? 0;
+        const isUsdc = j.usdcBalance != null;
+        const divisor = isUsdc ? 10_000 : 10_000_000;
         setJar({
-          name: "Savings Jar",
-          emoji: "🏺",
-          amountCents: j.balance,
-          goalCents: j.goalAmount,
+          name: j.name || slugMeta?.name || "Savings Jar",
+          emoji: j.emoji || slugMeta?.emoji || "🏺",
+          amountCents: Math.round(rawBalance / divisor),
+          goalCents: Math.round((j.goalAmount ?? 0) / divisor),
           unlockLabel,
           contributors: data.contributions?.length ?? 0,
         });
@@ -105,9 +96,9 @@ export default function GiftClient({ slug }: { slug: string }) {
       })
       .catch(() => setJarNotFound(true))
       .finally(() => clearTimeout(timeout));
-  }, [slug, isRealJar, mockJar]);
+  }, [resolvedSlug, isRealJar]);
 
-  const vaultAddress = isRealJar ? slug : "11111111111111111111111111111111";
+  const vaultAddress = isRealJar ? resolvedSlug : "11111111111111111111111111111111";
   const pct = jar ? Math.min(100, Math.round((jar.amountCents / jar.goalCents) * 100)) : 0;
   const amountUsd = jar ? (jar.amountCents / 100).toLocaleString(undefined, { minimumFractionDigits: 0 }) : "—";
   const goalUsd = jar ? (jar.goalCents / 100).toLocaleString() : "—";

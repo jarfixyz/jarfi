@@ -55,6 +55,12 @@ db.exec(`
     provider    TEXT NOT NULL,
     processed_at INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS jar_meta (
+    pubkey TEXT PRIMARY KEY,
+    name   TEXT NOT NULL DEFAULT '',
+    emoji  TEXT NOT NULL DEFAULT '🏺'
+  );
 `)
 
 // ---------------------------------------------------------------------------
@@ -134,6 +140,18 @@ const markWebhookProcessed  = db.prepare(`
   VALUES (?, ?, ?)
 `)
 
+// ---------------------------------------------------------------------------
+// Jar meta (name + emoji — off-chain)
+// ---------------------------------------------------------------------------
+
+const upsertJarMeta = db.prepare(`
+  INSERT INTO jar_meta (pubkey, name, emoji)
+  VALUES (@pubkey, @name, @emoji)
+  ON CONFLICT(pubkey) DO UPDATE SET name = excluded.name, emoji = excluded.emoji
+`)
+
+const selectJarMeta = db.prepare(`SELECT name, emoji FROM jar_meta WHERE pubkey = ?`)
+
 module.exports = {
   // Webhooks idempotency
   isWebhookProcessed(order_id) { return !!checkWebhookProcessed.get(order_id) },
@@ -154,6 +172,10 @@ module.exports = {
     const row = selectPushSub.get(owner_pubkey)
     return row ? JSON.parse(row.subscription) : null
   },
+
+  // Jar meta
+  saveJarMeta(pubkey, name, emoji) { upsertJarMeta.run({ pubkey, name: name ?? '', emoji: emoji ?? '🏺' }) },
+  getJarMeta(pubkey) { return selectJarMeta.get(pubkey) ?? null },
 
   // Trips
   createTripRow(trip) { insertTrip.run(trip) },

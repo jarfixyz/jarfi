@@ -53,6 +53,16 @@ function saveJarName(pubkey: string, name: string) {
   if (name.trim()) localStorage.setItem(`jar_name_${pubkey}`, name.trim());
 }
 
+function getJarEmoji(pubkey: string, fallback = "🏺"): string {
+  if (typeof window === "undefined") return fallback;
+  return localStorage.getItem(`jar_emoji_${pubkey}`) ?? fallback;
+}
+
+function saveJarEmoji(pubkey: string, emoji: string) {
+  if (typeof window === "undefined") return;
+  if (emoji) localStorage.setItem(`jar_emoji_${pubkey}`, emoji);
+}
+
 function shortPubkey(pubkey: string) {
   return `Jar ${pubkey.slice(0, 4)}…${pubkey.slice(-4)}`;
 }
@@ -191,7 +201,7 @@ export default function Dashboard() {
 
         return {
           id: j.pubkey,
-          emoji: isUsdc ? "💵" : "◎",
+          emoji: getJarEmoji(j.pubkey, isUsdc ? "💵" : "◎"),
           name: getJarName(j.pubkey),
           description: unlockDateStr
             ? `Unlocks ${unlockDateStr}`
@@ -418,6 +428,13 @@ export default function Dashboard() {
                 ));
               }
               if (params.jarName) saveJarName(jarPubkey, params.jarName);
+              if (params.jarEmoji) saveJarEmoji(jarPubkey, params.jarEmoji);
+              // Persist name+emoji to backend so gift page can display them
+              fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:3001"}/jar/meta`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ pubkey: jarPubkey, name: params.jarName, emoji: params.jarEmoji }),
+              }).catch(() => {});
               if (params.recurring) {
                 await createScheduleApi({
                   jar_pubkey: jarPubkey,
@@ -1439,6 +1456,7 @@ function NewJarModal({
   onClose: () => void;
   onCreate: (params: {
     jarName: string;
+    jarEmoji: string;
     mode: number;
     unlockDate: number;
     goalAmount: number;
@@ -1451,6 +1469,7 @@ function NewJarModal({
   const [unlockType, setUnlockType] = useState<"goal" | "date" | "both">("goal");
   const [currency, setCurrency] = useState<"usdc" | "sol">("usdc");
   const [jarName, setJarName] = useState("");
+  const [jarEmoji, setJarEmoji] = useState("🏺");
   const [goalInput, setGoalInput] = useState("");
   const [dateInput, setDateInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -1602,17 +1621,50 @@ function NewJarModal({
           </div>
         ) : (
           <>
-            {/* Jar name */}
+            {/* Jar name + emoji */}
             <div className="mt-5">
               <label className="block text-xs font-semibold uppercase tracking-widest text-ink-muted">
                 Jar name
               </label>
-              <input
-                placeholder="e.g. Anya's Future, Japan Trip…"
-                value={jarName}
-                onChange={(e) => setJarName(e.target.value)}
-                className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
-              />
+              <div className="mt-1.5 flex gap-2">
+                <button
+                  type="button"
+                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-black/10 bg-white text-xl hover:bg-black/5"
+                  onClick={() => {
+                    const emojis = [
+                      "🏺","🎯","✈️","🏖️","🏍️","🚗","🏡","👧","👶","🎓",
+                      "💍","🎸","📱","💪","🌍","🎁","💰","🐕","🌱","🏋️",
+                    ];
+                    const next = emojis[(emojis.indexOf(jarEmoji) + 1) % emojis.length];
+                    setJarEmoji(next);
+                  }}
+                  title="Click to cycle emoji"
+                >
+                  {jarEmoji}
+                </button>
+                <input
+                  placeholder="e.g. Anya's Future, Japan Trip…"
+                  value={jarName}
+                  onChange={(e) => setJarName(e.target.value)}
+                  className="flex-1 rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
+                />
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {["🏺","🎯","✈️","🏖️","🏍️","🚗","🏡","👧","👶","🎓","💍","🎸","📱","💪","🌍","🎁","💰","🐕","🌱","🏋️"].map((e) => (
+                  <button
+                    key={e}
+                    type="button"
+                    onClick={() => setJarEmoji(e)}
+                    className={`h-9 w-9 rounded-xl text-lg transition ${
+                      jarEmoji === e
+                        ? "bg-surface-lavender ring-2 ring-sol-purple"
+                        : "bg-[#FAFAF8] hover:bg-black/5"
+                    }`}
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Currency */}
@@ -1852,6 +1904,7 @@ function NewJarModal({
                   );
                   await onCreate({
                     jarName: tripName,
+                    jarEmoji: tripEmoji,
                     mode: 0,
                     unlockDate: tripDateTs,
                     goalAmount,
@@ -1893,6 +1946,7 @@ function NewJarModal({
                   }
                   await onCreate({
                     jarName,
+                    jarEmoji,
                     mode,
                     unlockDate,
                     goalAmount,
