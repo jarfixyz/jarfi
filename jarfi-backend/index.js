@@ -741,26 +741,48 @@ app.listen(PORT, () => {
   console.log(`RPC: ${RPC_URL}`)
 
   startCronRunner(async (schedule, subscription) => {
-    if (!subscription) {
-      console.log(`[schedule] no push sub for ${schedule.owner_pubkey} — skipping notify`)
-      return
-    }
-    if (!process.env.VAPID_PUBLIC_KEY) {
-      console.log(`[schedule] VAPID not configured — skipping push`)
-      return
-    }
     const shortJar = `${schedule.jar_pubkey.slice(0, 4)}…${schedule.jar_pubkey.slice(-4)}`
-    const amount = (schedule.amount_usdc / 100).toFixed(2)
-    const payload = JSON.stringify({
-      title: 'Час поповнити банку 🏺',
-      body: `$${amount} → Jar ${shortJar}`,
-      data: { jar_pubkey: schedule.jar_pubkey, amount_usdc: schedule.amount_usdc },
-    })
+    const amountUsd = (schedule.amount_usdc / 100).toFixed(2)
+    const jarPubkey = new PublicKey(schedule.jar_pubkey)
+    // cents → USDC micro-units (6 dec): $10.00 = 1000 cents = 10_000_000 micro
+    const usdcMicroUnits = schedule.amount_usdc * 10_000
+
+    let depositOk = false
+
+    // 1. Attempt auto-deposit from server wallet
+    try {
+      await onrampDepositUsdc(jarPubkey, usdcMicroUnits, 'Recurring deposit 🔄')
+      depositOk = true
+      console.log(`[schedule] auto-deposit OK: $${amountUsd} → ${schedule.jar_pubkey}`)
+
+      // Auto-stake into Kamino after deposit
+      depositToKamino(connection, serverKeypair, schedule.jar_pubkey, usdcMicroUnits)
+        .then(r => console.log('[kamino] auto-stake after recurring:', r))
+        .catch(e => console.warn('[kamino] recurring stake failed:', e.message))
+    } catch (e) {
+      console.warn(`[schedule] auto-deposit failed (no server USDC?): ${e.message}`)
+    }
+
+    // 2. Send push notification
+    if (!subscription || !process.env.VAPID_PUBLIC_KEY) return
+
+    const payload = depositOk
+      ? JSON.stringify({
+          title: 'Регулярний внесок виконано ✅',
+          body: `$${amountUsd} → Jar ${shortJar}`,
+          data: { jar_pubkey: schedule.jar_pubkey, amount_usdc: schedule.amount_usdc },
+        })
+      : JSON.stringify({
+          title: 'Час поповнити банку 🏺',
+          body: `$${amountUsd} → Jar ${shortJar}`,
+          data: { jar_pubkey: schedule.jar_pubkey, amount_usdc: schedule.amount_usdc },
+        })
+
     try {
       await webpush.sendNotification(subscription, payload)
-      console.log(`[schedule] push sent to ${schedule.owner_pubkey}`)
+      console.log(`[schedule] push sent to ${schedule.owner_pubkey} (deposit=${depositOk})`)
     } catch (err) {
-      console.warn(`[schedule] push failed for ${schedule.owner_pubkey}:`, err.message)
+      console.warn(`[schedule] push failed:`, err.message)
     }
   })
 })
