@@ -55,7 +55,7 @@ describe("jarfi-contract", () => {
     const jarAccount = await program.account.jar.fetch(jar.publicKey);
 
     expect(jarAccount.balance.toString()).to.equal("20000");
-    expect(jarAccount.stakingShares.toString()).to.equal("20000");
+    expect(jarAccount.stakingShares.toString()).to.equal("0"); // set by recordMarinadeStake, not deposit
     expect(jarAccount.childWallet.toBase58()).to.equal(childWallet.publicKey.toBase58());
     expect(jarAccount.childSpendableBalance.toString()).to.equal("0");
     expect(jarAccount.unlocked).to.equal(false);
