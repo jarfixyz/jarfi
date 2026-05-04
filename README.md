@@ -85,28 +85,4 @@ jarfi/
 
 ---
 
-## Local dev
-
-```bash
-# Web
-cd jarfi-web && npm install && npm run dev
-
-# Backend
-cd jarfi-backend && node index.js
-```
-
-## Deploy
-
-```bash
-# Web — Cloudflare Pages
-cd jarfi-web && npm run deploy
-
-# Backend — auto-deploys on Railway from main branch
-
-# Contract
-cd jarfi-contract && anchor build && anchor deploy
-```
-
----
-
 *Not financial advice. Smart contract not yet audited for mainnet.*
