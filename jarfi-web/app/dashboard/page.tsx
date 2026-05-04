@@ -111,7 +111,7 @@ type JarType = {
 
 export default function Dashboard() {
   const [activePage, setActivePage] = useState<
-    "dashboard" | "jars" | "analytics" | "contributors" | "gift"
+    "dashboard" | "jars" | "analytics" | "contributors"
   >("dashboard");
   const [modal, setModal] = useState<"new-jar" | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -230,8 +230,6 @@ export default function Dashboard() {
     ? `${publicKey.toBase58().slice(0, 4)}…${publicKey.toBase58().slice(-4)}`
     : null;
 
-  const firstJarName = normalizedLive[0]?.name ?? null;
-
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2800);
@@ -278,7 +276,6 @@ export default function Dashboard() {
           <div style={{ fontSize: 10, fontWeight: 700, color: "#999999", letterSpacing: "0.8px", textTransform: "uppercase", padding: "12px 8px 6px" }}>Insights</div>
           <NavItem label="Analytics" icon="📊" active={activePage === "analytics"} onClick={() => navigate("analytics")} />
           <NavItem label="Contributors" icon="👥" active={activePage === "contributors"} onClick={() => navigate("contributors")} />
-          <NavItem label="Gift links" icon="🔗" active={activePage === "gift"} onClick={() => navigate("gift")} />
         </div>
 
         {/* APY pill */}
@@ -313,7 +310,7 @@ export default function Dashboard() {
         {confirmBanner && (
           <div className="sticky top-0 z-20 flex items-center justify-between bg-sol-purple px-6 py-3 text-sm font-medium text-white shadow">
             <span>
-              ⏰ Час поповнити банку — $
+              ⏰ Time to top up your jar — $
               {(confirmBanner.amount_usdc / 100).toFixed(2)} → Jar{" "}
               {confirmBanner.jar_pubkey.slice(0, 4)}…
               {confirmBanner.jar_pubkey.slice(-4)}
@@ -323,7 +320,7 @@ export default function Dashboard() {
                 onClick={() => setShowDepositTransak(true)}
                 className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-sol-purple hover:bg-white/90"
               >
-                Поповнити
+                Top up
               </button>
               <button
                 onClick={() => setConfirmBanner(null)}
@@ -343,7 +340,7 @@ export default function Dashboard() {
             onSuccess={() => {
               setShowDepositTransak(false);
               setConfirmBanner(null);
-              showToast("Депозит підтверджено ✅");
+              showToast("Deposit confirmed ✅");
             }}
             onClose={() => setShowDepositTransak(false)}
           />
@@ -385,13 +382,6 @@ export default function Dashboard() {
         {activePage === "contributors" && (
           <ContributorsPage
             contributions={contributions}
-            liveJars={normalizedLive}
-            onMenuToggle={() => setSidebarOpen((v) => !v)}
-          />
-        )}
-        {activePage === "gift" && (
-          <GiftPage
-            onCopy={() => showToast("Link copied 📋")}
             liveJars={normalizedLive}
             onMenuToggle={() => setSidebarOpen((v) => !v)}
           />
@@ -459,7 +449,7 @@ export default function Dashboard() {
               setModal(null);
               refreshJars();
               showToast(
-                params.groupTrip ? "Групову поїздку створено ✈️" : "Jar created 🏺"
+                params.groupTrip ? "Group trip created ✈️" : "Jar created 🏺"
               );
             } catch (e: unknown) {
               const msg = e instanceof Error ? e.message : "Unknown error";
@@ -764,7 +754,7 @@ function DashboardPage({
             {/* Group Trip jars */}
             {groups.length > 0 && (
               <div style={{ background: "#FFFFFF", border: "1px solid #E2E2DC", borderRadius: 14, padding: "18px 20px", marginBottom: 12 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Групові поїздки ✈️</div>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Group trips ✈️</div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {groups.map((g) => {
                     const daysLeft = Math.max(0, Math.ceil((g.trip_date * 1000 - Date.now()) / 86_400_000));
@@ -774,17 +764,17 @@ function DashboardPage({
                         <div className="flex items-start justify-between">
                           <div className="text-3xl">{g.destination_emoji}</div>
                           <span className="rounded-full bg-surface-sky px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                            {daysLeft > 0 ? `${daysLeft} днів` : "Скоро!"}
+                            {daysLeft > 0 ? `${daysLeft} days` : "Soon!"}
                           </span>
                         </div>
                         <div className="mt-2 font-display text-base font-semibold">{g.trip_name}</div>
-                        <div className="text-xs text-ink-muted">{g.members.length} учасників · ${(g.budget_per_person_cents / 100).toLocaleString()}/особу</div>
+                        <div className="text-xs text-ink-muted">{g.members.length} members · ${(g.budget_per_person_cents / 100).toLocaleString()}/person</div>
                         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-black/5">
                           <div className="h-full rounded-full bg-gradient-to-r from-sol-purple to-sol-blue" style={{ width: `${g.total_progress_pct}%` }} />
                         </div>
                         <div className="mt-1.5 flex justify-between text-[11px] text-ink-faint">
-                          <span>{g.total_progress_pct}% зібрано</span>
-                          <span>Відкрити →</span>
+                          <span>{g.total_progress_pct}% raised</span>
+                          <span>Open →</span>
                         </div>
                       </a>
                     );
@@ -794,7 +784,7 @@ function DashboardPage({
             )}
 
             {/* Bottom grid: Activity | Schedules + Forecast */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+            {liveJars.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
 
               {/* Recent Activity panel */}
               <div style={{ background: "#FFFFFF", border: "1px solid #E2E2DC", borderRadius: 14, padding: "18px 20px" }}>
@@ -886,7 +876,7 @@ function DashboardPage({
                 </div>
 
               </div>
-            </div>
+            </div>}
 
           </>
         )}
@@ -1136,126 +1126,6 @@ function ContributorsPage({
                     </div>
                   </div>
                 ))}
-              </div>
-            </Card>
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// GIFT PAGE — real jar data
-// ---------------------------------------------------------------------------
-
-function GiftPage({
-  onCopy,
-  liveJars,
-  onMenuToggle,
-}: {
-  onCopy: () => void;
-  liveJars: JarType[];
-  onMenuToggle: () => void;
-}) {
-  const firstJar = liveJars[0];
-  const giftUrl = firstJar
-    ? `${typeof window !== "undefined" ? window.location.origin : "https://jarfi.xyz"}/gift/${firstJar.id}`
-    : null;
-  const displayUrl = firstJar
-    ? `jarfi.xyz/gift/${firstJar.id.slice(0, 8)}…`
-    : null;
-  const jarName = firstJar?.name ?? "—";
-  const jarPct = firstJar
-    ? Math.min(100, Math.round((firstJar.amount / firstJar.goal) * 100))
-    : 0;
-
-  return (
-    <>
-      <TopBar
-        title="Gift Link"
-        subtitle="Share with family — no crypto needed"
-        onMenuToggle={onMenuToggle}
-      >
-        <WalletButton compact />
-      </TopBar>
-      <div className="px-4 py-6 md:px-8 md:py-7">
-        {!firstJar ? (
-          <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-black/10 bg-white py-16 text-center">
-            <div className="mb-3 text-5xl">🔗</div>
-            <div className="mb-1 font-display text-lg font-semibold">
-              No jars yet
-            </div>
-            <div className="text-sm text-ink-muted">
-              Create a jar first to get a gift link
-            </div>
-          </div>
-        ) : (
-          <div className="grid gap-5 lg:grid-cols-2">
-            <Card title="Your gift link">
-              <p className="mb-5 text-sm text-ink-muted">
-                Anyone opens this link and contributes with a regular card — no
-                wallet, no registration.
-              </p>
-              <div className="rounded-2xl bg-gradient-to-br from-surface-lavender via-white to-surface-mint p-7 text-center">
-                <div className="mb-2 text-5xl">🏺</div>
-                <div className="font-display text-xl font-semibold">
-                  {jarName}
-                </div>
-                <div className="mt-1 text-xs text-ink-muted">
-                  ${firstJar.amount.toFixed(2)} saved · {jarPct}% of goal
-                </div>
-                <div className="mt-3 font-mono text-sm font-semibold text-sol-purple">
-                  {displayUrl}
-                </div>
-              </div>
-              <div className="mt-4">
-                <button
-                  onClick={() => {
-                    if (giftUrl) navigator.clipboard.writeText(giftUrl);
-                    onCopy();
-                  }}
-                  className="w-full rounded-full bg-ink px-4 py-3 text-sm font-medium text-white"
-                >
-                  <Copy className="mr-2 inline h-4 w-4" /> Copy Link
-                </button>
-              </div>
-            </Card>
-
-            <Card title="Preview — what family sees">
-              <div className="rounded-2xl border border-black/5 bg-[#FAFAF8] p-6">
-                <div className="font-display text-2xl font-semibold">
-                  🏺 {jarName}
-                </div>
-                <div className="mb-2 mt-4 flex justify-between text-sm">
-                  <span>${firstJar.amount.toFixed(2)} saved</span>
-                  <span>Goal: ${firstJar.goal.toLocaleString()}</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-black/5">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-sol-purple to-sol-blue"
-                    style={{ width: `${jarPct}%` }}
-                  />
-                </div>
-                <label className="mt-5 block text-xs font-medium text-ink-muted">
-                  Amount ($)
-                </label>
-                <input
-                  type="number"
-                  placeholder="50"
-                  className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
-                />
-                <label className="mt-3 block text-xs font-medium text-ink-muted">
-                  Message
-                </label>
-                <input
-                  type="text"
-                  placeholder="With love from grandma 💝"
-                  className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none focus:border-sol-purple"
-                />
-                <button className="mt-5 w-full rounded-full bg-ink py-3 text-sm font-medium text-white">
-                  Pay by card
-                </button>
               </div>
             </Card>
           </div>

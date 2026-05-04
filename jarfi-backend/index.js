@@ -14,6 +14,7 @@ const {
 } = require('@solana/web3.js')
 const {
   getAssociatedTokenAddress,
+  getOrCreateAssociatedTokenAccount,
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } = require('@solana/spl-token')
@@ -90,8 +91,14 @@ async function getJarUsdcVault(jarPubkey) {
   return getAssociatedTokenAddress(usdcMint(), vaultAuthority, true)
 }
 
-async function getOrCreateATA(owner) {
-  return getAssociatedTokenAddress(usdcMint(), owner)
+async function getOrCreateServerUsdcATA() {
+  const ata = await getOrCreateAssociatedTokenAccount(
+    connection,
+    serverKeypair,
+    usdcMint(),
+    serverKeypair.publicKey
+  )
+  return ata.address
 }
 
 // ---------------------------------------------------------------------------
@@ -348,7 +355,7 @@ async function onrampDepositUsdc(jarPubkey, cryptoAmount, comment) {
   const mint                   = usdcMint()
   const vaultAuthority         = await getVaultAuthority(jarPubkey)
   const jarUsdcVault           = await getAssociatedTokenAddress(mint, vaultAuthority, true)
-  const contributorUsdcAccount = await getOrCreateATA(serverKeypair.publicKey)
+  const contributorUsdcAccount = await getOrCreateServerUsdcATA()
   const contributionKeypair    = Keypair.generate()
 
   const txSignature = await program.methods
@@ -384,6 +391,7 @@ app.post('/transak-webhook', async (req, res) => {
     if (secret) {
       payload = jwt.verify(rawBody, secret)
     } else {
+      console.warn('[transak-webhook] TRANSAK_API_SECRET not set — skipping JWT verification')
       payload = JSON.parse(rawBody)
     }
 
@@ -407,15 +415,21 @@ app.post('/transak-webhook', async (req, res) => {
     }
 
     const parts = partnerOrderId.split('__')
-    const contributorMessage = parts.length >= 3
-      ? decodeURIComponent(parts.slice(2).join('__')).slice(0, 120)
-      : transakOrderId
+    const rawMsg = parts.length >= 3 && parts[2].trim()
+      ? decodeURIComponent(parts.slice(2).join('__'))
+      : ''
+    const contributorMessage = (rawMsg || 'gift deposit').slice(0, 120)
 
     if (!vaultAddress) {
       return res.status(400).json({ ok: false, error: 'walletAddress (jar pubkey) missing' })
     }
 
-    const jarPubkey = new PublicKey(vaultAddress)
+    let jarPubkey
+    try {
+      jarPubkey = new PublicKey(vaultAddress)
+    } catch {
+      return res.status(400).json({ ok: false, error: `Invalid jar pubkey: ${vaultAddress}` })
+    }
 
     // Fetch jar to determine currency
     let jar

@@ -118,9 +118,6 @@ export default function Landing() {
             <div style={{ fontSize:17, fontWeight:700, letterSpacing:"-.4px" }}>
               jar<span style={{ color:T.green }}>fi</span>
             </div>
-            <div style={{ fontSize:10, fontWeight:700, background:"#FEF3C7", color:"#92400E", padding:"3px 8px", borderRadius:20, letterSpacing:".4px", textTransform:"uppercase" }}>
-              Hackathon project
-            </div>
           </div>
           <div className="nav-links-desktop" style={{ display:"flex", gap:24 }}>
             {["Jar types:#jar-types","How it works:#how","Calculator:#calculator","FAQ:#faq"].map(s => {
@@ -167,19 +164,19 @@ export default function Landing() {
                 <div style={{ display:"flex", flexDirection:"column", gap:7, marginBottom:14 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                     <span style={{ fontSize:13, color:T.text2 }}>Bank savings (2%)</span>
-                    <span style={{ fontSize:13, fontWeight:500, color:T.text3 }}>$5,200</span>
+                    <span style={{ fontSize:13, fontWeight:500, color:T.text3 }}>$21,840</span>
                   </div>
                   <div style={{ height:1, background:T.border }} />
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                     <span style={{ fontSize:13, color:T.text, fontWeight:600 }}>With Jarfi</span>
-                    <span style={{ fontSize:20, fontWeight:700, color:T.green, letterSpacing:"-.5px" }}>$8,940</span>
+                    <span style={{ fontSize:20, fontWeight:700, color:T.green, letterSpacing:"-.5px" }}>$38,420</span>
                   </div>
                 </div>
                 <div style={{ marginBottom:12 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:T.text3, marginBottom:5 }}>
-                    <span>$3,420 saved</span><span>34%</span>
+                    <span>$14,200 saved</span><span>37%</span>
                   </div>
-                  <Prog pct={34} />
+                  <Prog pct={37} />
                 </div>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                   <div style={{ display:"flex", alignItems:"center" }}>
@@ -192,7 +189,6 @@ export default function Landing() {
                     </div>
                     <span style={{ fontSize:11, color:T.text3, marginLeft:8 }}>12 contributors</span>
                   </div>
-                  <Link href="/gift/anya" style={{ fontSize:12, fontWeight:600, color:T.green, textDecoration:"none" }}>Contribute →</Link>
                 </div>
               </div>
             </div>
@@ -209,8 +205,8 @@ export default function Landing() {
           <div className="jar-types-grid" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginTop:36 }}>
             {[
               { icon:"⏳", name:"Time-lock jar", desc:"Funds unlock on a set date. Perfect for milestones — a birthday, graduation, or retirement.", eg:"Eva's 18th — unlocks Jan 2034, grows to $8,940" },
-              { icon:"🎯", name:"Goal jar",      desc:"Save until you hit a target. A car, a holiday, a downpayment — whatever you're working toward.", eg:"Family Bali trip — goal $4,000, 61% there" },
-              { icon:"👥", name:"Shared jar",    desc:"Multiple people contribute to one jar. Great for family funds or groups saving together.", eg:"Parents + grandparents + aunts — all adding to one child's jar" },
+              { icon:"🎯", name:"Goal jar",      desc:"Save until you hit a target. A car, a holiday, a downpayment — whatever you're working toward.", eg:"Family Bali trip — goal $4,000" },
+              { icon:"👥", name:"Shared jar",    desc:"Multiple people contribute to one jar. Great for family funds or groups saving together.", eg:"One link sent in the family chat — everyone chips in, one child gets a gift they'll never forget." },
               { icon:"🎁", name:"Gift jar",      desc:"Share a link. Anyone can top it up with Apple Pay or a card. No wallet, no sign-up.", eg:"20 colleagues chip in for a birthday — one URL, one jar" },
             ].map(t => (
               <div key={t.name} style={{ border:`1px solid ${T.border}`, borderRadius:T.r, padding:20, background:T.bg }}>
@@ -239,8 +235,8 @@ export default function Landing() {
                 {[
                   { n:"1", title:"Owner creates a jar",         desc:"Set a name, goal, and timeline. Your jar gets a unique shareable link." },
                   { n:"2", title:"Share the link with anyone",  desc:"Family and friends open a URL — no account, no wallet needed to contribute." },
-                  { n:"3", title:"They pay by card or Apple Pay", desc:"Transak converts fiat to onchain instantly. Funds land in the jar automatically." },
-                  { n:"4", title:"Money earns 5.5% APY while you wait", desc:"Funds are automatically staked onchain. When the time comes, withdraw to any wallet or bank." },
+                  { n:"3", title:"They pay by card or Apple Pay", desc:"Their payment converts and lands in your jar automatically — no crypto setup needed." },
+                  { n:"4", title:"Money earns yield automatically", desc:"Funds are automatically staked onchain and auto-compound over time. When the time comes, withdraw to any wallet or bank." },
                 ].map(s => (
                   <div key={s.n} style={{ display:"flex", gap:14, alignItems:"flex-start" }}>
                     <div style={{ width:26, height:26, borderRadius:"50%", background:T.text, color:"#fff", fontSize:11, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:1 }}>{s.n}</div>
@@ -448,9 +444,9 @@ export default function Landing() {
           <div className="faq-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginTop:36 }}>
             <FaqItem q="Is my money safe? Where is it stored?" a="Your funds are held in a non-custodial smart contract on Solana — meaning only you control them. Jarfi never has access to your money. The smart contract is open source." />
             <FaqItem q="What is staking / yield?" a="Staking means your funds are put to work in a DeFi lending protocol (Kamino) that earns interest. Jarfi does this automatically — you don't need to know anything about DeFi. Current estimated yield: 5.5–8.2% APY." />
-            <FaqItem q="Do contributors need a crypto wallet?" a="No. Contributors open a link and pay by Apple Pay, Google Pay, card, or bank transfer. No wallet, no sign-up, no crypto knowledge needed. Transak handles the conversion in the background." />
-            <FaqItem q="How do I withdraw my money?" a="When the jar unlocks (on the date you set), you can withdraw directly to your wallet. Offramp to a bank account via Transak is also supported in most countries." />
-            <FaqItem q="Which countries and currencies are supported?" a="Jarfi works globally. Contributors can pay in USD, EUR, GBP, UAH, and 40+ other currencies. The owner receives funds onchain in USDC. Transak is available in 160+ countries." />
+            <FaqItem q="Do contributors need a crypto wallet?" a="No. Contributors open a link and pay by Apple Pay, Google Pay, card, or bank transfer. No wallet, no sign-up, no crypto knowledge needed. The conversion happens automatically in the background." />
+            <FaqItem q="How do I withdraw my money?" a="When the jar unlocks (on the date you set), you can withdraw directly to your wallet. Offramp to a bank account is also supported in most countries." />
+            <FaqItem q="Which countries and currencies are supported?" a="Jarfi works globally. Contributors can pay in USD, EUR, GBP, UAH, and 40+ other currencies. The owner receives funds onchain in USDC. Available in 160+ countries." />
             <FaqItem q="What if I lose access to my wallet?" a="Because Jarfi is non-custodial, losing your wallet seed phrase means losing access to funds — just like any crypto wallet. We strongly recommend using a hardware wallet or a reputable wallet with cloud backup." />
           </div>
         </div>
@@ -460,10 +456,7 @@ export default function Landing() {
       <footer style={{ borderTop:`1px solid ${T.border}`, padding:"28px 0" }}>
         <div style={{ ...wrap, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div style={{ fontSize:15, fontWeight:700 }}>jar<span style={{ color:T.green }}>fi</span></div>
-          <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
-            <div style={{ fontSize:12, color:T.text3 }}>© 2026 Jarfi · Onchain savings for everyone</div>
-            <div style={{ fontSize:11, color:T.text3 }}>Built for Solana Frontier Hackathon · Not financial advice</div>
-          </div>
+          <div style={{ fontSize:12, color:T.text3 }}>© 2026 Jarfi · Onchain savings for everyone</div>
         </div>
       </footer>
 

@@ -1,67 +1,47 @@
-# 🏺 jarfi-web
+# jarfi
 
-Next.js 14 · Tailwind · Cloudflare Workers
+Onchain savings jars — save together, grow automatically.
 
-Landing page, dashboard, and gift page for JAR.
+## What is jarfi?
 
----
+Jarfi lets you create savings jars on Solana. Set a goal or a date, invite anyone to contribute via card or Apple Pay, and watch your money earn yield automatically through DeFi staking.
 
-## Pages
-
-| Route | What it is |
-|---|---|
-| `/` | Landing — hero, interactive calculator, unlock types, scenarios, trust |
-| `/dashboard` | App shell — jars, contributors, gift link, forecast (mock data) |
-| `/gift/[slug]` | What contributors see when they tap the share link |
-| `/api/moonpay-webhook` | Placeholder for MoonPay settlement callback |
-
-All data is currently **mocked**. On-chain integration happens in Stage 2.
-
----
-
-## Local development
-
-```bash
-npm install
-npm run dev
-```
-
-Open http://localhost:3000
-
----
-
-## Deploy to Cloudflare Workers
-
-First time only — log in:
-
-```bash
-npx wrangler login
-```
-
-Then any time you want to ship:
-
-```bash
-npm run deploy
-```
-
-This builds with `@cloudflare/next-on-pages` and publishes to the `jarfi-web`
-Cloudflare Pages project. The URL is printed at the end.
-
----
+- **Shared jars** — anyone with a link can contribute. No wallet, no sign-up required.
+- **Gifting** — send one link. Family and friends pay by card, funds land onchain instantly.
+- **Automatic yield** — USDC earns ~8% APY via Kamino, SOL earns ~6.85% via Marinade.
+- **Recurring deposits** — set it once, your jar grows on autopilot.
 
 ## Stack
 
-- Next.js 14 App Router
-- Tailwind 3 + custom palette (Solana accents + pastel surfaces)
-- Fraunces (display) + DM Sans (body) + JetBrains Mono
-- Lucide icons
-- `@cloudflare/next-on-pages` for deploy
+| Layer | Tech |
+|---|---|
+| Contract | Anchor (Rust) · Solana |
+| Backend | Node.js / Express · Railway |
+| Web | Next.js 15 · Cloudflare Pages |
+| Onramp | Card / Apple Pay → USDC on Solana |
+| Yield | Kamino Lend (USDC) · Marinade (SOL) |
 
----
+Program ID: `HtQt8P4pcF2X4D9oxWwsafj5KnwJsUPF148mvkZMQaFW`
 
-## Next steps
+## In development
 
-- [ ] Stage 2: add `@solana/wallet-adapter-*`, Anchor client, real on-chain reads
-- [ ] Stage 2: wire `/api/moonpay-webhook` to call `gift_deposit` on program
-- [ ] Stage 2: replace mock JARS with PDA fetches
-- [ ] Stage 3: DoubleZero RPC integration
+- Mobile app (Solana Mobile)
+- Payment cards — spend directly from your jars
+
+## Local dev
+
+```bash
+cd jarfi-web && npm run dev
+```
+
+## Deploy
+
+```bash
+# Web — Cloudflare Pages (preferred over auto-deploy)
+cd jarfi-web && npm run deploy
+
+# Backend — auto-deploys on Railway from main branch (root: jarfi-backend/)
+
+# Contract
+cd jarfi-contract && anchor build && anchor deploy
+```

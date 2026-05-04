@@ -60,7 +60,8 @@ export default function GiftClient({ slug }: { slug: string }) {
         const date = j.unlockDate
           ? new Date(j.unlockDate * 1000).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
           : null;
-        const goalUsd = (j.goalAmount / 1_000_000).toLocaleString();
+        const isUsdc = j.usdcBalance != null;
+        const goalUsd = (j.goalAmount / (isUsdc ? 1_000_000 : 1_000_000_000)).toLocaleString();
         let unlockLabel = "";
         if (j.mode === 0) unlockLabel = date ? `Opens ${date}` : "Locked";
         else if (j.mode === 1) unlockLabel = `Opens when $${goalUsd} collected`;
@@ -68,7 +69,6 @@ export default function GiftClient({ slug }: { slug: string }) {
 
         const slugMeta = SLUG_META[slug];
         const rawBalance = j.usdcBalance ?? j.balance ?? 0;
-        const isUsdc = j.usdcBalance != null;
         const divisor = isUsdc ? 10_000 : 10_000_000;
 
         setJar({
@@ -136,7 +136,10 @@ export default function GiftClient({ slug }: { slug: string }) {
           <div style={{ textAlign: "center", padding: "32px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
             <div style={{ fontSize: 40 }}>🔍</div>
             <div style={{ fontSize: 18, fontWeight: 500 }}>Jar not found</div>
-            <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>Check the link and try again</div>
+            <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6 }}>
+              This jar may not exist or the link may be incorrect.<br />
+              <Link href="/" style={{ color: "var(--green)", textDecoration: "none", fontWeight: 500 }}>Go to jarfi.xyz</Link>
+            </div>
           </div>
         </Card>
       </Page>
@@ -255,7 +258,7 @@ export default function GiftClient({ slug }: { slug: string }) {
           <span>💳</span> Pay ${amount || 0} by card
         </button>
         <div style={{ fontSize: 12, color: "var(--text-tertiary)", textAlign: "center", marginTop: 12, lineHeight: 1.5 }}>
-          Powered by Transak · Your card is processed securely<br />No wallet or crypto needed
+          Your card is processed securely · No wallet or crypto needed
         </div>
       </Card>
     </Page>
