@@ -238,7 +238,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg)", fontFamily: "var(--font)" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: "#F5F5F2", fontFamily: "var(--font)" }}>
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -255,32 +255,53 @@ export default function Dashboard() {
           transition-transform duration-200
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
         `}
-        style={{ width: 220, background: "var(--bg)", borderRight: "1px solid var(--border)", padding: "24px 0" }}
+        style={{ width: 192, background: "#FFFFFF", borderRight: "1px solid #E2E2DC", padding: "20px 0", minHeight: "100vh" }}
       >
+        {/* Logo */}
         <Link
           href="/"
           onClick={() => setSidebarOpen(false)}
-          style={{ display: "block", padding: "4px 24px 28px", fontSize: 18, fontWeight: 600, textDecoration: "none", color: "var(--text-primary)", letterSpacing: "-0.3px" }}
+          style={{ display: "block", padding: "0 18px 22px", fontSize: 16, fontWeight: 700, textDecoration: "none", color: "#111111", letterSpacing: "-0.4px" }}
         >
-          jar<span style={{ color: "var(--green)" }}>fi</span>
+          jar<span style={{ color: "#059669" }}>fi</span>
         </Link>
 
-        <nav style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2, padding: "0 12px" }}>
+        {/* SAVINGS section */}
+        <div style={{ padding: "0 10px", display: "flex", flexDirection: "column", gap: 1 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#999999", letterSpacing: "0.8px", textTransform: "uppercase", padding: "12px 8px 6px" }}>Savings</div>
           <NavItem label="My jars" icon="🫙" active={activePage === "dashboard" || activePage === "jars"} onClick={() => navigate("dashboard")} />
-          <NavItem label="Create jar" icon="+" active={false} onClick={() => { setSidebarOpen(false); setModal("new-jar"); }} />
-          {normalizedLive.length > 0 && (
-            <NavItem label="Analytics" icon="📊" active={activePage === "analytics"} onClick={() => navigate("analytics")} />
-          )}
-        </nav>
+          <NavItem label="New jar" icon="＋" active={false} onClick={() => { setSidebarOpen(false); setModal("new-jar"); }} />
+        </div>
 
-        <div style={{ padding: "16px 12px 0", borderTop: "1px solid var(--border)", margin: "0 12px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
-            <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--bg-muted)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>
+        {/* INSIGHTS section */}
+        <div style={{ padding: "0 10px", display: "flex", flexDirection: "column", gap: 1, marginTop: 8 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#999999", letterSpacing: "0.8px", textTransform: "uppercase", padding: "12px 8px 6px" }}>Insights</div>
+          <NavItem label="Analytics" icon="📊" active={activePage === "analytics"} onClick={() => navigate("analytics")} />
+          <NavItem label="Contributors" icon="👥" active={activePage === "contributors"} onClick={() => navigate("contributors")} />
+          <NavItem label="Gift links" icon="🔗" active={activePage === "gift"} onClick={() => navigate("gift")} />
+        </div>
+
+        {/* APY pill */}
+        <div style={{ margin: "12px 10px 0", padding: "8px 10px", background: "#ECFDF5", borderRadius: 9 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 10, color: "#059669", fontWeight: 600 }}>USDC (Kamino)</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#059669" }}>{apy.usdc_kamino}%</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+            <span style={{ fontSize: 10, color: "#059669", fontWeight: 600 }}>SOL (Marinade)</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#059669" }}>{apy.sol_marinade}%</span>
+          </div>
+        </div>
+
+        {/* User footer */}
+        <div style={{ marginTop: "auto", padding: "14px 10px 0", borderTop: "1px solid #E2E2DC" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 8px", borderRadius: 9, cursor: "pointer" }}>
+            <div style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(5,150,105,.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#059669", flexShrink: 0 }}>
               {greeting ? greeting.slice(0, 2).toUpperCase() : "—"}
             </div>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 500 }}>{greeting ?? "Not connected"}</div>
-              {jarsLoading && <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>Loading…</div>}
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#111111" }}>{greeting ? `${greeting.slice(0, 4)}…` : "Not connected"}</div>
+              {jarsLoading && <div style={{ fontSize: 10, color: "#999999" }}>Loading…</div>}
             </div>
           </div>
         </div>
@@ -474,8 +495,8 @@ function TopBar({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="sticky top-0 z-10 flex items-center justify-between border-b border-black/5 bg-white/80 px-4 py-4 backdrop-blur md:px-8">
-      <div className="flex items-center gap-3">
+    <div style={{ background: "#FFFFFF", borderBottom: "1px solid #E2E2DC", padding: "0 28px", height: 52, display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
         <button
           onClick={onMenuToggle}
           className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-black/5 md:hidden"
@@ -483,15 +504,11 @@ function TopBar({
           <Menu className="h-5 w-5" />
         </button>
         <div>
-          <div className="font-display text-lg font-semibold md:text-xl">
-            {title}
-          </div>
-          {subtitle && (
-            <div className="text-xs text-ink-muted">{subtitle}</div>
-          )}
+          <div style={{ fontSize: 15, fontWeight: 600, color: "#111111" }}>{title}</div>
+          {subtitle && <div style={{ fontSize: 13, color: "#999999" }}>{subtitle}</div>}
         </div>
       </div>
-      <div className="flex items-center gap-2">{children}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>{children}</div>
     </div>
   );
 }
@@ -569,6 +586,15 @@ function DashboardPage({
     [totalSaved, yearsRemaining, primaryApr]
   );
 
+  const [chartJar, setChartJar] = useState<JarType | null>(null);
+
+  // Computed portfolio stats
+  const totalFutureValue = liveJars.reduce((s, j) => s + (j.futureValue ?? j.amount), 0);
+  const totalYieldEarned = liveJars.reduce((s, j) => {
+    const rate = j.currency === "usdc" ? apy.usdc_kamino / 100 : apy.sol_marinade / 100;
+    return s + j.amount * rate;
+  }, 0);
+
   if (selectedJar) {
     return (
       <JarDetailPanel
@@ -582,218 +608,179 @@ function DashboardPage({
 
   return (
     <>
+      {/* TopBar */}
       <TopBar
         title="Dashboard"
-        subtitle={greeting ? `Good morning, ${greeting} ☀️` : "Good morning ☀️"}
+        subtitle={greeting ? `Good morning ☀️` : "Good morning ☀️"}
         onMenuToggle={onMenuToggle}
       >
         {hasWallet && (
-          <JupiterSwapButton className="hidden items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-ink transition hover:bg-black/5 md:inline-flex" />
+          <JupiterSwapButton className="inline-flex items-center gap-1.5 rounded-lg border border-[#E2E2DC] bg-[#F0F0EC] px-3.5 py-1.5 text-xs font-semibold text-[#555555] hover:border-[#999]" />
         )}
+        {hasWallet && greeting && (
+          <div style={{ display: "flex", alignItems: "center", gap: 7, background: "#F0F0EC", border: "1px solid #E2E2DC", borderRadius: 20, padding: "5px 12px 5px 5px", fontSize: 12, fontWeight: 500, color: "#555555" }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#059669" }} />
+            {greeting}
+          </div>
+        )}
+        {!hasWallet && <WalletButton compact />}
         {hasWallet && (
           <button
             onClick={onNewJar}
-            className="inline-flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-sm font-medium text-white transition hover:bg-ink/90"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: "#111111", color: "#fff", border: "none", cursor: "pointer", fontFamily: "var(--font)" }}
           >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">New Jar</span>
+            + New jar
           </button>
         )}
-        <WalletButton compact />
       </TopBar>
 
-      <div className="px-4 py-6 md:px-8 md:py-7">
+      <div style={{ padding: "24px 28px", flex: 1 }}>
+
         {/* No wallet — empty state */}
         {!hasWallet && (
-          <div className="mb-6 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-black/10 bg-white py-16 text-center">
-            <div className="mb-3 text-6xl">🏺</div>
-            <div className="mb-1 font-display text-xl font-semibold">
-              Connect your wallet to start
-            </div>
-            <div className="mb-6 text-sm text-ink-muted">
-              See your jars, track yield, share gift links
-            </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", borderRadius: 14, border: "2px dashed #E2E2DC", background: "#FFFFFF", padding: "64px 24px", textAlign: "center", marginBottom: 24 }}>
+            <div style={{ fontSize: 56, marginBottom: 12 }}>🏺</div>
+            <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 6 }}>Connect your wallet to start</div>
+            <div style={{ fontSize: 14, color: "#999999", marginBottom: 24 }}>See your jars, track yield, share gift links</div>
             <WalletButton />
           </div>
         )}
 
         {hasWallet && (
           <>
-            {/* Stats */}
-            <div className={`mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 ${liveJars.length === 0 ? "hidden" : ""}`}>
-              <StatCard
-                label="Total Saved"
-                value={`$${totalSaved.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                change={`${liveJars.length} jar${liveJars.length !== 1 ? "s" : ""} · Kamino + Marinade`}
-                tint="bg-surface-lavender"
-              />
-              <StatCard
-                label="Staking Earned (est.)"
-                value={`~$${estimatedYieldMonthly.toFixed(2)}/mo`}
-                change={`Kamino ${apy.usdc_kamino}% · Marinade ${apy.sol_marinade}% APY`}
-                tint="bg-surface-mint"
-              />
-              <StatCard
-                label="Active Jars"
-                value={String(liveJars.length)}
-                change={`${lockedCount} locked · ${liveJars.length - lockedCount} open`}
-                tint="bg-surface-sky"
-              />
-              <StatCard
-                label="Contributors"
-                value={String(uniqueContributors || contributions.length)}
-                change={
-                  uniqueContributors > 0
-                    ? `$${totalContributed.toFixed(2)} contributed`
-                    : "Share your gift link"
-                }
-                tint="bg-surface-cream"
-              />
-            </div>
-
-            {/* Chart + Forecast */}
-            <div className={`mb-5 grid gap-5 lg:grid-cols-[2fr_1fr] ${liveJars.length === 0 ? "hidden" : ""}`}>
-              <Card
-                title={
-                  liveJars[0]
-                    ? `Balance Growth · ${liveJars[0].name}`
-                    : "Balance Growth"
-                }
-                action={
-                  <span className="rounded-full bg-sol-purple/10 px-3 py-1 text-[11px] font-semibold text-sol-purple">
-                    + Staking
-                  </span>
-                }
-              >
-                <BalanceChart contributions={contributions} />
-              </Card>
-
-              <Card title="Forecast">
-                <div className="mb-4 text-xs text-ink-muted">
-                  {primaryApr.toFixed(1)}% APY · {yearsRemaining}y remaining
-                  {totalSaved > 0 && ` · starts at $${totalSaved.toFixed(0)}`}
+            {/* Portfolio card */}
+            {liveJars.length > 0 && (
+              <div style={{ background: "#FFFFFF", border: "1px solid #E2E2DC", borderRadius: 14, padding: "24px 28px", marginBottom: 16, display: "flex", alignItems: "center", gap: 0 }}>
+                {/* Total saved */}
+                <div style={{ flexShrink: 0, marginRight: 36 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#999999", letterSpacing: "0.7px", textTransform: "uppercase", marginBottom: 4 }}>Total saved</div>
+                  <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: "-1.5px", color: "#111111", lineHeight: 1 }}>${totalSaved.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  <div style={{ fontSize: 12, color: "#999999", marginTop: 3 }}>across {liveJars.length} jar{liveJars.length !== 1 ? "s" : ""}</div>
                 </div>
-                <div className="space-y-2">
-                  {forecastScenarios.map((s) => (
-                    <button
-                      key={s.label}
-                      onClick={() => setScenario(s.monthly)}
-                      className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 transition ${
-                        scenario === s.monthly
-                          ? "border-sol-purple bg-surface-lavender"
-                          : "border-black/5 hover:border-black/10"
-                      }`}
-                    >
-                      <div
-                        className="h-2 w-2 flex-shrink-0 rounded-full"
-                        style={{
-                          background:
-                            s.monthly === 50
-                              ? "#14F195"
-                              : s.monthly === 100
-                              ? "#9945FF"
-                              : "#00C2FF",
-                        }}
-                      />
-                      <span className="flex-1 text-left text-sm">
-                        {s.label}
-                      </span>
-                      <span className="font-display text-base font-semibold">
-                        ${s.value.toLocaleString()}
-                      </span>
-                    </button>
-                  ))}
+                {/* Divider */}
+                <div style={{ width: 1, height: 52, background: "#E2E2DC", margin: "0 28px", flexShrink: 0 }} />
+                {/* Future value */}
+                <div style={{ flexShrink: 0 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#999999", letterSpacing: "0.7px", textTransform: "uppercase", marginBottom: 4 }}>Future value</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.6px", color: "#059669" }}>${Math.round(totalFutureValue).toLocaleString()}</div>
+                  <div style={{ fontSize: 11, color: "#999999", marginTop: 2 }}>est. at unlock</div>
                 </div>
-                {liveJars[0] && liveJars[0].unlockDate > 0 && (
-                  <div className="mt-4 rounded-xl bg-[#FAFAF8] p-3 text-xs text-ink-muted">
-                    🔒 Locked until{" "}
-                    <strong className="text-ink">
-                      {new Date(liveJars[0].unlockDate * 1000).toLocaleDateString(
-                        "en-US",
-                        { year: "numeric", month: "short", day: "numeric" }
-                      )}
-                    </strong>
-                  </div>
-                )}
-              </Card>
+                {/* Divider */}
+                <div style={{ width: 1, height: 52, background: "#E2E2DC", margin: "0 28px", flexShrink: 0 }} />
+                {/* Yield earned */}
+                <div style={{ flexShrink: 0 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#999999", letterSpacing: "0.7px", textTransform: "uppercase", marginBottom: 4 }}>Yield earned</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.6px", color: "#059669" }}>${totalYieldEarned.toFixed(2)}</div>
+                  <div style={{ fontSize: 11, color: "#999999", marginTop: 2 }}>this year · staking</div>
+                </div>
+                {/* Divider */}
+                <div style={{ width: 1, height: 52, background: "#E2E2DC", margin: "0 28px", flexShrink: 0 }} />
+                {/* Monthly yield */}
+                <div style={{ flexShrink: 0 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#999999", letterSpacing: "0.7px", textTransform: "uppercase", marginBottom: 4 }}>Monthly yield</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.6px", color: "#111111" }}>${estimatedYieldMonthly.toFixed(2)}</div>
+                  <div style={{ fontSize: 11, color: "#999999", marginTop: 2 }}>Kamino + Marinade</div>
+                </div>
+                {/* Divider */}
+                <div style={{ width: 1, height: 52, background: "#E2E2DC", margin: "0 28px", flexShrink: 0 }} />
+                {/* Contributors */}
+                <div style={{ flexShrink: 0 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#999999", letterSpacing: "0.7px", textTransform: "uppercase", marginBottom: 4 }}>Contributors</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.6px", color: "#111111" }}>{uniqueContributors || contributions.length}</div>
+                  <div style={{ fontSize: 11, color: "#999999", marginTop: 2 }}>across all jars</div>
+                </div>
+                {/* Actions */}
+                <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                  <button
+                    onClick={onNewJar}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: "#111111", color: "#fff", border: "none", cursor: "pointer", fontFamily: "var(--font)" }}
+                  >
+                    + New jar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Yield strip */}
+            {liveJars.length > 0 && (
+              <div style={{ background: "#ECFDF5", border: "1px solid rgba(5,150,105,.2)", borderRadius: 10, padding: "10px 16px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "#059669" }}>
+                  <span style={{ fontSize: 15 }}>⚡</span>
+                  <span>Your jars are earning <strong>${estimatedYieldMonthly.toFixed(2)} this month</strong> via automatic staking on Kamino and Marinade — no action needed.</span>
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#059669", opacity: 0.8, flexShrink: 0, marginLeft: 16 }}>+{apy.sol_marinade}–{apy.usdc_kamino}% APY →</div>
+              </div>
+            )}
+
+            {/* Chart panel — inline, above jar grid */}
+            {chartJar && (
+              <JarChartPanel
+                jar={chartJar}
+                apy={apy}
+                onClose={() => setChartJar(null)}
+              />
+            )}
+
+            {/* Jars section */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, marginTop: 4 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#111111" }}>My jars</div>
+              <span onClick={onNewJar} style={{ fontSize: 12, color: "#999999", cursor: "pointer" }}>+ New jar</span>
             </div>
 
             {/* Jars grid */}
-            <Card title="My Jars" action={<CardAction label="View all →" />}>
-              {liveJars.length === 0 ? (
-                <div style={{ maxWidth: 360, margin: "40px auto", textAlign: "center" }}>
-                  <div style={{ fontSize: 48, marginBottom: 24 }}>🫙</div>
-                  <div style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.5px", marginBottom: 10 }}>Start your first jar</div>
-                  <div style={{ fontSize: 15, color: "var(--text-secondary)", lineHeight: 1.6, marginBottom: 28 }}>
-                    Save for something that matters.<br />Alone or with people around you.
-                  </div>
-                  <button
-                    onClick={onNewJar}
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: 8,
-                      background: "var(--text-primary)", color: "#fff",
-                      fontSize: 14, fontWeight: 500, padding: "11px 22px",
-                      borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "var(--font)",
+            {liveJars.length === 0 ? (
+              <div style={{ maxWidth: 360, margin: "40px auto", textAlign: "center" }}>
+                <div style={{ fontSize: 48, marginBottom: 24 }}>🫙</div>
+                <div style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.5px", marginBottom: 10 }}>Start your first jar</div>
+                <div style={{ fontSize: 15, color: "#555555", lineHeight: 1.6, marginBottom: 28 }}>
+                  Save for something that matters.<br />Alone or with people around you.
+                </div>
+                <button
+                  onClick={onNewJar}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#111111", color: "#fff", fontSize: 14, fontWeight: 500, padding: "11px 22px", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "var(--font)" }}
+                >
+                  Create a jar
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+                {liveJars.map((j) => (
+                  <NewJarCard
+                    key={j.id}
+                    jar={j}
+                    isChartActive={chartJar?.id === j.id}
+                    onSelect={() => setSelectedJar(j)}
+                    onChart={(e) => {
+                      e.stopPropagation();
+                      setChartJar(chartJar?.id === j.id ? null : j);
                     }}
-                  >
-                    Create a jar
-                  </button>
-                </div>
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-                  {liveJars.map((j) => (
-                    <JarCard key={j.id} jar={j} onSelect={() => setSelectedJar(j)} />
-                  ))}
-                </div>
-              )}
-            </Card>
+                  />
+                ))}
+                {/* Add jar card */}
+                <AddJarCard onClick={onNewJar} />
+              </div>
+            )}
 
             {/* Group Trip jars */}
             {groups.length > 0 && (
-              <Card
-                title="Групові поїздки ✈️"
-                action={
-                  <button
-                    onClick={onNewJar}
-                    className="rounded-full px-3 py-1 text-xs font-medium text-sol-purple hover:bg-surface-lavender"
-                  >
-                    + Нова
-                  </button>
-                }
-              >
+              <div style={{ background: "#FFFFFF", border: "1px solid #E2E2DC", borderRadius: 14, padding: "18px 20px", marginBottom: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Групові поїздки ✈️</div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {groups.map((g) => {
-                    const daysLeft = Math.max(
-                      0,
-                      Math.ceil(
-                        (g.trip_date * 1000 - Date.now()) / 86_400_000
-                      )
-                    );
+                    const daysLeft = Math.max(0, Math.ceil((g.trip_date * 1000 - Date.now()) / 86_400_000));
                     return (
-                      <a
-                        key={g.jar_pubkey}
-                        href={`/trip/${g.jar_pubkey}`}
-                        className="block rounded-2xl border border-black/5 bg-[#FAFAF8] p-4 transition hover:-translate-y-0.5 hover:border-sol-purple hover:shadow-md"
-                      >
+                      <a key={g.jar_pubkey} href={`/trip/${g.jar_pubkey}`}
+                        className="block rounded-2xl border border-black/5 bg-[#FAFAF8] p-4 transition hover:-translate-y-0.5 hover:border-sol-purple hover:shadow-md">
                         <div className="flex items-start justify-between">
                           <div className="text-3xl">{g.destination_emoji}</div>
                           <span className="rounded-full bg-surface-sky px-2 py-0.5 text-[10px] font-semibold text-blue-700">
                             {daysLeft > 0 ? `${daysLeft} днів` : "Скоро!"}
                           </span>
                         </div>
-                        <div className="mt-2 font-display text-base font-semibold">
-                          {g.trip_name}
-                        </div>
-                        <div className="text-xs text-ink-muted">
-                          {g.members.length} учасників · $
-                          {(g.budget_per_person_cents / 100).toLocaleString()}
-                          /особу
-                        </div>
+                        <div className="mt-2 font-display text-base font-semibold">{g.trip_name}</div>
+                        <div className="text-xs text-ink-muted">{g.members.length} учасників · ${(g.budget_per_person_cents / 100).toLocaleString()}/особу</div>
                         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-black/5">
-                          <div
-                            className="h-full rounded-full bg-gradient-to-r from-sol-purple to-sol-blue"
-                            style={{ width: `${g.total_progress_pct}%` }}
-                          />
+                          <div className="h-full rounded-full bg-gradient-to-r from-sol-purple to-sol-blue" style={{ width: `${g.total_progress_pct}%` }} />
                         </div>
                         <div className="mt-1.5 flex justify-between text-[11px] text-ink-faint">
                           <span>{g.total_progress_pct}% зібрано</span>
@@ -803,157 +790,104 @@ function DashboardPage({
                     );
                   })}
                 </div>
-              </Card>
+              </div>
             )}
 
-            {/* Recurring schedules */}
-            {schedules.length > 0 && (
-              <Card
-                title="Мої автовнески"
-                action={
-                  <span className="flex items-center gap-1 rounded-full bg-surface-lavender px-3 py-1 text-[11px] font-semibold text-sol-purple">
-                    <RefreshCw className="h-3 w-3" /> {schedules.length}{" "}
-                    активних
-                  </span>
-                }
-              >
-                <div className="space-y-2">
-                  {schedules.map((s) => {
-                    const days = ["Нд", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
-                    const timeLabel = `${String(s.hour).padStart(2, "0")}:${String(s.minute).padStart(2, "0")}`;
-                    const dayLabel =
-                      s.frequency === "weekly"
-                        ? `кожного ${days[s.day] ?? s.day}`
-                        : `кожного ${s.day}-го числа`;
-                    return (
-                      <div
-                        key={s.id}
-                        className="flex items-center gap-3 rounded-xl border border-black/5 bg-[#FAFAF8] px-4 py-3"
-                      >
-                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-surface-lavender text-sol-purple">
-                          <Clock className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm font-semibold">
-                            ${(s.amount_usdc / 100).toFixed(2)} {dayLabel} о{" "}
-                            {timeLabel}
+            {/* Bottom grid: Activity | Schedules + Forecast */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+
+              {/* Recent Activity panel */}
+              <div style={{ background: "#FFFFFF", border: "1px solid #E2E2DC", borderRadius: 14, padding: "18px 20px" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Recent activity</div>
+                {contributions.length === 0 ? (
+                  <div style={{ padding: "32px 0", textAlign: "center", fontSize: 13, color: "#999999" }}>No activity yet — share your gift link 🎁</div>
+                ) : (
+                  <div>
+                    {[...contributions].sort((a, b) => b.createdAt - a.createdAt).slice(0, 5).map((c) => {
+                      const shortAddr = `${c.contributor.slice(0, 4)}…${c.contributor.slice(-4)}`;
+                      const ago = (() => {
+                        const s = Math.floor(Date.now() / 1000 - c.createdAt);
+                        if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+                        if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+                        return `${Math.floor(s / 86400)}d ago`;
+                      })();
+                      return (
+                        <div key={c.pubkey} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #E2E2DC" }}>
+                          <div style={{ width: 30, height: 30, borderRadius: 8, background: "#F0F0EC", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>💝</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{shortAddr} contributed</div>
+                            <div style={{ fontSize: 11, color: "#999999" }}>{c.comment ? `"${c.comment.slice(0, 30)}" · ` : ""}{ago}</div>
                           </div>
-                          <div className="truncate text-[11px] text-ink-muted">
-                            {getJarName(s.jar_pubkey)}
-                          </div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#059669", flexShrink: 0 }}>+${(c.amount / 1_000_000).toFixed(2)}</div>
                         </div>
-                        <button
-                          onClick={() => onStopSchedule(s.id)}
-                          className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-ink-muted hover:border-red-300 hover:text-red-500"
-                        >
-                          Зупинити
-                        </button>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Right column: schedules + forecast */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+                {/* Auto-deposits panel */}
+                <div style={{ background: "#FFFFFF", border: "1px solid #E2E2DC", borderRadius: 14, padding: "18px 20px" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Auto-deposits</div>
+                  {schedules.length === 0 ? (
+                    <div style={{ fontSize: 12, color: "#999999", padding: "12px 0" }}>No auto-deposits set up yet.</div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {schedules.map((s) => {
+                        const timeLabel = `${String(s.hour).padStart(2, "0")}:${String(s.minute).padStart(2, "0")}`;
+                        const dayLabel = s.frequency === "weekly" ? `every week` : `every ${s.day}${s.day === 1 ? "st" : s.day === 2 ? "nd" : s.day === 3 ? "rd" : "th"}`;
+                        const isNext = true; // all upcoming treated as "Next"
+                        return (
+                          <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "#F0F0EC", borderRadius: 9 }}>
+                            <div style={{ width: 30, height: 30, borderRadius: 8, background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>🔄</div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 12, fontWeight: 600 }}>{getJarName(s.jar_pubkey)}</div>
+                              <div style={{ fontSize: 11, color: "#999999" }}>{dayLabel} · {timeLabel}</div>
+                            </div>
+                            <div style={{ fontSize: 14, fontWeight: 700, flexShrink: 0 }}>${(s.amount_usdc / 100).toFixed(2)}</div>
+                            <div style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 20, background: "#FEF3C7", color: "#92400E", flexShrink: 0 }}>Next</div>
+                            <button
+                              onClick={() => onStopSchedule(s.id)}
+                              style={{ fontSize: 10, color: "#999999", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font)", marginLeft: 4 }}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              </Card>
-            )}
 
-            {/* Activity + Contributors */}
-            <div className="mt-5 grid gap-5 lg:grid-cols-2">
-              <Card title="Recent Activity" action={<CardAction label="All →" />}>
-                {contributions.length === 0 ? (
-                  <div className="py-8 text-center text-sm text-ink-muted">
-                    Поки немає активності — поділись gift-посиланням 🎁
+                {/* Portfolio forecast panel */}
+                <div style={{ background: "#FFFFFF", border: "1px solid #E2E2DC", borderRadius: 14, padding: "18px 20px" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Portfolio forecast · 10 years</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                    {forecastScenarios.map((s) => {
+                      const sel = scenario === s.monthly;
+                      return (
+                        <button
+                          key={s.label}
+                          onClick={() => setScenario(s.monthly)}
+                          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderRadius: 9, border: sel ? "1px solid #059669" : "1px solid #E2E2DC", background: sel ? "#ECFDF5" : "#FFFFFF", cursor: "pointer", fontFamily: "var(--font)", transition: "all .15s" }}
+                        >
+                          <span style={{ fontSize: 13, fontWeight: 500 }}>+{s.label} extra</span>
+                          <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.5px", color: sel ? "#059669" : "#111111" }}>${s.value.toLocaleString()}</span>
+                        </button>
+                      );
+                    })}
                   </div>
-                ) : (
-                  <div className="space-y-1">
-                    {[...contributions]
-                      .sort((a, b) => b.createdAt - a.createdAt)
-                      .slice(0, 6)
-                      .map((c) => {
-                        const shortAddr = `${c.contributor.slice(0, 4)}…${c.contributor.slice(-4)}`;
-                        const ago = (() => {
-                          const s = Math.floor(
-                            Date.now() / 1000 - c.createdAt
-                          );
-                          if (s < 3600) return `${Math.floor(s / 60)}хв тому`;
-                          if (s < 86400)
-                            return `${Math.floor(s / 3600)}г тому`;
-                          return `${Math.floor(s / 86400)}д тому`;
-                        })();
-                        return (
-                          <ActivityRow
-                            key={c.pubkey}
-                            icon="💝"
-                            tone="green"
-                            title={`${shortAddr} contributed`}
-                            sub={`${c.comment ? `"${c.comment.slice(0, 40)}" · ` : ""}${ago}`}
-                            amount={`+$${(c.amount / 1_000_000).toFixed(2)}`}
-                          />
-                        );
-                      })}
+                  <div style={{ fontSize: 11, color: "#999999", marginTop: 12, lineHeight: 1.5 }}>
+                    Based on combined APY of {((apy.usdc_kamino + apy.sol_marinade) / 2).toFixed(1)}% across all jars. Not a guarantee.
                   </div>
-                )}
-              </Card>
+                </div>
 
-              <Card
-                title={
-                  liveJars[0]
-                    ? `Contributors · ${liveJars[0].name}`
-                    : "Contributors"
-                }
-                action={<CardAction label="See all →" />}
-              >
-                {contributions.length === 0 ? (
-                  <div className="py-6 text-center text-sm text-ink-muted">
-                    Ще немає внесків
-                  </div>
-                ) : (
-                  <>
-                    <div className="mb-3 text-xs text-ink-muted">
-                      Всього:{" "}
-                      <strong className="text-ink">
-                        ${totalContributed.toFixed(2)}
-                      </strong>
-                    </div>
-                    <div className="space-y-3">
-                      {contributions.slice(0, 4).map((c, i) => {
-                        const gradients = [
-                          "from-sol-purple to-sol-blue",
-                          "from-sol-green to-sol-blue",
-                          "from-orange-400 to-yellow-400",
-                          "from-red-400 to-orange-400",
-                        ];
-                        const short = `${c.contributor.slice(0, 4)}…${c.contributor.slice(-4)}`;
-                        return (
-                          <ContributorRow
-                            key={c.pubkey}
-                            name={short}
-                            comment={c.comment || "—"}
-                            amount={`+$${(c.amount / 1_000_000).toFixed(2)}`}
-                            gradient={gradients[i % gradients.length]}
-                          />
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-                {liveJars[0] && (
-                  <div className="mt-4 flex items-center justify-between rounded-xl bg-[#FAFAF8] px-4 py-2.5">
-                    <span className="truncate font-mono text-xs text-ink-muted">
-                      jarfi.xyz/gift/{liveJars[0].id.slice(0, 8)}…
-                    </span>
-                    <button
-                      onClick={() =>
-                        navigator.clipboard.writeText(
-                          `${window.location.origin}/gift/${liveJars[0].id}`
-                        )
-                      }
-                      className="ml-2 flex-shrink-0 rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-medium"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                )}
-              </Card>
+              </div>
             </div>
+
           </>
         )}
       </div>
@@ -1752,16 +1686,16 @@ function NavItem({ label, icon, active, onClick }: {
     <button
       onClick={onClick}
       style={{
-        display: "flex", alignItems: "center", gap: 10, width: "100%",
-        padding: "9px 12px", borderRadius: 8,
-        background: active ? "var(--bg-muted)" : "transparent",
-        color: active ? "var(--text-primary)" : "var(--text-secondary)",
-        fontWeight: active ? 500 : 400, fontSize: 14,
+        display: "flex", alignItems: "center", gap: 9, width: "100%",
+        padding: "8px 10px", borderRadius: 9,
+        background: active ? "#ECFDF5" : "transparent",
+        color: active ? "#059669" : "#555555",
+        fontWeight: active ? 600 : 400, fontSize: 13,
         cursor: "pointer", border: "none", fontFamily: "var(--font)",
         textAlign: "left", transition: "all 0.15s",
       }}
     >
-      <span style={{ fontSize: 16, width: 20, textAlign: "center" }}>{icon}</span>
+      <span style={{ width: 18, textAlign: "center", fontSize: 14 }}>{icon}</span>
       {label}
     </button>
   );
@@ -2012,6 +1946,7 @@ function JarDetailPanel({
   );
 }
 
+// Legacy JarCard — kept for JarsPage usage
 function JarCard({ jar, onSelect }: { jar: JarType; onSelect?: () => void }) {
   const pct = Math.min(100, Math.round((jar.amount / Math.max(jar.goal, 0.01)) * 100));
   const isUsdc = jar.currency === "usdc";
@@ -2024,50 +1959,310 @@ function JarCard({ jar, onSelect }: { jar: JarType; onSelect?: () => void }) {
     <div
       onClick={onSelect}
       style={{
-        background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 16,
+        background: "#FFFFFF", border: "1px solid #E2E2DC", borderRadius: 14,
         padding: 28, display: "flex", flexDirection: "column", gap: 0,
-        cursor: "pointer", transition: "box-shadow 0.15s, border-color 0.15s",
+        cursor: "pointer", transition: "box-shadow 0.15s, transform 0.15s",
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 4px 24px rgba(0,0,0,0.07)"; e.currentTarget.style.borderColor = "var(--green)"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = "var(--border)"; }}
+      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,.08)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "none"; }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
         <div style={{ fontSize: 15, fontWeight: 500 }}>{jar.emoji} {jar.name}</div>
         {yearsLeft !== null && (
-          <div style={{ fontSize: 12, color: "var(--text-tertiary)", background: "var(--bg-muted)", padding: "3px 9px", borderRadius: 20 }}>
+          <div style={{ fontSize: 12, color: "#999999", background: "#F0F0EC", padding: "3px 9px", borderRadius: 20 }}>
             {yearsLeft > 0 ? `${yearsLeft} yr${yearsLeft !== 1 ? "s" : ""} left` : "unlocking"}
           </div>
         )}
       </div>
-
-      {/* Future value — primary */}
       <div style={{ marginBottom: 4 }}>
-        <div style={{ fontSize: 40, fontWeight: 600, color: "var(--green)", letterSpacing: "-1.5px", lineHeight: 1 }}>
-          {fmtFuture}
-        </div>
-        <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 3, display: "flex", alignItems: "center", gap: 4 }}>
-          Estimated future value
-          <span title="Projected value if you continue saving at this pace" style={{ width: 13, height: 13, borderRadius: "50%", border: "1px solid var(--text-tertiary)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 8, cursor: "help" }}>?</span>
-        </div>
+        <div style={{ fontSize: 40, fontWeight: 700, color: "#059669", letterSpacing: "-1.5px", lineHeight: 1 }}>{fmtFuture}</div>
+        <div style={{ fontSize: 11, color: "#999999", marginTop: 3 }}>Estimated future value</div>
       </div>
-
-      {/* Saved — secondary */}
-      <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 16, marginBottom: 12 }}>
-        <strong style={{ color: "var(--text-primary)", fontWeight: 600 }}>{fmtSaved}</strong> saved so far
+      <div style={{ fontSize: 14, color: "#555555", marginTop: 16, marginBottom: 12 }}>
+        <strong style={{ color: "#111111", fontWeight: 600 }}>{fmtSaved}</strong> saved so far
       </div>
-
-      {/* Progress */}
       <div style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-tertiary)", marginBottom: 6 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#999999", marginBottom: 6 }}>
           <span>Progress to goal</span><span>{pct}%</span>
         </div>
-        <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden" }}>
-          <div style={{ width: `${pct}%`, height: "100%", background: "var(--green)", borderRadius: 2 }} />
+        <div style={{ height: 3, background: "#E2E2DC", borderRadius: 2, overflow: "hidden" }}>
+          <div style={{ width: `${pct}%`, height: "100%", background: "#059669", borderRadius: 2 }} />
         </div>
       </div>
-
-      <div style={{ fontSize: 13, color: "var(--text-tertiary)" }}>
+      <div style={{ fontSize: 13, color: "#999999" }}>
         {jar.locked ? "🔒 Locked" : "Open"} · {jar.unlockLabel}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// NEW JAR CARD — redesigned (dashboard grid)
+// ---------------------------------------------------------------------------
+
+function getJarCoverGradient(jar: JarType): string {
+  const isUsdc = jar.currency === "usdc";
+  // mode 0 = time-lock, mode 1 = goal, mode 2 = goal+date
+  // We determine mode from unlockLabel
+  const label = jar.unlockLabel;
+  if (label === "by date") {
+    return isUsdc
+      ? "linear-gradient(135deg,#d1fae5,#a7f3d0)"
+      : "linear-gradient(135deg,#dbeafe,#bfdbfe)";
+  }
+  if (label === "by goal") return "linear-gradient(135deg,#ede9fe,#ddd6fe)";
+  if (label === "goal or date") return "linear-gradient(135deg,#fce7f3,#fbcfe8)";
+  return "linear-gradient(135deg,#fef3c7,#fde68a)";
+}
+
+function getJarTypeLabel(jar: JarType): string {
+  const label = jar.unlockLabel;
+  if (label === "by date") return "Time-lock";
+  if (label === "by goal") return "Goal";
+  if (label === "goal or date") return "Shared";
+  return "No deadline";
+}
+
+function NewJarCard({ jar, isChartActive, onSelect, onChart }: {
+  jar: JarType;
+  isChartActive: boolean;
+  onSelect: () => void;
+  onChart: (e: React.MouseEvent) => void;
+}) {
+  const pct = Math.min(100, Math.round((jar.amount / Math.max(jar.goal, 0.01)) * 100));
+  const isUsdc = jar.currency === "usdc";
+  const future = jar.futureValue ?? jar.amount;
+  const fmtFuture = isUsdc
+    ? `$${future.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+    : `◎${future.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  const fmtSaved = isUsdc
+    ? `$${jar.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+    : `◎${jar.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })}`;
+  const fmtGoal = jar.goal > 0
+    ? (isUsdc ? `$${jar.goal.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : `◎${jar.goal.toFixed(2)}`)
+    : null;
+  const unlockStr = jar.unlockDate > 0
+    ? `Unlocks ${new Date(jar.unlockDate * 1000).toLocaleDateString("en-US", { month: "short", year: "numeric" })}`
+    : fmtGoal ? `Target ${fmtGoal}` : "No deadline";
+  const unlockDateYears = jar.unlockDate > 0
+    ? Math.max(0, (jar.unlockDate - Date.now() / 1000) / (365.25 * 86400))
+    : null;
+  const yearsLabel = unlockDateYears !== null
+    ? (unlockDateYears > 0 ? `est. in ${Math.round(unlockDateYears)} yrs` : "est. at unlock")
+    : "est. future value";
+
+  const coverGradient = getJarCoverGradient(jar);
+  const typeLabel = getJarTypeLabel(jar);
+
+  // Generate avatars — single owner for now
+  const ownerInitials = "IV";
+
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <div
+      onClick={onSelect}
+      style={{
+        background: "#FFFFFF",
+        border: isChartActive ? "1px solid #059669" : "1px solid #E2E2DC",
+        borderRadius: 14, overflow: "hidden", cursor: "pointer",
+        display: "flex", flexDirection: "column",
+        transition: "box-shadow .15s, transform .15s",
+        boxShadow: isChartActive
+          ? "0 0 0 2px #059669"
+          : hovered ? "0 4px 20px rgba(0,0,0,.08)" : "none",
+        transform: hovered ? "translateY(-1px)" : "none",
+        position: "relative",
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* Cover */}
+      <div style={{ height: 80, background: coverGradient, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 34, flexShrink: 0, position: "relative" }}>
+        {jar.emoji}
+        {/* Type badge */}
+        <span style={{ position: "absolute", top: 7, left: 8, background: "rgba(0,0,0,.35)", backdropFilter: "blur(3px)", color: "#fff", fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 20, letterSpacing: "0.3px", textTransform: "uppercase" }}>
+          {typeLabel}
+        </span>
+        {/* Lock badge */}
+        {jar.locked && (
+          <span style={{ position: "absolute", top: 7, right: 8, fontSize: 12 }}>🔒</span>
+        )}
+      </div>
+
+      {/* Body */}
+      <div style={{ padding: "13px 14px 14px", flex: 1, display: "flex", flexDirection: "column" }}>
+        {/* Name */}
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{jar.name}</div>
+        {/* Unlock / target */}
+        <div style={{ fontSize: 11, color: "#999999", marginBottom: 10 }}>{unlockStr}</div>
+        {/* Future value hero */}
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 24, fontWeight: 700, color: "#059669", letterSpacing: "-0.8px", lineHeight: 1 }}>{fmtFuture}</div>
+          <div style={{ fontSize: 10, color: "#999999", marginTop: 2 }}>{yearsLabel}</div>
+        </div>
+        {/* Saved */}
+        <div style={{ fontSize: 11, color: "#555555", marginBottom: 8 }}>
+          <strong style={{ color: "#111111" }}>{fmtSaved}</strong> saved{fmtGoal ? ` · ${fmtGoal} goal` : ""}
+        </div>
+        {/* Progress bar */}
+        <div style={{ height: 3, background: "#E2E2DC", borderRadius: 2, overflow: "hidden", marginBottom: 10 }}>
+          <div style={{ width: `${pct}%`, height: "100%", background: "#059669", borderRadius: 2 }} />
+        </div>
+        {/* Footer */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <div style={{ display: "flex" }}>
+              <div style={{ width: 18, height: 18, borderRadius: "50%", border: "1.5px solid #fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 7, fontWeight: 700, background: "#F0F0EC", color: "#555555" }}>
+                {ownerInitials}
+              </div>
+            </div>
+            <span style={{ fontSize: 10, color: "#999999", marginLeft: 6 }}>1</span>
+          </div>
+          <button
+            onClick={onChart}
+            style={{ fontSize: 10, fontWeight: 600, color: "#059669", padding: "3px 7px", background: "#ECFDF5", borderRadius: 6, border: "none", cursor: "pointer", fontFamily: "var(--font)" }}
+          >
+            Chart ↗
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ADD JAR CARD
+// ---------------------------------------------------------------------------
+
+function AddJarCard({ onClick }: { onClick: () => void }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: "#FFFFFF",
+        border: `1.5px dashed ${hovered ? "#059669" : "#E2E2DC"}`,
+        borderRadius: 14, display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", minHeight: 200,
+        cursor: "pointer", color: hovered ? "#059669" : "#999999",
+        gap: 6, transition: "border-color .15s, color .15s",
+      }}
+    >
+      <div style={{ fontSize: 24, fontWeight: 300 }}>＋</div>
+      <div style={{ fontSize: 12, fontWeight: 500 }}>New jar</div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// JAR CHART PANEL — inline between header and grid
+// ---------------------------------------------------------------------------
+
+function JarChartPanel({ jar, apy, onClose }: { jar: JarType; apy: { usdc_kamino: number; sol_marinade: number }; onClose: () => void }) {
+  const isUsdc = jar.currency === "usdc";
+  const apr = isUsdc ? apy.usdc_kamino / 100 : apy.sol_marinade / 100;
+  const bankApr = 0.02;
+  const principal = jar.amount;
+  const yearsLeft = jar.unlockDate > 0
+    ? Math.max(1, (jar.unlockDate - Date.now() / 1000) / (365.25 * 86400))
+    : 10;
+  const unlockStr = jar.unlockDate > 0
+    ? new Date(jar.unlockDate * 1000).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+    : null;
+
+  const jarfiEnd = Math.round(principal * Math.pow(1 + apr, yearsLeft));
+  const bankEnd = Math.round(principal * Math.pow(1 + bankApr, yearsLeft));
+
+  // SVG path computation
+  const W = 760; const H = 150; const PADX = 0; const PADY = 15;
+  const plotH = H - PADY - 20; // leave 20px for x-axis labels and 15px top
+
+  function growthY(years: number, rate: number, p: number, maxVal: number): number {
+    const val = p * Math.pow(1 + rate, years);
+    return PADY + plotH - (val / maxVal) * plotH;
+  }
+
+  const maxVal = Math.max(jarfiEnd, bankEnd) * 1.05;
+  const N = 60;
+  let jarfiPath = "";
+  let bankPath = "";
+  for (let i = 0; i <= N; i++) {
+    const t = (i / N) * yearsLeft;
+    const x = PADX + (i / N) * (W - PADX * 2);
+    const jy = growthY(t, apr, principal, maxVal);
+    const by = growthY(t, bankApr, principal, maxVal);
+    jarfiPath += `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${jy.toFixed(1)} `;
+    bankPath += `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${by.toFixed(1)} `;
+  }
+
+  // Jarfi area
+  const lastJarfiX = (W - PADX * 2).toFixed(1);
+  const lastJarfiY = growthY(yearsLeft, apr, principal, maxVal).toFixed(1);
+  const firstY = growthY(0, apr, principal, maxVal).toFixed(1);
+  const jarfiArea = `${jarfiPath} L${lastJarfiX} ${(H - 20).toFixed(1)} L${PADX} ${(H - 20).toFixed(1)} Z`;
+
+  // Year labels
+  const nowYear = new Date().getFullYear();
+  const endYear = Math.round(nowYear + yearsLeft);
+  const mid1Year = Math.round(nowYear + yearsLeft * 0.33);
+  const mid2Year = Math.round(nowYear + yearsLeft * 0.66);
+
+  const fmtVal = (n: number) => isUsdc ? `$${Math.round(n).toLocaleString()}` : `◎${n.toFixed(2)}`;
+
+  return (
+    <div style={{ background: "#FFFFFF", border: "1px solid #E2E2DC", borderRadius: 14, padding: "18px 20px", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700 }}>{jar.name} — Projection</div>
+          <div style={{ fontSize: 11, color: "#999999", marginTop: 1 }}>
+            Balance growth at {isUsdc ? apy.usdc_kamino : apy.sol_marinade}% APY{unlockStr ? ` · Unlocks ${unlockStr}` : ""}
+          </div>
+        </div>
+        <button
+          onClick={onClose}
+          style={{ fontSize: 11, color: "#999999", cursor: "pointer", padding: "3px 8px", borderRadius: 6, border: "none", background: "none", fontFamily: "var(--font)" }}
+        >
+          ✕ Close
+        </button>
+      </div>
+      <div style={{ width: "100%", height: 160, overflow: "hidden" }}>
+        <svg viewBox={`0 0 ${W} ${H}`} fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style={{ width: "100%", height: "100%" }}>
+          <defs>
+            <linearGradient id={`gJ_${jar.id}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#059669" stopOpacity="0.2" />
+              <stop offset="100%" stopColor="#059669" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          {/* Grid lines */}
+          <line x1="0" y1={H - 20} x2={W} y2={H - 20} stroke="#E2E2DC" strokeWidth="1" />
+          <line x1="0" y1={PADY + plotH * 0.5} x2={W} y2={PADY + plotH * 0.5} stroke="#E2E2DC" strokeWidth="0.5" strokeDasharray="3 3" />
+          {/* Bank area (dashed gray) */}
+          <path d={bankPath} stroke="#CBD5E1" strokeWidth="1.5" strokeDasharray="4 3" fill="none" />
+          {/* Jarfi area */}
+          <path d={jarfiArea} fill={`url(#gJ_${jar.id})`} />
+          <path d={jarfiPath} stroke="#059669" strokeWidth="2.5" fill="none" />
+          {/* End labels */}
+          <text x={W - 34} y={parseFloat(lastJarfiY) - 6} fontSize="11" fill="#059669" fontWeight="700" fontFamily="Inter,sans-serif" textAnchor="end">{fmtVal(jarfiEnd)}</text>
+          <text x={W - 34} y={growthY(yearsLeft, bankApr, principal, maxVal) - 6} fontSize="11" fill="#94a3b8" fontFamily="Inter,sans-serif" textAnchor="end">{fmtVal(bankEnd)}</text>
+          {/* X-axis labels */}
+          <text x="4" y={H - 4} fontSize="10" fill="#999" fontFamily="Inter,sans-serif">Now</text>
+          <text x={(W * 0.33).toFixed(0)} y={H - 4} fontSize="10" fill="#999" fontFamily="Inter,sans-serif">{mid1Year}</text>
+          <text x={(W * 0.66).toFixed(0)} y={H - 4} fontSize="10" fill="#999" fontFamily="Inter,sans-serif">{mid2Year}</text>
+          <text x={W - 4} y={H - 4} fontSize="10" fill="#999" fontFamily="Inter,sans-serif" textAnchor="end">{endYear}</text>
+        </svg>
+      </div>
+      <div style={{ display: "flex", gap: 16, marginTop: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#555555" }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#059669" }} />
+          With Jarfi (staking)
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#555555" }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#CBD5E1" }} />
+          Bank (2% APY)
+        </div>
       </div>
     </div>
   );
