@@ -19,12 +19,13 @@ const WP = WalletProvider as React.ComponentType<{
 }>;
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const network = process.env.NEXT_PUBLIC_SOLANA_NETWORK === "mainnet"
-    ? WalletAdapterNetwork.Mainnet
-    : WalletAdapterNetwork.Devnet;
+  const isMainnet = process.env.NEXT_PUBLIC_SOLANA_NETWORK === "mainnet";
+  const network = isMainnet ? WalletAdapterNetwork.Mainnet : WalletAdapterNetwork.Devnet;
   const endpoint = useMemo(
-    () => process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? clusterApiUrl(network),
-    [network]
+    () =>
+      process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
+      (isMainnet ? clusterApiUrl("mainnet-beta") : "https://rpc.ankr.com/solana_devnet"),
+    [isMainnet]
   );
   const wallets = useMemo(
     () => [new PhantomWalletAdapter(), new SolflareWalletAdapter()],

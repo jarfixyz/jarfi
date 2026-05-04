@@ -411,20 +411,24 @@ export default function Dashboard() {
                 body: JSON.stringify({ pubkey: jarPubkey, name: params.jarName, emoji: params.jarEmoji }),
               }).catch(() => {});
               if (params.recurring) {
-                await createScheduleApi({
-                  jar_pubkey: jarPubkey,
-                  owner_pubkey: publicKey.toBase58(),
-                  ...params.recurring,
-                });
-                setSchedules(await fetchSchedules(publicKey.toBase58()));
+                try {
+                  await createScheduleApi({
+                    jar_pubkey: jarPubkey,
+                    owner_pubkey: publicKey.toBase58(),
+                    ...params.recurring,
+                  });
+                  setSchedules(await fetchSchedules(publicKey.toBase58()));
+                } catch { /* backend offline — jar is created, schedule skipped */ }
               }
               if (params.groupTrip) {
-                await createGroupApi({
-                  jar_pubkey: jarPubkey,
-                  owner_pubkey: publicKey.toBase58(),
-                  ...params.groupTrip,
-                });
-                setGroups(await fetchGroupsByOwner(publicKey.toBase58()));
+                try {
+                  await createGroupApi({
+                    jar_pubkey: jarPubkey,
+                    owner_pubkey: publicKey.toBase58(),
+                    ...params.groupTrip,
+                  });
+                  setGroups(await fetchGroupsByOwner(publicKey.toBase58()));
+                } catch { /* backend offline — jar is created, group skipped */ }
               }
               setModal(null);
               showToast(
