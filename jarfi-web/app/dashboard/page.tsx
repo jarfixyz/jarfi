@@ -565,14 +565,18 @@ function DashboardPage({
         subtitle={greeting ? `Good morning, ${greeting} ☀️` : "Good morning ☀️"}
         onMenuToggle={onMenuToggle}
       >
-        <JupiterSwapButton className="hidden items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-ink transition hover:bg-black/5 md:inline-flex" />
-        <button
-          onClick={onNewJar}
-          className="inline-flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-sm font-medium text-white transition hover:bg-ink/90"
-        >
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">New Jar</span>
-        </button>
+        {hasWallet && (
+          <JupiterSwapButton className="hidden items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-ink transition hover:bg-black/5 md:inline-flex" />
+        )}
+        {hasWallet && (
+          <button
+            onClick={onNewJar}
+            className="inline-flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-sm font-medium text-white transition hover:bg-ink/90"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">New Jar</span>
+          </button>
+        )}
         <WalletButton compact />
       </TopBar>
 

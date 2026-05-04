@@ -19,7 +19,9 @@ const WP = WalletProvider as React.ComponentType<{
 }>;
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const network = WalletAdapterNetwork.Mainnet;
+  const network = process.env.NEXT_PUBLIC_SOLANA_NETWORK === "mainnet"
+    ? WalletAdapterNetwork.Mainnet
+    : WalletAdapterNetwork.Devnet;
   const endpoint = useMemo(
     () => process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? clusterApiUrl(network),
     [network]
