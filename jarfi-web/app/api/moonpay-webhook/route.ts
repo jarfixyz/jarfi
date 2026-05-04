@@ -2,26 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "edge";
 
-// ---------------------------------------------------------------------------
-// MoonPay webhook handler — PLACEHOLDER
-// ---------------------------------------------------------------------------
-// In Stage 2 this will:
-//   1. Verify MoonPay signature
-//   2. Parse the settled transaction
-//   3. Call `gift_deposit` on the JAR Anchor program with contributor comment
-//   4. Trigger push notification to jar owner
-// ---------------------------------------------------------------------------
-
 export async function POST(req: NextRequest) {
   try {
-    const payload = await req.json();
-    console.log("[moonpay-webhook] received:", payload);
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://jarfi.up.railway.app";
+    const rawBody = await req.text();
 
-    // TODO: verify signature
-    // TODO: extract { jarSlug, amount, message } from metadata
-    // TODO: call program.methods.giftDeposit(...).rpc()
+    const forwardHeaders: Record<string, string> = {
+      "content-type": "application/json",
+    };
+    const sig = req.headers.get("moonpay-signature-1");
+    if (sig) forwardHeaders["moonpay-signature-1"] = sig;
 
-    return NextResponse.json({ ok: true });
+    const resp = await fetch(`${backendUrl}/moonpay-webhook`, {
+      method: "POST",
+      headers: forwardHeaders,
+      body: rawBody,
+    });
+
+    const data = await resp.json();
+    return NextResponse.json(data, { status: resp.status });
   } catch (err) {
     console.error("[moonpay-webhook] error:", err);
     return NextResponse.json({ ok: false }, { status: 500 });
@@ -29,8 +28,5 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({
-    ok: true,
-    message: "MoonPay webhook endpoint — POST only",
-  });
+  return NextResponse.json({ ok: true, message: "MoonPay webhook — POST only" });
 }

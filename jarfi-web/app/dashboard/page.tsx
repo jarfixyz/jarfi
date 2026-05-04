@@ -1458,6 +1458,9 @@ function NewJarModal({
   const [recurAmount, setRecurAmount] = useState("100");
   const [submitting, setSubmitting] = useState(false);
 
+  const { publicKey } = useWallet();
+  const walletConnected = !!publicKey;
+
   const goalUsd = parseFloat(goalInput) || 0;
   const years = selectedYears ?? (customDate ? Math.max(1, Math.round((new Date(customDate).getTime() - Date.now()) / (365.25 * 86400 * 1000))) : 5);
   const monthly = recurChoice === "monthly" ? (parseFloat(recurAmount) || 100) : 0;
@@ -1514,6 +1517,7 @@ function NewJarModal({
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>Step 1 of {TOTAL_STEPS}</div>
               <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>What are you saving for?</div>
+              <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, marginTop: 6 }}>Give your jar a name — it&apos;ll appear on the gift link you share with friends and family.</div>
             </div>
             <div>
               <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
@@ -1546,8 +1550,8 @@ function NewJarModal({
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>Step 2 of {TOTAL_STEPS}</div>
-              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>Set a goal</div>
-              <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, marginTop: 6 }}>Optional, but helps you stay on track.</div>
+              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>Do you have a goal?</div>
+              <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, marginTop: 6 }}>A goal helps track progress — e.g. $10,000 for a car. Skip it if you just want to save until a certain date.</div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <div style={{ padding: "11px 14px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 15, fontWeight: 600, background: "var(--bg-muted)", color: "var(--text-secondary)", minWidth: 48, textAlign: "center" }}>$</div>
@@ -1561,6 +1565,16 @@ function NewJarModal({
                 style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 8, padding: "11px 14px", fontSize: 15, fontFamily: "var(--font)", outline: "none" }}
               />
             </div>
+            <button
+              onClick={() => { setGoalInput(""); setStep(3); }}
+              style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", border: "1px solid var(--border)", borderRadius: 12, cursor: "pointer", background: "var(--bg)", fontFamily: "var(--font)", textAlign: "left" }}
+            >
+              <span style={{ fontSize: 22, width: 36, textAlign: "center" }}>📅</span>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 500, color: "var(--text-primary)" }}>No goal — save by time</div>
+                <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 2 }}>The jar unlocks on a date you choose</div>
+              </div>
+            </button>
             <FlowNav onBack={() => setStep(1)} onNext={() => setStep(3)} />
           </div>
         )}
@@ -1571,6 +1585,7 @@ function NewJarModal({
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>Step 3 of {TOTAL_STEPS}</div>
               <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>When do you need it?</div>
+              <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, marginTop: 6 }}>Funds stay locked until this date, earning yield automatically. You can always unlock early if needed.</div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
               {[1, 3, 5, 10, 18, 0].map((y) => (
@@ -1600,6 +1615,7 @@ function NewJarModal({
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>Step 4 of {TOTAL_STEPS}</div>
               <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>Will you add funds regularly?</div>
+              <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, marginTop: 6 }}>Monthly auto-deposits happen from your wallet on the 1st of each month. You can pause or cancel anytime.</div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {[
@@ -1656,19 +1672,32 @@ function NewJarModal({
             <div style={{ fontSize: 13, color: "var(--text-tertiary)", lineHeight: 1.6 }}>
               This includes your contributions and growth over time.
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: "var(--bg-muted)", borderRadius: 8, fontSize: 13, color: "var(--text-secondary)" }}>
-              <span>🔐</span>
-              <span>To create your jar, you&apos;ll need to connect a wallet. It only takes a moment.</span>
-            </div>
+            {walletConnected ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "#f0faf5", borderRadius: 8, fontSize: 13, color: "var(--green)" }}>
+                <span>✓</span>
+                <span>Wallet connected — ready to create</span>
+              </div>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: "var(--bg-muted)", borderRadius: 8, fontSize: 13, color: "var(--text-secondary)" }}>
+                <span>🔐</span>
+                <span>Connect a wallet to create your jar. It only takes a moment.</span>
+              </div>
+            )}
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <button onClick={() => setStep(4)} style={{ fontSize: 14, color: "var(--text-secondary)", cursor: "pointer", padding: "13px 0", border: "none", background: "none", fontFamily: "var(--font)" }}>Back</button>
-              <button
-                onClick={handleCreate}
-                disabled={submitting}
-                style={{ flex: 1, background: "var(--text-primary)", color: "#fff", fontSize: 15, fontWeight: 500, padding: "13px 20px", borderRadius: 8, border: "none", cursor: submitting ? "not-allowed" : "pointer", fontFamily: "var(--font)", opacity: submitting ? 0.6 : 1 }}
-              >
-                {submitting ? "Creating…" : "Create your jar — connect wallet"}
-              </button>
+              {walletConnected ? (
+                <button
+                  onClick={handleCreate}
+                  disabled={submitting}
+                  style={{ flex: 1, background: "var(--green)", color: "#fff", fontSize: 15, fontWeight: 500, padding: "13px 20px", borderRadius: 8, border: "none", cursor: submitting ? "not-allowed" : "pointer", fontFamily: "var(--font)", opacity: submitting ? 0.6 : 1 }}
+                >
+                  {submitting ? "Creating…" : "Create your jar"}
+                </button>
+              ) : (
+                <div style={{ flex: 1 }}>
+                  <WalletButton />
+                </div>
+              )}
             </div>
           </div>
         )}
