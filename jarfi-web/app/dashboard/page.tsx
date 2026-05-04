@@ -607,13 +607,7 @@ function DashboardPage({
         {hasWallet && (
           <JupiterSwapButton className="inline-flex items-center gap-1.5 rounded-lg border border-[#E2E2DC] bg-[#F0F0EC] px-3.5 py-1.5 text-xs font-semibold text-[#555555] hover:border-[#999]" />
         )}
-        {hasWallet && greeting && (
-          <div style={{ display: "flex", alignItems: "center", gap: 7, background: "#F0F0EC", border: "1px solid #E2E2DC", borderRadius: 20, padding: "5px 12px 5px 5px", fontSize: 12, fontWeight: 500, color: "#555555" }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#059669" }} />
-            {greeting}
-          </div>
-        )}
-        {!hasWallet && <WalletButton compact />}
+        <WalletButton compact />
         {hasWallet && (
           <button
             onClick={onNewJar}
@@ -714,7 +708,7 @@ function DashboardPage({
             {/* Jars section */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, marginTop: 4 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#111111" }}>My jars</div>
-              <span onClick={onNewJar} style={{ fontSize: 12, color: "#999999", cursor: "pointer" }}>+ New jar</span>
+              {liveJars.length > 0 && <span onClick={onNewJar} style={{ fontSize: 12, color: "#999999", cursor: "pointer" }}>+ New jar</span>}
             </div>
 
             {/* Jars grid */}
