@@ -13,6 +13,7 @@ export function useJars() {
   const [jars, setJars] = useState<JarAccount[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     if (!publicKey || !wallet?.adapter) {
@@ -27,9 +28,11 @@ export function useJars() {
       .then(setJars)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [publicKey, connection, wallet]);
+  }, [publicKey, connection, wallet, tick]);
 
-  return { jars, loading, error };
+  const refresh = () => setTick((t) => t + 1);
+
+  return { jars, loading, error, refresh };
 }
 
 export function useContributions(jarPubkey: string | null) {

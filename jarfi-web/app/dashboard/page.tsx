@@ -119,7 +119,7 @@ export default function Dashboard() {
 
   const { publicKey, wallet } = useWallet();
   const { connection } = useConnection();
-  const { jars: liveJars, loading: jarsLoading } = useJars();
+  const { jars: liveJars, loading: jarsLoading, refresh: refreshJars } = useJars();
   const [apy, setApy] = useState({ usdc_kamino: 8.2, sol_marinade: 6.85 });
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [groups, setGroups] = useState<GroupInfo[]>([]);
@@ -431,6 +431,7 @@ export default function Dashboard() {
                 } catch { /* backend offline — jar is created, group skipped */ }
               }
               setModal(null);
+              refreshJars();
               showToast(
                 params.groupTrip ? "Групову поїздку створено ✈️" : "Jar created 🏺"
               );
