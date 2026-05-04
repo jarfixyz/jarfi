@@ -598,7 +598,7 @@ function DashboardPage({
         {hasWallet && (
           <>
             {/* Stats */}
-            <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className={`mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 ${liveJars.length === 0 ? "hidden" : ""}`}>
               <StatCard
                 label="Total Saved"
                 value={`$${totalSaved.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
@@ -630,7 +630,7 @@ function DashboardPage({
             </div>
 
             {/* Chart + Forecast */}
-            <div className="mb-5 grid gap-5 lg:grid-cols-[2fr_1fr]">
+            <div className={`mb-5 grid gap-5 lg:grid-cols-[2fr_1fr] ${liveJars.length === 0 ? "hidden" : ""}`}>
               <Card
                 title={
                   liveJars[0]
