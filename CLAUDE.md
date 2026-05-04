@@ -10,6 +10,8 @@ Solana savings jar app. Users create on-chain vaults (jars), invite family to gi
 - **Onramp**: Transak (card/Apple Pay → USDC on Solana)
 - **Yield**: Kamino Lend (USDC, ~8% APY) · Marinade (SOL, ~6.85% APY)
 - **Swap**: Jupiter V6 API (USDC→SOL for SOL jars) + Jupiter Terminal widget (UI)
+- **Auth**: Wallet-only — Phantom / Solflare via `@solana/wallet-adapter` (Privy removed 2026-05-04)
+- **RPC**: Ankr devnet fallback (`rpc.ankr.com/solana_devnet`) · GetBlock.io planned
 
 ## Repo structure
 ```
@@ -28,10 +30,13 @@ jarfi/
 
 ## Key env vars
 - Railway: `SERVER_WALLET_SECRET`, `TRANSAK_API_SECRET`, `SOLANA_RPC_URL`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL`
-- Cloudflare Pages: `NEXT_PUBLIC_BACKEND_URL`, `NEXT_PUBLIC_TRANSAK_API_KEY`, `NEXT_PUBLIC_ENV`
+- Cloudflare Pages: `NEXT_PUBLIC_BACKEND_URL`, `NEXT_PUBLIC_TRANSAK_API_KEY`, `NEXT_PUBLIC_ENV`, `NEXT_PUBLIC_SOLANA_RPC_URL`, `NEXT_PUBLIC_SOLANA_NETWORK`
 - Optional: `DB_PATH` (Railway persistent volume path for SQLite, e.g. `/data/jarfi.db`)
 
-## Current status (2026-04-29) — PROD PREP IN PROGRESS 🚀
+> ⚠️ `NEXT_PUBLIC_SOLANA_RPC_URL` not yet set in Cloudflare Pages — falls back to Ankr devnet.
+> Set it to GetBlock.io devnet endpoint to fix reliability.
+
+## Current status (2026-05-04) — UI POLISH + BUG FIXES ✅
 
 ### Phases (all complete)
 - Phase 1 (USDC Foundation) — ✅
@@ -40,66 +45,88 @@ jarfi/
 - Phase 4 (Recurring deposits + push notifications) — ✅
 - Phase 5 (Group Trip jar) — ✅
 
-### Prod prep completed (2026-04-29)
-- ✅ Backend: CORS restricted to jarfi.xyz, rate limiting, helmet security headers
-- ✅ Backend: Webhook idempotency (processed_webhooks table) — no double-deposits
-- ✅ Backend: Guardarian webhook signature verification (GUARDARIAN_WEBHOOK_SECRET)
-- ✅ Backend: Server wallet pubkey removed from public GET /
-- ✅ Web: All mock data removed — dashboard/analytics/contributors/gift use real on-chain data
-- ✅ Web: Forecast calculated from real APY + current balance + time to unlock
-- ✅ Web: BalanceChart generates from real contribution timestamps
-- ✅ Web: Jar names in localStorage (jar_name_${pubkey})
-- ✅ Web: Responsive sidebar — mobile slide-in + hamburger, desktop always visible
-- ✅ Web: WalletButton in TopBar (compact), hamburger for mobile
-- ✅ Web: Privy auth integrated — wallet (Phantom/Solflare) OR Google/Twitter/email
-- ✅ Web: Landing trust section updated for mainnet
-- ✅ Deployed to Cloudflare Pages: https://jarfi.xyz
+### Session fixes + features (2026-05-04)
+- ✅ **Auth**: Privy removed — wallet-only (Phantom/Solflare)
+- ✅ **MoonPay webhook** (`/api/moonpay-webhook`): forwards raw body + signature header to backend
+- ✅ **Dashboard**: Swap/New Jar buttons hidden when wallet not connected
+- ✅ **Dashboard**: Stats/forecast hidden when 0 jars (avoids "fake data" confusion)
+- ✅ **Jar creation step 2**: "No goal — save by time" option + contextual hints on all steps
+- ✅ **Jar creation step 5**: button text/state reflects actual wallet connection
+- ✅ **RPC fix**: `providers.tsx` defaults to devnet when `NEXT_PUBLIC_SOLANA_NETWORK !== "mainnet"`
+- ✅ **RPC fallback**: Ankr devnet instead of flaky `api.devnet.solana.com`
+- ✅ **Jar creation**: `createScheduleApi`/`createGroupApi` isolated — backend failure doesn't break jar creation
+- ✅ **Jar list refresh**: `fetchJarByPubkey` immediately after creation + localStorage pubkey cache fallback
+- ✅ **Jar detail panel**: full view per jar (future value, yield block, contributors, projection, gift link)
+- ✅ **Landing page**: full redesign per jar3-2/jar3-3 design (Nav, Hero, Jar types, Onramp, Recurring, Share, Calculator, FAQ)
+- ✅ **Dashboard redesign** per jar3-3:
+  - Page bg `#F5F5F2`, surfaces white
+  - Sidebar: "Savings" / "Insights" sections + live APY pill
+  - Portfolio card: horizontal bar (5 metrics)
+  - Yield strip: live monthly earnings
+  - Jar cards: colored cover gradient + type badge + lock + Chart ↗ button
+  - Inline chart panel: SVG projection (Jarfi vs Bank) per jar
+  - Add jar dashed card
+  - Bottom grid: Activity | Schedules + Forecast
 
 ### Still needed before mainnet launch
+- [ ] **Set `NEXT_PUBLIC_SOLANA_RPC_URL`** in Cloudflare Pages → GetBlock.io devnet endpoint
 - [ ] Mainnet contract deploy (`anchor deploy --provider.cluster mainnet-beta`)
-- [ ] Update PROGRAM_ID in jarfi-web/lib/program.ts + jarfi-backend/index.js after mainnet deploy
+- [ ] Update PROGRAM_ID in `jarfi-web/lib/program.ts` + `jarfi-backend/index.js` after mainnet deploy
 - [ ] Railway env vars: `SOLANA_NETWORK=mainnet`, `DB_PATH=/data/jarfi.db`, `GUARDARIAN_WEBHOOK_SECRET`
 - [ ] Railway persistent volume for SQLite (`DB_PATH`)
 - [ ] Server wallet funded with USDC for recurring auto-deposits
-- [ ] Cloudflare env: `NEXT_PUBLIC_PRIVY_APP_ID=cmoket6g400170dlkfrc3lk26` ✅ (done)
-- [ ] Transak production API key (currently staging)
-- [ ] Design revision (UI/UX polish) — then run design checklist
+- [ ] Transak production API key (currently staging, `NEXT_PUBLIC_ENV=staging`)
 
-### Privy auth
-- App ID: `cmoket6g400170dlkfrc3lk26`
-- Configured in Cloudflare Pages ✅
-- Configured in jarfi-web/.env.local ✅
-- Supports: Phantom, Solflare, Google, Twitter, email
+### Hackathon checklist (before May 11, 2026)
+- [ ] Register on Colosseum: colosseum.com/frontier
+- [ ] Pitch video (2-3 min): problem → solution → demo
+- [ ] Technical demo video: create jar → gift → approve flow
+- [ ] Weekly update post on Colosseum
+- [ ] Superteam Ukraine registration (up to $10k bonus)
+- [ ] "Powered by DoubleZero" in README
+- [ ] Check GitHub commit history is spread evenly
 
-### Design revision checklist (run after UI changes)
+## Design system
+
+### Dashboard (jar3-3 tokens — inline styles)
 ```
-Landing
-  [ ] Hero, CTA кнопки, мобільна версія
-  [ ] APY цифри підтягуються з /apy
-
-Dashboard
-  [ ] Jar баланс відображається (USDC micro-units → $)
-  [ ] Прогрес-бар до goal
-  [ ] Kamino yield показується
-  [ ] Recurring deposit UI — create / delete
-  [ ] Push notification підписка
-  [ ] Sidebar — гамбургер на мобільному (375px)
-  [ ] WalletButton у TopBar — Connect/Sign in → Privy модалка
-
-Gift page /gift/[jar]
-  [ ] Transak widget відкривається
-  [ ] ?confirm= банер показується після оплати
-
-Group trip /trip/[jar]
-  [ ] Join flow працює
-  [ ] Прогрес членів відображається
-
-Загальне
-  [ ] Wallet not connected — empty state з кнопкою
-  [ ] Jar not found — 404 стан
-  [ ] Mobile (375px) — нічого не обрізається
-  [ ] Devtools Console — нема red errors
+--page-bg:    #F5F5F2   (warm off-white)
+--surface:    #FFFFFF
+--surface-2:  #F0F0EC
+--border:     #E2E2DC
+--green:      #059669
+--green-bg:   #ECFDF5
+--green-dim:  rgba(5,150,105,.12)
+--text-2:     #555555
+--text-3:     #999999
 ```
+
+### Landing / globals.css vars (legacy, kept for landing page)
+```
+--bg:             #FFFFFF
+--bg-muted:       #F7F8F7
+--text-primary:   #111111
+--text-secondary: #666666
+--text-tertiary:  #999999
+--border:         #EAEAEA
+--green:          #1F8A5B
+```
+
+### Key design principles
+- Primary number = FUTURE VALUE (green, large)
+- Current balance = secondary
+- No APY/yield jargon on landing
+- "Save together. Grow automatically." — core tagline
+- Emotional, family-friendly tone
+- New components → inline styles with dashboard tokens
+- Old components → keep Tailwind (sol-* / surface-* aliases still work)
+
+## Demo jars on devnet (real on-chain)
+- `jarfi.xyz/gift/anya` → pubkey `FeAzYeZuvo6eaPcsVp1Yguegcp2AhwwPWTfPV5Z4B9hC` (Anya's Future 🎁, mode 0, unlock 2036)
+- `jarfi.xyz/gift/japan` → pubkey `ExvN6nxRbWpqQJrpG6shY9tbcWTtHKEaJDmFVebxFqu4` (Japan Trip ✈️, mode 1, goal $1000)
+- `jarfi.xyz/gift/moto` → pubkey `28teBgT2U1y25ARUkgGfHjeyBHhnJXorVtLs6Qk93ppc` (Motorcycle Fund 🏍️, mode 2, $5000/6mo)
+
+> After Railway redeploy, re-seed demo jar names: `POST /jar/meta` for each pubkey.
 
 ## Backend files
 | File | Purpose |
@@ -118,9 +145,10 @@ GET  /                          health check
 GET  /apy                       live APY (Kamino + Marinade)
 POST /jar/create                create jar on-chain (server wallet)
 GET  /jar/:pubkey               jar + contributions + Kamino yield
+POST /jar/meta                  save jar name/emoji (SQLite)
 POST /jar/deposit-sol           deposit SOL + async Marinade stake
 POST /transak-webhook           Transak order completed → deposit
-POST /moonpay-webhook           MoonPay order completed → deposit
+POST /moonpay-webhook           MoonPay order completed → deposit (full impl)
 POST /guardarian-webhook        Guardarian order completed → deposit
 POST /schedule/create           create recurring deposit schedule
 GET  /schedule/:owner_pubkey    list active schedules
@@ -135,17 +163,18 @@ GET  /group/by-owner/:pubkey    list groups by member
 
 ## Web routes
 ```
-/                    landing page
-/dashboard           main app (wallet required for live data)
+/                    landing page (redesigned per jar3-3)
+/dashboard           main app — wallet required; full redesign per jar3-3
 /gift/[jar]          public gift page (Transak widget)
 /trip/[jar]          public group trip page (join flow)
+/api/moonpay-webhook forwards to backend (edge runtime)
 ```
 
 ## Contract instructions
 ```
 createJar            SOL jar
 createUsdcJar        USDC jar (creates ATA vault)
-deposit              SOL deposit (real system_program transfer)
+deposit              SOL deposit
 depositUsdc          USDC deposit from user wallet
 giftDepositUsdc      USDC deposit from server (Transak/onramp)
 giftDeposit          SOL gift (legacy compat)
@@ -153,10 +182,10 @@ withdrawUsdc         withdraw USDC after unlock
 unlockJar            check unlock conditions
 recordMarinadeStake  update staking_shares (called by backend after SDK stake)
 setKaminoObligation  store Kamino obligation pubkey
-createQuest          create spending quest
-approveQuest         approve quest payout
-setSpendingLimit     set daily/weekly limits
-emergencyWithdraw    emergency unlock
+createQuest          create spending quest (on-chain only, no UI yet)
+approveQuest         approve quest payout (on-chain only)
+setSpendingLimit     set daily/weekly limits (on-chain only)
+emergencyWithdraw    emergency unlock (on-chain only)
 ```
 
 ## Core on-chain types
@@ -170,7 +199,7 @@ emergencyWithdraw    emergency unlock
 - Devnet USDC mint:  `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`
 - Mainnet USDC mint: `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`
 - Kamino Lend program: `KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD`
-- Kamino mainnet market: `7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF`
+- Kamino mainnet market: `7u3HeHxYDLhnCoErrtycNokbQYbWGkZwyTDt1v`
 - Marinade program: `MarBmsSgKXdrN1egZf5sqe1TMai9K1rChYNDJgjq7aD`
 - Jupiter V6 API: `https://quote-api.jup.ag/v6`
 
