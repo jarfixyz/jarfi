@@ -23,7 +23,8 @@ import { WalletButton } from "@/components/wallet-button";
 import { JupiterSwapButton } from "@/components/jupiter-swap";
 import { useJars } from "@/lib/use-jars";
 import { createJarOnChain, createUsdcJarOnChain } from "@/lib/create-jar";
-import { CURRENCY_USDC } from "@/lib/program";
+import { CURRENCY_USDC, fetchJarByPubkey } from "@/lib/program";
+import { PublicKey } from "@solana/web3.js";
 import {
   fetchApy,
   createScheduleApi,
@@ -119,7 +120,7 @@ export default function Dashboard() {
 
   const { publicKey, wallet } = useWallet();
   const { connection } = useConnection();
-  const { jars: liveJars, loading: jarsLoading, refresh: refreshJars } = useJars();
+  const { jars: liveJars, loading: jarsLoading, refresh: refreshJars, addJar } = useJars();
   const [apy, setApy] = useState({ usdc_kamino: 8.2, sol_marinade: 6.85 });
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [groups, setGroups] = useState<GroupInfo[]>([]);
@@ -404,6 +405,10 @@ export default function Dashboard() {
               }
               if (params.jarName) saveJarName(jarPubkey, params.jarName);
               if (params.jarEmoji) saveJarEmoji(jarPubkey, params.jarEmoji);
+              // Immediately show the new jar without waiting for getProgramAccounts
+              fetchJarByPubkey(connection, new PublicKey(jarPubkey))
+                .then(jar => { if (jar) addJar(jar); })
+                .catch(() => {});
               // Persist name+emoji to backend so gift page can display them
               fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:3001"}/jar/meta`, {
                 method: "POST",
