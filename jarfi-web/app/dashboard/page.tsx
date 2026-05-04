@@ -526,6 +526,7 @@ function DashboardPage({
   onMenuToggle: () => void;
 }) {
   const hasWallet = !!greeting;
+  const [selectedJar, setSelectedJar] = useState<JarType | null>(null);
 
   const totalSaved = liveJars.reduce((s, j) => s + j.amount, 0);
   const lockedCount = liveJars.filter((j) => j.locked).length;
@@ -567,6 +568,17 @@ function DashboardPage({
     })),
     [totalSaved, yearsRemaining, primaryApr]
   );
+
+  if (selectedJar) {
+    return (
+      <JarDetailPanel
+        jar={selectedJar}
+        apy={apy}
+        onBack={() => setSelectedJar(null)}
+        onMenuToggle={onMenuToggle}
+      />
+    );
+  }
 
   return (
     <>
@@ -730,7 +742,7 @@ function DashboardPage({
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
                   {liveJars.map((j) => (
-                    <JarCard key={j.id} jar={j} />
+                    <JarCard key={j.id} jar={j} onSelect={() => setSelectedJar(j)} />
                   ))}
                 </div>
               )}
@@ -1787,7 +1799,220 @@ function CardAction({ label }: { label: string }) {
   );
 }
 
-function JarCard({ jar }: { jar: JarType }) {
+// ---------------------------------------------------------------------------
+// JAR DETAIL PANEL
+// ---------------------------------------------------------------------------
+
+function JarDetailPanel({
+  jar,
+  apy,
+  onBack,
+  onMenuToggle,
+}: {
+  jar: JarType;
+  apy: { usdc_kamino: number; sol_marinade: number };
+  onBack: () => void;
+  onMenuToggle: () => void;
+}) {
+  const { connection } = useConnection();
+  const { wallet } = useWallet();
+  const [contribs, setContribs] = useState<JarContribution[]>([]);
+  const [copied, setCopied] = useState(false);
+
+  const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://jarfi.up.railway.app";
+  const giftUrl = `jarfi.xyz/gift/${jar.id}`;
+  const giftFullUrl = `https://jarfi.xyz/gift/${jar.id}`;
+
+  useEffect(() => {
+    if (!wallet?.adapter) return;
+    fetchContributionsForJar(jar.id).then(setContribs).catch(() => {});
+  }, [jar.id, wallet?.adapter, BACKEND]);
+
+  const isUsdc   = jar.currency === "usdc";
+  const apr      = isUsdc ? apy.usdc_kamino / 100 : apy.sol_marinade / 100;
+  const future   = jar.futureValue ?? jar.amount;
+  const pct      = Math.min(100, Math.round((jar.amount / Math.max(jar.goal, 0.01)) * 100));
+  const monthlyYield = jar.amount * apr / 12;
+  const yearsLeft    = jar.unlockDate > 0 ? Math.max(0, (jar.unlockDate - Date.now() / 1000) / (365.25 * 86400)) : 10;
+  const unlockStr    = jar.unlockDate > 0 ? new Date(jar.unlockDate * 1000).toLocaleDateString("en-US", { year: "numeric", month: "short" }) : null;
+
+  const fmt  = (n: number) => isUsdc ? `$${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : `◎${n.toLocaleString(undefined, { maximumFractionDigits: 4 })}`;
+  const fmtK = (n: number) => isUsdc ? `$${Math.round(n).toLocaleString()}` : `◎${n.toFixed(2)}`;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(giftFullUrl).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+
+  return (
+    <>
+      <TopBar title={`${jar.emoji} ${jar.name}`} onMenuToggle={onMenuToggle}>
+        <button onClick={onBack} style={{ fontSize: 13, color: "var(--text-secondary)", background: "none", border: "1px solid var(--border)", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontFamily: "var(--font)" }}>
+          ← My jars
+        </button>
+      </TopBar>
+
+      <div style={{ padding: "40px 48px", maxWidth: 1100, margin: "0 auto" }} className="jar-detail-wrap">
+        <div className="jar-detail-grid" style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 48, alignItems: "start" }}>
+
+          {/* ── LEFT ── */}
+          <div>
+            {/* Future value */}
+            <div style={{ marginBottom: 32 }}>
+              <div style={{ fontSize: 60, fontWeight: 600, color: "var(--green)", letterSpacing: "-2.5px", lineHeight: 1 }}>
+                {fmtK(future)}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                Estimated future value
+                <span title="Projected value based on current savings and yield" style={{ width: 14, height: 14, borderRadius: "50%", border: "1px solid var(--text-tertiary)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 8, cursor: "help" }}>?</span>
+              </div>
+              <div style={{ display: "flex", gap: 32, marginTop: 20 }}>
+                {[
+                  { num: fmt(jar.amount), label: "Saved so far" },
+                  { num: jar.goal > 0 ? fmt(jar.goal) : "—", label: "Goal" },
+                  { num: String(contribs.length), label: "Contributors" },
+                ].map(v => (
+                  <div key={v.label}>
+                    <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.8px" }}>{v.num}</div>
+                    <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 2 }}>{v.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Progress */}
+            <div style={{ marginBottom: 32 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--text-secondary)", marginBottom: 10 }}>
+                <span><strong style={{ color: "var(--text-primary)" }}>{pct}%</strong> of goal reached</span>
+                {jar.goal > 0 && <span>{fmt(Math.max(0, jar.goal - jar.amount))} remaining</span>}
+              </div>
+              <div style={{ height: 8, background: "var(--border)", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ width: `${pct}%`, height: "100%", background: "var(--green)", borderRadius: 4 }} />
+              </div>
+            </div>
+
+            {/* Yield block */}
+            <div style={{ background: "var(--bg-muted)", borderRadius: 16, padding: 24, marginBottom: 32 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", color: "var(--text-tertiary)", marginBottom: 12 }}>
+                Staking yield
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: 22, fontWeight: 600, color: "var(--green)", letterSpacing: "-0.5px" }}>{isUsdc ? apy.usdc_kamino : apy.sol_marinade}%</div>
+                  <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 2 }}>Current APY</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.5px" }}>{fmt(monthlyYield)}</div>
+                  <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 2 }}>Est. monthly earnings</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.5px" }}>{isUsdc ? "Kamino" : "Marinade"}</div>
+                  <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 2 }}>Protocol</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Projection */}
+            {unlockStr && (
+              <div style={{ background: "var(--bg-muted)", borderRadius: 16, padding: 24, marginBottom: 32 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", color: "var(--text-tertiary)", marginBottom: 10 }}>
+                  If you keep going
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 500, letterSpacing: "-0.5px", marginBottom: 4 }}>
+                  You&apos;ll have <strong style={{ color: "var(--green)" }}>{fmtK(future)}</strong> by {unlockStr}
+                </div>
+                <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>
+                  This includes your contributions and {isUsdc ? `Kamino ${apy.usdc_kamino}%` : `Marinade ${apy.sol_marinade}%`} yield.
+                </div>
+              </div>
+            )}
+
+            {/* Contributors */}
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                <div style={{ fontSize: 16, fontWeight: 500 }}>Contributors</div>
+                <div style={{ fontSize: 13, color: "var(--text-tertiary)" }}>{contribs.length} {contribs.length === 1 ? "person" : "people"}</div>
+              </div>
+              {contribs.length === 0 ? (
+                <div style={{ fontSize: 13, color: "var(--text-tertiary)", padding: "24px 0" }}>No contributions yet — share your gift link!</div>
+              ) : (
+                contribs.slice(0, 10).map((c) => {
+                  const short = `${c.contributor.slice(0, 6)}…${c.contributor.slice(-4)}`;
+                  const ago = (() => {
+                    const s = Math.floor(Date.now() / 1000 - c.createdAt);
+                    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+                    if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+                    return new Date(c.createdAt * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                  })();
+                  return (
+                    <div key={c.pubkey} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: "1px solid var(--border)" }}>
+                      <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--bg-muted)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
+                        {short.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 14, fontWeight: 500 }}>{short}</div>
+                        {c.comment && <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>&quot;{c.comment.slice(0, 60)}&quot;</div>}
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 14, fontWeight: 600 }}>+{fmt(c.amount / 1_000_000)}</div>
+                        <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>{ago}</div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* ── RIGHT — share panel ── */}
+          <div style={{ position: "sticky", top: 24 }}>
+            <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 16, padding: 28, marginBottom: 16 }}>
+              <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 6 }}>Share this jar</div>
+              <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 20, lineHeight: 1.5 }}>
+                Anyone with this link can contribute in seconds — no crypto needed.
+              </div>
+              <div style={{ background: "var(--bg-muted)", borderRadius: 8, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+                <span style={{ fontSize: 13, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{giftUrl}</span>
+                <button onClick={handleCopy} style={{ fontSize: 12, fontWeight: 600, color: "var(--green)", cursor: "pointer", border: "none", background: "none", fontFamily: "var(--font)", whiteSpace: "nowrap" }}>
+                  {copied ? "Copied!" : "Copy"}
+                </button>
+              </div>
+              <a href={giftFullUrl} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", padding: "10px 0", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, fontWeight: 500, color: "var(--text-primary)", textDecoration: "none" }}>
+                Open gift page →
+              </a>
+
+              <div style={{ height: 1, background: "var(--border)", margin: "20px 0" }} />
+
+              <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 14 }}>Jar details</div>
+              {[
+                { label: "Status",    value: jar.locked ? "🔒 Locked" : "🟢 Open", green: !jar.locked },
+                { label: "Unlocks",  value: unlockStr ?? "No date set" },
+                { label: "Network",  value: "Solana" },
+                { label: "Currency", value: isUsdc ? "USDC" : "SOL" },
+                { label: "Yield",    value: `${isUsdc ? apy.usdc_kamino : apy.sol_marinade}% APY via ${isUsdc ? "Kamino" : "Marinade"}` },
+              ].map(s => (
+                <div key={s.label} style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                  <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>{s.label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: s.green ? "var(--green)" : "var(--text-primary)" }}>{s.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        @media (max-width: 900px) {
+          .jar-detail-wrap { padding: 24px 20px !important; }
+          .jar-detail-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+    </>
+  );
+}
+
+function JarCard({ jar, onSelect }: { jar: JarType; onSelect?: () => void }) {
   const pct = Math.min(100, Math.round((jar.amount / Math.max(jar.goal, 0.01)) * 100));
   const isUsdc = jar.currency === "usdc";
   const future = jar.futureValue ?? jar.amount;
@@ -1797,13 +2022,14 @@ function JarCard({ jar }: { jar: JarType }) {
 
   return (
     <div
+      onClick={onSelect}
       style={{
         background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 16,
         padding: 28, display: "flex", flexDirection: "column", gap: 0,
-        cursor: "pointer", transition: "box-shadow 0.15s",
+        cursor: "pointer", transition: "box-shadow 0.15s, border-color 0.15s",
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "0 4px 24px rgba(0,0,0,0.07)")}
-      onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")}
+      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 4px 24px rgba(0,0,0,0.07)"; e.currentTarget.style.borderColor = "var(--green)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = "var(--border)"; }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
         <div style={{ fontSize: 15, fontWeight: 500 }}>{jar.emoji} {jar.name}</div>
