@@ -20,7 +20,8 @@ async function withRetry<T>(fn: (skipPreflight: boolean) => Promise<T>): Promise
   let lastErr: unknown;
   for (let i = 0; i < 4; i++) {
     try {
-      return await fn(i > 0);
+      // Always skip preflight on devnet — simulation blockhash often lags behind actual state
+      return await fn(true);
     } catch (e) {
       lastErr = e;
       const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
@@ -89,7 +90,7 @@ export async function createUsdcJarOnChain(
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       } as never)
       .signers([jarKeypair])
-      .rpc({ skipPreflight })
+      .rpc({ skipPreflight, maxRetries: 5, commitment: "confirmed" })
   );
 
   return { jarPubkey: jarKeypair.publicKey.toBase58(), txSignature };
@@ -126,7 +127,7 @@ export async function createJarOnChain(
         owner: wallet.publicKey,
       } as never)
       .signers([jarKeypair])
-      .rpc({ skipPreflight })
+      .rpc({ skipPreflight, maxRetries: 5, commitment: "confirmed" })
   );
 
   return { jarPubkey: jarKeypair.publicKey.toBase58(), txSignature };

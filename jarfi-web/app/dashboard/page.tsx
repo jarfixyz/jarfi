@@ -561,7 +561,9 @@ export default function Dashboard() {
               const friendly = msg.includes("rejected") || msg.includes("User rejected")
                 ? "Transaction cancelled"
                 : msg.includes("blockhash")
-                ? "RPC timeout — retried 3x, check connection"
+                ? "Devnet congestion — try again in a few seconds"
+                : msg.includes("insufficient") || msg.includes("lamports")
+                ? "Not enough SOL for fees — airdrop devnet SOL first"
                 : msg.slice(0, 80);
               showToast("Failed: " + friendly);
             }
