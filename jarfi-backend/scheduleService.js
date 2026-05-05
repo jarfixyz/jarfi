@@ -36,6 +36,11 @@ function deleteSchedule(id) {
   return db.deactivateSchedule(id)
 }
 
+function updateSchedule(id, { amount_usdc, frequency, day, hour, minute }) {
+  const cron_expr = buildCron({ frequency, day, hour, minute })
+  return db.updateScheduleRow({ id, amount_usdc, frequency, day, hour, minute, cron_expr })
+}
+
 function markFired(id) {
   db.markScheduleFired(id)
 }
@@ -92,6 +97,7 @@ function startCronRunner(onFire) {
 
 module.exports = {
   addSchedule,
+  updateSchedule,
   getSchedulesByOwner,
   deleteSchedule,
   savePushSubscription,

@@ -103,6 +103,72 @@ export async function stopScheduleApi(id: string): Promise<void> {
   await fetch(`${API_URL}/schedule/${id}`, { method: "DELETE" });
 }
 
+export async function updateScheduleApi(id: string, params: {
+  amount_usdc: number;
+  frequency: "weekly" | "monthly";
+  day: number;
+  hour: number;
+  minute: number;
+}): Promise<void> {
+  await fetch(`${API_URL}/schedule/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Cosigner API (Phase 5 — soft approval scaffold)
+// ---------------------------------------------------------------------------
+
+export type Cosigner = {
+  jar_pubkey: string;
+  invite_token: string;
+  invitee_pubkey: string | null;
+  status: "pending" | "active";
+  created_at: number;
+};
+
+export async function createCosignerInvite(jar_pubkey: string): Promise<string> {
+  const res = await fetch(`${API_URL}/cosigner/create`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jar_pubkey }),
+  });
+  const data = await res.json();
+  return data.invite_token as string;
+}
+
+export async function fetchCosigners(jar_pubkey: string): Promise<Cosigner[]> {
+  try {
+    const res = await fetch(`${API_URL}/cosigner/list/${jar_pubkey}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.cosigners ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchCosignerByToken(token: string): Promise<{ jar_pubkey: string; status: string; name: string; emoji: string } | null> {
+  try {
+    const res = await fetch(`${API_URL}/cosigner/by-token/${token}`);
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function acceptCosignerInvite(token: string, invitee_pubkey: string): Promise<{ ok: boolean; jar_pubkey: string }> {
+  const res = await fetch(`${API_URL}/cosigner/accept/${token}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ invitee_pubkey }),
+  });
+  return res.json();
+}
+
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------

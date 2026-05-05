@@ -29,6 +29,7 @@ const { isWebhookProcessed, markWebhookProcessed, saveJarMeta, getJarMeta } = re
 const { createGroup, getGroup, joinGroup, listGroupsByOwner } = require('./groupService')
 const {
   addSchedule,
+  updateSchedule,
   getSchedulesByOwner,
   deleteSchedule,
   savePushSubscription,
@@ -633,6 +634,28 @@ app.delete('/schedule/:id', (req, res) => {
 })
 
 // ---------------------------------------------------------------------------
+// PUT /schedule/:id  — update amount/frequency/day/hour/minute
+// ---------------------------------------------------------------------------
+
+app.put('/schedule/:id', (req, res) => {
+  try {
+    const { amount_usdc, frequency, day, hour, minute } = req.body
+    if (!amount_usdc || !frequency) return res.status(400).json({ ok: false, error: 'missing fields' })
+    const updated = updateSchedule(req.params.id, {
+      amount_usdc: Number(amount_usdc),
+      frequency,
+      day: Number(day ?? 1),
+      hour: Number(hour ?? 9),
+      minute: Number(minute ?? 0),
+    })
+    if (!updated) return res.status(404).json({ ok: false, error: 'schedule not found' })
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message })
+  }
+})
+
+// ---------------------------------------------------------------------------
 // POST /schedule/test-fire/:id  — fire a schedule immediately (devnet testing)
 // ---------------------------------------------------------------------------
 
@@ -833,6 +856,57 @@ app.post('/group/:jar_pubkey/join', async (req, res) => {
 app.get('/group/by-owner/:owner_pubkey', (req, res) => {
   const groups = listGroupsByOwner(req.params.owner_pubkey)
   res.json({ ok: true, groups })
+})
+
+// ---------------------------------------------------------------------------
+// Cosigner routes (Phase 5 — soft approval scaffold)
+// ---------------------------------------------------------------------------
+
+// POST /cosigner/create  — create an invite slot for a jar
+// Body: { jar_pubkey }
+app.post('/cosigner/create', (req, res) => {
+  try {
+    const { jar_pubkey } = req.body
+    if (!jar_pubkey) return res.status(400).json({ ok: false, error: 'jar_pubkey required' })
+    const dbMod = require('./db')
+    const invite_token = crypto.randomUUID()
+    dbMod.addCosigner({ jar_pubkey, invite_token, created_at: Date.now() })
+    res.json({ ok: true, invite_token })
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message })
+  }
+})
+
+// GET /cosigner/list/:jar_pubkey
+app.get('/cosigner/list/:jar_pubkey', (req, res) => {
+  const dbMod = require('./db')
+  const cosigners = dbMod.getCosigners(req.params.jar_pubkey)
+  res.json({ ok: true, cosigners })
+})
+
+// POST /cosigner/accept/:token  — co-signer connects wallet and accepts
+// Body: { invitee_pubkey }
+app.post('/cosigner/accept/:token', (req, res) => {
+  try {
+    const { invitee_pubkey } = req.body
+    if (!invitee_pubkey) return res.status(400).json({ ok: false, error: 'invitee_pubkey required' })
+    const dbMod = require('./db')
+    const row = dbMod.getCosignerByToken(req.params.token)
+    if (!row) return res.status(404).json({ ok: false, error: 'invalid token' })
+    const ok = dbMod.acceptCosigner(req.params.token, invitee_pubkey)
+    res.json({ ok, jar_pubkey: row.jar_pubkey })
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message })
+  }
+})
+
+// GET /cosigner/by-token/:token  — fetch jar info for invite page
+app.get('/cosigner/by-token/:token', (req, res) => {
+  const dbMod = require('./db')
+  const row = dbMod.getCosignerByToken(req.params.token)
+  if (!row) return res.status(404).json({ ok: false, error: 'invalid token' })
+  const meta = dbMod.getJarMeta(row.jar_pubkey)
+  res.json({ ok: true, jar_pubkey: row.jar_pubkey, status: row.status, name: meta?.name ?? '', emoji: meta?.emoji ?? '🏺' })
 })
 
 // ---------------------------------------------------------------------------

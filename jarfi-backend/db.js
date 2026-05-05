@@ -62,6 +62,15 @@ db.exec(`
     emoji    TEXT NOT NULL DEFAULT '🏺',
     jar_type TEXT NOT NULL DEFAULT ''
   );
+
+  CREATE TABLE IF NOT EXISTS cosigners (
+    jar_pubkey    TEXT NOT NULL,
+    invite_token  TEXT NOT NULL,
+    invitee_pubkey TEXT,
+    status        TEXT NOT NULL DEFAULT 'pending',
+    created_at    INTEGER NOT NULL,
+    PRIMARY KEY (jar_pubkey, invite_token)
+  );
 `)
 
 // ---------------------------------------------------------------------------
@@ -87,6 +96,30 @@ const selectActiveSchedules = db.prepare(`
 
 const updateLastFired = db.prepare(`
   UPDATE schedules SET last_fired = ? WHERE id = ?
+`)
+
+const updateScheduleRow = db.prepare(`
+  UPDATE schedules SET amount_usdc = @amount_usdc, frequency = @frequency, day = @day, hour = @hour, minute = @minute, cron_expr = @cron_expr
+  WHERE id = @id AND active = 1
+`)
+
+// Cosigners
+const insertCosigner = db.prepare(`
+  INSERT INTO cosigners (jar_pubkey, invite_token, invitee_pubkey, status, created_at)
+  VALUES (@jar_pubkey, @invite_token, NULL, 'pending', @created_at)
+`)
+
+const selectCosigners = db.prepare(`
+  SELECT * FROM cosigners WHERE jar_pubkey = ?
+`)
+
+const acceptCosigner = db.prepare(`
+  UPDATE cosigners SET invitee_pubkey = @invitee_pubkey, status = 'active'
+  WHERE invite_token = @invite_token AND status = 'pending'
+`)
+
+const selectCosignerByToken = db.prepare(`
+  SELECT * FROM cosigners WHERE invite_token = ?
 `)
 
 // ---------------------------------------------------------------------------
@@ -164,6 +197,13 @@ module.exports = {
   deactivateSchedule(id) { return deactivateSchedule.run(id).changes > 0 },
   getActiveSchedules() { return selectActiveSchedules.all() },
   markScheduleFired(id) { updateLastFired.run(Date.now(), id) },
+  updateScheduleRow(row) { return updateScheduleRow.run(row).changes > 0 },
+
+  // Cosigners
+  addCosigner(row) { insertCosigner.run(row) },
+  getCosigners(jar_pubkey) { return selectCosigners.all(jar_pubkey) },
+  getCosignerByToken(token) { return selectCosignerByToken.get(token) ?? null },
+  acceptCosigner(invite_token, invitee_pubkey) { return acceptCosigner.run({ invite_token, invitee_pubkey }).changes > 0 },
 
   // Push subscriptions
   savePushSub(owner_pubkey, subscription) {

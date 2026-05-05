@@ -30,12 +30,16 @@ import {
   createScheduleApi,
   fetchSchedules,
   stopScheduleApi,
+  updateScheduleApi,
   type Schedule,
   createGroupApi,
   fetchGroupsByOwner,
   type GroupInfo,
   fetchContributionsForJar,
   type JarContribution,
+  createCosignerInvite,
+  fetchCosigners,
+  type Cosigner,
 } from "@/lib/api";
 import { subscribeToPush } from "@/lib/push";
 import TransakWidget from "@/components/TransakWidget";
@@ -90,6 +94,30 @@ function calcForecast(
 }
 
 // ---------------------------------------------------------------------------
+// calcNextRun — computes next fire date from schedule fields
+// ---------------------------------------------------------------------------
+
+function calcNextRun(s: Schedule): Date {
+  const now = new Date();
+  const next = new Date(now);
+  next.setSeconds(0, 0);
+  next.setHours(s.hour, s.minute, 0, 0);
+
+  if (s.frequency === "monthly") {
+    next.setDate(s.day);
+    if (next <= now) {
+      next.setMonth(next.getMonth() + 1);
+      next.setDate(s.day);
+    }
+  } else {
+    const diff = (s.day - now.getDay() + 7) % 7;
+    next.setDate(now.getDate() + diff);
+    if (diff === 0 && next <= now) next.setDate(next.getDate() + 7);
+  }
+  return next;
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -136,6 +164,8 @@ export default function Dashboard() {
   } | null>(null);
   const [showDepositTransak, setShowDepositTransak] = useState(false);
   const [addFundsJar, setAddFundsJar] = useState<{ pubkey: string; name: string } | null>(null);
+  const [initialDepositPrompt, setInitialDepositPrompt] = useState<{ pubkey: string; name: string } | null>(null);
+  const [cosignerInvite, setCosignerInvite] = useState<{ jar_pubkey: string; token: string; name: string } | null>(null);
 
   useEffect(() => {
     fetchApy().then((d) =>
@@ -368,6 +398,45 @@ export default function Dashboard() {
           />
         )}
 
+        {/* Initial deposit prompt after jar creation */}
+        {initialDepositPrompt && (
+          <div style={{ background: "#ECFDF5", borderBottom: "1px solid rgba(5,150,105,.25)", padding: "12px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+            <span style={{ fontSize: 13, color: "#059669", fontWeight: 500 }}>
+              🏺 <strong>{initialDepositPrompt.name}</strong> created — add your first deposit?
+            </span>
+            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+              <button
+                onClick={() => { setAddFundsJar({ pubkey: initialDepositPrompt.pubkey, name: initialDepositPrompt.name }); setInitialDepositPrompt(null); }}
+                style={{ fontSize: 12, fontWeight: 600, padding: "6px 14px", background: "#059669", color: "#fff", border: "none", borderRadius: 7, cursor: "pointer", fontFamily: "var(--font)" }}
+              >
+                + Add funds
+              </button>
+              <button
+                onClick={() => setInitialDepositPrompt(null)}
+                style={{ fontSize: 12, color: "#059669", background: "none", border: "none", cursor: "pointer" }}
+              >
+                Later
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Cosigner invite modal */}
+        {cosignerInvite && (
+          <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.45)", padding: 24 }} onClick={() => setCosignerInvite(null)}>
+            <div style={{ width: "100%", maxWidth: 460, background: "#fff", borderRadius: 20, padding: 36 }} onClick={e => e.stopPropagation()}>
+              <div style={{ fontSize: 24, marginBottom: 8 }}>👨‍👩‍👧</div>
+              <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-0.5px", marginBottom: 6 }}>Family Approval set up</div>
+              <div style={{ fontSize: 14, color: "#555", lineHeight: 1.6, marginBottom: 20 }}>
+                Share this invite link with your co-signer. They connect their wallet to activate family approval for <strong>{cosignerInvite.name}</strong>.
+                <br /><span style={{ fontSize: 12, color: "#999", marginTop: 4, display: "block" }}>Soft approval · on-chain enforcement coming soon</span>
+              </div>
+              <CopyField value={`${typeof window !== "undefined" ? window.location.origin : "https://jarfi.xyz"}/invite/${cosignerInvite.token}`} />
+              <button onClick={() => setCosignerInvite(null)} style={{ width: "100%", marginTop: 16, padding: "11px 0", background: "#111", color: "#fff", borderRadius: 9, fontSize: 14, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: "var(--font)" }}>Done</button>
+            </div>
+          </div>
+        )}
+
         {activePage === "dashboard" && (
           <DashboardPage
             onNewJar={() => setModal("new-jar")}
@@ -381,6 +450,7 @@ export default function Dashboard() {
               await stopScheduleApi(id);
               setSchedules((s) => s.filter((x) => x.id !== id));
             }}
+            onScheduleUpdate={(updated) => setSchedules(updated)}
             groups={groups}
             contributions={contributions}
             onMenuToggle={() => setSidebarOpen((v) => !v)}
@@ -439,11 +509,9 @@ export default function Dashboard() {
               }
               if (params.jarName) saveJarName(jarPubkey, params.jarName);
               if (params.jarEmoji) saveJarEmoji(jarPubkey, params.jarEmoji);
-              // Immediately show the new jar without waiting for getProgramAccounts
               fetchJarByPubkey(connection, new PublicKey(jarPubkey))
                 .then(jar => { if (jar) addJar(jar); })
                 .catch(() => {});
-              // Persist name+emoji+jarType to backend so gift page can display them
               fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:3001"}/jar/meta`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -469,11 +537,18 @@ export default function Dashboard() {
                   setGroups(await fetchGroupsByOwner(publicKey.toBase58()));
                 } catch { /* backend offline — jar is created, group skipped */ }
               }
+              if (params.approvalMode === "FAMILY_APPROVAL") {
+                try {
+                  const token = await createCosignerInvite(jarPubkey);
+                  setCosignerInvite({ jar_pubkey: jarPubkey, token, name: params.jarName });
+                } catch { /* non-blocking */ }
+              }
               setModal(null);
               refreshJars();
-              showToast(
-                params.groupTrip ? "Group trip created ✈️" : "Jar created 🏺"
-              );
+              if (!params.approvalMode || params.approvalMode === "NONE") {
+                setInitialDepositPrompt({ pubkey: jarPubkey, name: params.jarName });
+              }
+              showToast(params.groupTrip ? "Group trip created ✈️" : "Jar created 🏺");
             } catch (e: unknown) {
               const msg = e instanceof Error ? e.message : String(e);
               console.error("[create-jar] error:", msg);
@@ -545,6 +620,7 @@ function DashboardPage({
   apy,
   schedules,
   onStopSchedule,
+  onScheduleUpdate,
   groups,
   contributions,
   onMenuToggle,
@@ -558,6 +634,7 @@ function DashboardPage({
   apy: { usdc_kamino: number; sol_marinade: number };
   schedules: Schedule[];
   onStopSchedule: (id: string) => Promise<void>;
+  onScheduleUpdate: (schedules: Schedule[]) => void;
   groups: GroupInfo[];
   contributions: JarContribution[];
   onMenuToggle: () => void;
@@ -573,6 +650,7 @@ function DashboardPage({
       j.currency === "usdc" ? apy.usdc_kamino / 100 : apy.sol_marinade / 100;
     return s + (j.amount * rate) / 12;
   }, 0);
+  const monthlyPlan = schedules.reduce((s, sc) => s + sc.amount_usdc / 100, 0);
   const uniqueContributors = new Set(contributions.map((c) => c.contributor))
     .size;
   const totalContributed = contributions.reduce(
@@ -621,9 +699,11 @@ function DashboardPage({
       <JarDetailPanel
         jar={selectedJar}
         apy={apy}
+        schedules={schedules}
         onBack={() => setSelectedJar(null)}
         onMenuToggle={onMenuToggle}
         onAddFunds={onAddFunds}
+        onScheduleUpdate={onScheduleUpdate}
       />
     );
   }
@@ -705,6 +785,16 @@ function DashboardPage({
                   <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.6px", color: "#111111" }}>{uniqueContributors || contributions.length}</div>
                   <div style={{ fontSize: 11, color: "#999999", marginTop: 2 }}>across all jars</div>
                 </div>
+                {monthlyPlan > 0 && <>
+                  {/* Divider */}
+                  <div style={{ width: 1, height: 52, background: "#E2E2DC", margin: "0 28px", flexShrink: 0 }} />
+                  {/* Monthly plan */}
+                  <div style={{ flexShrink: 0 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#999999", letterSpacing: "0.7px", textTransform: "uppercase", marginBottom: 4 }}>Monthly plan</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.6px", color: "#111111" }}>${monthlyPlan.toFixed(0)}</div>
+                    <div style={{ fontSize: 11, color: "#999999", marginTop: 2 }}>{schedules.length} reminder{schedules.length !== 1 ? "s" : ""} active</div>
+                  </div>
+                </>}
                 {/* Actions */}
                 <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
                   <button
@@ -849,26 +939,24 @@ function DashboardPage({
               {/* Right column: schedules + forecast */}
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
-                {/* Auto-deposits panel */}
+                {/* Monthly reminders panel */}
                 <div style={{ background: "#FFFFFF", border: "1px solid #E2E2DC", borderRadius: 14, padding: "18px 20px" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Auto-deposits</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Monthly reminders</div>
                   {schedules.length === 0 ? (
-                    <div style={{ fontSize: 12, color: "#999999", padding: "12px 0" }}>No auto-deposits set up yet.</div>
+                    <div style={{ fontSize: 12, color: "#999999", padding: "12px 0" }}>No reminders set up yet.</div>
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       {schedules.map((s) => {
-                        const timeLabel = `${String(s.hour).padStart(2, "0")}:${String(s.minute).padStart(2, "0")}`;
-                        const dayLabel = s.frequency === "weekly" ? `every week` : `every ${s.day}${s.day === 1 ? "st" : s.day === 2 ? "nd" : s.day === 3 ? "rd" : "th"}`;
-                        const isNext = true; // all upcoming treated as "Next"
+                        const nextDate = calcNextRun(s);
+                        const nextLabel = nextDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
                         return (
                           <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "#F0F0EC", borderRadius: 9 }}>
-                            <div style={{ width: 30, height: 30, borderRadius: 8, background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>🔄</div>
+                            <div style={{ width: 30, height: 30, borderRadius: 8, background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>🔔</div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: 12, fontWeight: 600 }}>{getJarName(s.jar_pubkey)}</div>
-                              <div style={{ fontSize: 11, color: "#999999" }}>{dayLabel} · {timeLabel}</div>
+                              <div style={{ fontSize: 11, color: "#999999" }}>Next: {nextLabel}</div>
                             </div>
-                            <div style={{ fontSize: 14, fontWeight: 700, flexShrink: 0 }}>${(s.amount_usdc / 100).toFixed(2)}</div>
-                            <div style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 20, background: "#FEF3C7", color: "#92400E", flexShrink: 0 }}>Next</div>
+                            <div style={{ fontSize: 14, fontWeight: 700, flexShrink: 0 }}>${(s.amount_usdc / 100).toFixed(0)}/mo</div>
                             <button
                               onClick={() => onStopSchedule(s.id)}
                               style={{ fontSize: 10, color: "#999999", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font)", marginLeft: 4 }}
@@ -1033,16 +1121,16 @@ function AnalyticsPage({
         <Card title="All transactions">
           {sortedContribs.length === 0 ? (
             <div className="py-8 text-center text-sm text-ink-muted">
-              Немає транзакцій. Поділись gift-посиланням 🎁
+              No transactions yet. Share your gift link 🎁
             </div>
           ) : (
             <div className="space-y-1">
               {sortedContribs.map((c) => {
                 const ago = (() => {
                   const s = Math.floor(Date.now() / 1000 - c.createdAt);
-                  if (s < 3600) return `${Math.floor(s / 60)}хв тому`;
-                  if (s < 86400) return `${Math.floor(s / 3600)}г тому`;
-                  return `${Math.floor(s / 86400)}д тому`;
+                  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+                  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+                  return `${Math.floor(s / 86400)}d ago`;
                 })();
                 return (
                   <ActivityRow
@@ -1278,6 +1366,7 @@ function NewJarModal({
     currency: "usdc" | "sol";
     recurring: { amount_usdc: number; frequency: "weekly" | "monthly"; day: number; hour: number; minute: number } | null;
     groupTrip: GroupTripParams | null;
+    approvalMode: "NONE" | "FAMILY_APPROVAL";
   }) => Promise<void>;
   apy: { usdc_kamino: number; sol_marinade: number };
 }) {
@@ -1398,7 +1487,7 @@ function NewJarModal({
         ? { amount_usdc: Math.round(monthly * 100), frequency: "monthly" as const, day: 1, hour: 9, minute: 0 }
         : null;
 
-      await onCreate({ jarName, jarEmoji, mode, unlockDate: contractUnlockDate, goalAmount: contractGoal, currency: "usdc", recurring, groupTrip: null });
+      await onCreate({ jarName, jarEmoji, mode, unlockDate: contractUnlockDate, goalAmount: contractGoal, currency: "usdc", recurring, groupTrip: null, approvalMode });
     } finally {
       setSubmitting(false);
     }
@@ -1884,20 +1973,28 @@ function CardAction({ label }: { label: string }) {
 function JarDetailPanel({
   jar,
   apy,
+  schedules,
   onBack,
   onMenuToggle,
   onAddFunds,
+  onScheduleUpdate,
 }: {
   jar: JarType;
   apy: { usdc_kamino: number; sol_marinade: number };
+  schedules: Schedule[];
   onBack: () => void;
   onMenuToggle: () => void;
   onAddFunds: (pubkey: string, name: string) => void;
+  onScheduleUpdate: (schedules: Schedule[]) => void;
 }) {
   const { connection } = useConnection();
-  const { wallet } = useWallet();
+  const { wallet, publicKey } = useWallet();
   const [contribs, setContribs] = useState<JarContribution[]>([]);
   const [copied, setCopied] = useState(false);
+  const [cosigners, setCosigners] = useState<Cosigner[]>([]);
+  const [editSchedule, setEditSchedule] = useState<Schedule | null>(null);
+
+  const jarSchedule = schedules.find(s => s.jar_pubkey === jar.id) ?? null;
 
   const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://jarfi.up.railway.app";
   const giftUrl = `jarfi.xyz/gift/${jar.id}`;
@@ -1906,6 +2003,7 @@ function JarDetailPanel({
   useEffect(() => {
     if (!wallet?.adapter) return;
     fetchContributionsForJar(jar.id).then(setContribs).catch(() => {});
+    fetchCosigners(jar.id).then(setCosigners).catch(() => {});
   }, [jar.id, wallet?.adapter, BACKEND]);
 
   const isUsdc   = jar.currency === "usdc";
@@ -2091,8 +2189,74 @@ function JarDetailPanel({
                   <span style={{ fontSize: 13, fontWeight: 600, color: s.green ? "var(--green)" : "var(--text-primary)" }}>{s.value}</span>
                 </div>
               ))}
+
+              {/* Monthly reminder section */}
+              {jarSchedule && (
+                <>
+                  <div style={{ height: 1, background: "var(--border)", margin: "20px 0" }} />
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500 }}>Monthly reminder</div>
+                    <button
+                      onClick={() => setEditSchedule(jarSchedule)}
+                      style={{ fontSize: 11, color: "var(--text-secondary)", background: "none", border: "1px solid var(--border)", borderRadius: 6, padding: "3px 9px", cursor: "pointer", fontFamily: "var(--font)" }}
+                    >
+                      Edit plan
+                    </button>
+                  </div>
+                  {[
+                    { label: "Amount", value: `$${(jarSchedule.amount_usdc / 100).toFixed(0)}/month` },
+                    { label: "Next reminder", value: calcNextRun(jarSchedule).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) },
+                    { label: "Frequency", value: jarSchedule.frequency === "monthly" ? `Every ${jarSchedule.day}${jarSchedule.day === 1 ? "st" : jarSchedule.day === 2 ? "nd" : jarSchedule.day === 3 ? "rd" : "th"}` : "Weekly" },
+                  ].map(r => (
+                    <div key={r.label} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                      <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>{r.label}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>{r.value}</span>
+                    </div>
+                  ))}
+                  <div style={{ fontSize: 11, color: "#999", marginTop: 4, lineHeight: 1.5 }}>
+                    You approve every payment — nothing is charged automatically.
+                  </div>
+                </>
+              )}
+
+              {/* Cosigners section */}
+              {cosigners.length > 0 && (
+                <>
+                  <div style={{ height: 1, background: "var(--border)", margin: "20px 0" }} />
+                  <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10 }}>Family approval</div>
+                  {cosigners.map(c => (
+                    <div key={c.invite_token} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                      <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                        {c.invitee_pubkey ? `${c.invitee_pubkey.slice(0, 4)}…${c.invitee_pubkey.slice(-4)}` : "Invite sent"}
+                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20, background: c.status === "active" ? "#ECFDF5" : "#FEF3C7", color: c.status === "active" ? "#059669" : "#92400E" }}>
+                        {c.status === "active" ? "Active" : "Pending"}
+                      </span>
+                    </div>
+                  ))}
+                  <div style={{ fontSize: 11, color: "#999", marginTop: 4 }}>
+                    Soft approval · on-chain enforcement coming soon
+                  </div>
+                </>
+              )}
             </div>
           </div>
+
+          {/* Edit schedule modal */}
+          {editSchedule && (
+            <EditScheduleModal
+              schedule={editSchedule}
+              onClose={() => setEditSchedule(null)}
+              onSave={async (updated) => {
+                await updateScheduleApi(editSchedule.id, updated);
+                if (publicKey) {
+                  const fresh = await fetchSchedules(publicKey.toBase58());
+                  onScheduleUpdate(fresh);
+                }
+                setEditSchedule(null);
+              }}
+            />
+          )}
         </div>
       </div>
 
@@ -2489,6 +2653,95 @@ function ActivityRow({
         }`}
       >
         {amount}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CopyField — copy-to-clipboard input
+// ---------------------------------------------------------------------------
+
+function CopyField({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div style={{ display: "flex", gap: 8, alignItems: "center", background: "#F0F0EC", borderRadius: 9, padding: "10px 14px" }}>
+      <span style={{ flex: 1, fontSize: 12, color: "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</span>
+      <button
+        onClick={() => { navigator.clipboard.writeText(value).catch(() => {}); setCopied(true); setTimeout(() => setCopied(false), 1800); }}
+        style={{ fontSize: 11, fontWeight: 600, color: "var(--green)", background: "none", border: "none", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "var(--font)" }}
+      >
+        {copied ? "Copied!" : "Copy"}
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EditScheduleModal — edit an existing schedule
+// ---------------------------------------------------------------------------
+
+function EditScheduleModal({
+  schedule,
+  onClose,
+  onSave,
+}: {
+  schedule: Schedule;
+  onClose: () => void;
+  onSave: (params: { amount_usdc: number; frequency: "weekly" | "monthly"; day: number; hour: number; minute: number }) => Promise<void>;
+}) {
+  const [amount, setAmount] = useState(String(schedule.amount_usdc / 100));
+  const [day, setDay] = useState(String(schedule.day));
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await onSave({
+        amount_usdc: Math.round(parseFloat(amount) * 100),
+        frequency: schedule.frequency,
+        day: Number(day),
+        hour: schedule.hour,
+        minute: schedule.minute,
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.4)", padding: 24 }} onClick={onClose}>
+      <div style={{ width: "100%", maxWidth: 400, background: "var(--bg)", borderRadius: 18, padding: 32 }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 20 }}>Edit monthly reminder</div>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 6 }}>Monthly amount ($)</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ padding: "10px 14px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 15, fontWeight: 600, background: "var(--bg-muted)", color: "var(--text-secondary)", minWidth: 40, textAlign: "center" }}>$</div>
+            <input
+              type="number"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", fontSize: 15, fontFamily: "var(--font)", outline: "none" }}
+            />
+          </div>
+        </div>
+        {schedule.frequency === "monthly" && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 6 }}>Day of month (1–28)</div>
+            <input
+              type="number" min={1} max={28}
+              value={day}
+              onChange={e => setDay(e.target.value)}
+              style={{ width: "100%", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", fontSize: 15, fontFamily: "var(--font)", outline: "none" }}
+            />
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: "11px 0", border: "1px solid var(--border)", borderRadius: 9, fontSize: 14, background: "none", cursor: "pointer", fontFamily: "var(--font)" }}>Cancel</button>
+          <button onClick={handleSave} disabled={saving} style={{ flex: 2, padding: "11px 0", background: "#111", color: "#fff", borderRadius: 9, fontSize: 14, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: "var(--font)", opacity: saving ? 0.6 : 1 }}>
+            {saving ? "Saving…" : "Save changes"}
+          </button>
+        </div>
       </div>
     </div>
   );
