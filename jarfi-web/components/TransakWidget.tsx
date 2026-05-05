@@ -62,6 +62,10 @@ export default function TransakWidget({
       Transak.on(Transak.EVENTS.TRANSAK_WIDGET_CLOSE, () => {
         onClose();
       });
+    }).catch(() => {
+      // SDK failed to load — open Transak directly in new tab
+      window.open(widgetUrl, "_blank", "noopener,noreferrer");
+      onClose();
     });
 
     return () => {

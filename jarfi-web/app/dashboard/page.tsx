@@ -2190,9 +2190,42 @@ function JarDetailPanel({
                   {copied ? "Copied!" : "Copy link"}
                 </button>
               </div>
-              <a href={giftFullUrl} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", padding: "10px 0", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, fontWeight: 500, color: "var(--text-primary)", textDecoration: "none" }}>
+              <a href={giftFullUrl} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", padding: "10px 0", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, fontWeight: 500, color: "var(--text-primary)", textDecoration: "none", marginBottom: 12 }}>
                 Open gift page →
               </a>
+
+              {/* Share buttons */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 7 }}>
+                {[
+                  {
+                    label: "WhatsApp",
+                    emoji: "💬",
+                    color: "#25D366",
+                    href: `https://wa.me/?text=${encodeURIComponent(`Help me save for ${jar.name} 🏺 Contribute in seconds with a card or Apple Pay — no crypto needed!\n${giftFullUrl}`)}`,
+                  },
+                  {
+                    label: "Twitter",
+                    emoji: "𝕏",
+                    color: "#000",
+                    href: `https://twitter.com/intent/tweet?text=${encodeURIComponent(`Help me save for ${jar.name} 🏺 Contribute in seconds with a card or Apple Pay — no crypto needed!`)}&url=${encodeURIComponent(giftFullUrl)}`,
+                  },
+                  {
+                    label: "Telegram",
+                    emoji: "✈️",
+                    color: "#229ED9",
+                    href: `https://t.me/share/url?url=${encodeURIComponent(giftFullUrl)}&text=${encodeURIComponent(`Help me save for ${jar.name} 🏺 Contribute with a card — no crypto needed!`)}`,
+                  },
+                ].map(s => (
+                  <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer"
+                    style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "9px 4px", border: "1px solid var(--border)", borderRadius: 8, textDecoration: "none", transition: "border-color .15s" }}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = s.color)}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = "var(--border)")}
+                  >
+                    <span style={{ fontSize: 16 }}>{s.emoji}</span>
+                    <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-secondary)" }}>{s.label}</span>
+                  </a>
+                ))}
+              </div>
 
               <div style={{ height: 1, background: "var(--border)", margin: "20px 0" }} />
 
