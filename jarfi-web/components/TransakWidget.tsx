@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 
 interface TransakWidgetProps {
   vaultAddress: string;
-  fiatAmount: number;
+  fiatAmount?: number;
   contributorMessage: string;
   onSuccess: (orderId: string) => void;
   onClose: () => void;
@@ -29,16 +29,17 @@ export default function TransakWidget({
     const baseUrl = isProduction ? PROD_URL : STAGING_URL;
     const partnerOrderId = `${vaultAddress}__${Date.now()}__${encodeURIComponent(contributorMessage)}`;
 
-    const params = new URLSearchParams({
+    const paramObj: Record<string, string> = {
       apiKey: process.env.NEXT_PUBLIC_TRANSAK_API_KEY ?? "",
       network: "solana",
       cryptoCurrencyCode: "USDC",
       walletAddress: vaultAddress,
       disableWalletAddressForm: "true",
-      fiatAmount: String(fiatAmount),
       hideMenu: "true",
       partnerOrderId,
-    });
+    };
+    if (fiatAmount && fiatAmount > 0) paramObj.fiatAmount = String(fiatAmount);
+    const params = new URLSearchParams(paramObj);
 
     const widgetUrl = `${baseUrl}?${params.toString()}`;
 

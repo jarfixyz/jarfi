@@ -148,7 +148,7 @@ export default function Landing() {
             </p>
             <div style={{ display:"flex", alignItems:"center", gap:12 }}>
               <Link href="/dashboard" style={btnDark}>Create a jar →</Link>
-              <a href="#how" style={btnOutline}>See dashboard</a>
+              <Link href="/dashboard" style={btnOutline}>See dashboard</Link>
             </div>
           </div>
           {/* right — demo jar card */}

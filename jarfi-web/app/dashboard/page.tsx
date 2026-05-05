@@ -135,6 +135,7 @@ export default function Dashboard() {
     manual?: boolean;
   } | null>(null);
   const [showDepositTransak, setShowDepositTransak] = useState(false);
+  const [addFundsJar, setAddFundsJar] = useState<{ pubkey: string; name: string } | null>(null);
 
   useEffect(() => {
     fetchApy().then((d) =>
@@ -342,14 +343,28 @@ export default function Dashboard() {
         {showDepositTransak && confirmBanner && (
           <TransakWidget
             vaultAddress={confirmBanner.jar_pubkey}
-            fiatAmount={confirmBanner.amount_usdc / 100}
-            contributorMessage="Recurring deposit"
+            fiatAmount={confirmBanner.amount_usdc > 0 ? confirmBanner.amount_usdc / 100 : undefined}
+            contributorMessage="Monthly contribution"
             onSuccess={() => {
               setShowDepositTransak(false);
               setConfirmBanner(null);
               showToast("Deposit confirmed ✅");
+              refreshJars();
             }}
             onClose={() => setShowDepositTransak(false)}
+          />
+        )}
+
+        {addFundsJar && (
+          <TransakWidget
+            vaultAddress={addFundsJar.pubkey}
+            contributorMessage={`Top up ${addFundsJar.name}`}
+            onSuccess={() => {
+              setAddFundsJar(null);
+              showToast("Deposit confirmed ✅");
+              refreshJars();
+            }}
+            onClose={() => setAddFundsJar(null)}
           />
         )}
 
@@ -369,6 +384,7 @@ export default function Dashboard() {
             groups={groups}
             contributions={contributions}
             onMenuToggle={() => setSidebarOpen((v) => !v)}
+            onAddFunds={(pubkey, name) => setAddFundsJar({ pubkey, name })}
           />
         )}
         {activePage === "jars" && (
@@ -532,6 +548,7 @@ function DashboardPage({
   groups,
   contributions,
   onMenuToggle,
+  onAddFunds,
 }: {
   onNewJar: () => void;
   scenario: number;
@@ -544,6 +561,7 @@ function DashboardPage({
   groups: GroupInfo[];
   contributions: JarContribution[];
   onMenuToggle: () => void;
+  onAddFunds: (pubkey: string, name: string) => void;
 }) {
   const hasWallet = !!greeting;
   const [selectedJar, setSelectedJar] = useState<JarType | null>(null);
@@ -605,6 +623,7 @@ function DashboardPage({
         apy={apy}
         onBack={() => setSelectedJar(null)}
         onMenuToggle={onMenuToggle}
+        onAddFunds={onAddFunds}
       />
     );
   }
@@ -750,6 +769,10 @@ function DashboardPage({
                     onChart={(e) => {
                       e.stopPropagation();
                       setChartJar(chartJar?.id === j.id ? null : j);
+                    }}
+                    onAddFunds={(e) => {
+                      e.stopPropagation();
+                      onAddFunds(j.id, j.name);
                     }}
                   />
                 ))}
@@ -1277,7 +1300,7 @@ function NewJarModal({
   const [customDate, setCustomDate] = useState("");
 
   // Reminder
-  const [reminderChoice, setReminderChoice] = useState<"monthly" | "none">("monthly");
+  const [reminderChoice, setReminderChoice] = useState<"monthly" | "none">("none");
   const [reminderAmount, setReminderAmount] = useState("100");
 
   // Security
@@ -1863,11 +1886,13 @@ function JarDetailPanel({
   apy,
   onBack,
   onMenuToggle,
+  onAddFunds,
 }: {
   jar: JarType;
   apy: { usdc_kamino: number; sol_marinade: number };
   onBack: () => void;
   onMenuToggle: () => void;
+  onAddFunds: (pubkey: string, name: string) => void;
 }) {
   const { connection } = useConnection();
   const { wallet } = useWallet();
@@ -1913,14 +1938,18 @@ function JarDetailPanel({
 
           {/* ── LEFT ── */}
           <div>
-            {/* Future value */}
+            {/* Balance / Future value */}
             <div style={{ marginBottom: 32 }}>
-              <div style={{ fontSize: 60, fontWeight: 600, color: "var(--green)", letterSpacing: "-2.5px", lineHeight: 1 }}>
-                {fmtK(future)}
+              <div style={{ fontSize: 60, fontWeight: 600, letterSpacing: "-2.5px", lineHeight: 1, color: jar.unlockDate > 0 ? "var(--green)" : "var(--text-primary)" }}>
+                {jar.unlockDate > 0 ? fmtK(future) : fmt(jar.amount)}
               </div>
               <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
-                Estimated future value
-                <span title="Projected value based on current savings and yield" style={{ width: 14, height: 14, borderRadius: "50%", border: "1px solid var(--text-tertiary)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 8, cursor: "help" }}>?</span>
+                {jar.unlockDate > 0 ? (
+                  <>
+                    Estimated future value
+                    <span title="Projected value based on current savings and yield" style={{ width: 14, height: 14, borderRadius: "50%", border: "1px solid var(--text-tertiary)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 8, cursor: "help" }}>?</span>
+                  </>
+                ) : "Current balance"}
               </div>
               <div style={{ display: "flex", gap: 32, marginTop: 20 }}>
                 {[
@@ -2023,14 +2052,24 @@ function JarDetailPanel({
           {/* ── RIGHT — share panel ── */}
           <div style={{ position: "sticky", top: 24 }}>
             <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 16, padding: 28, marginBottom: 16 }}>
-              <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 6 }}>Share this jar</div>
-              <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 20, lineHeight: 1.5 }}>
-                Anyone with this link can contribute in seconds — no crypto needed.
+              {/* Add funds */}
+              <button
+                onClick={() => onAddFunds(jar.id, jar.name)}
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", padding: "11px 0", background: "#111111", color: "#fff", borderRadius: 9, fontSize: 14, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: "var(--font)", marginBottom: 20 }}
+              >
+                + Add funds
+              </button>
+
+              {/* Share */}
+              <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4 }}>Share this jar</div>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: "var(--text-primary)" }}>{jar.name}</div>
+              <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 16, lineHeight: 1.5 }}>
+                Anyone with this link can contribute — no crypto needed.
               </div>
               <div style={{ background: "var(--bg-muted)", borderRadius: 8, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
                 <span style={{ fontSize: 13, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{giftUrl}</span>
                 <button onClick={handleCopy} style={{ fontSize: 12, fontWeight: 600, color: "var(--green)", cursor: "pointer", border: "none", background: "none", fontFamily: "var(--font)", whiteSpace: "nowrap" }}>
-                  {copied ? "Copied!" : "Copy"}
+                  {copied ? "Copied!" : "Copy link"}
                 </button>
               </div>
               <a href={giftFullUrl} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", padding: "10px 0", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, fontWeight: 500, color: "var(--text-primary)", textDecoration: "none" }}>
@@ -2142,11 +2181,12 @@ function getJarTypeLabel(jar: JarType): string {
   return JAR_TYPE_LABELS[jar.jarType] ?? jar.unlockLabel;
 }
 
-function NewJarCard({ jar, isChartActive, onSelect, onChart }: {
+function NewJarCard({ jar, isChartActive, onSelect, onChart, onAddFunds }: {
   jar: JarType;
   isChartActive: boolean;
   onSelect: () => void;
   onChart: (e: React.MouseEvent) => void;
+  onAddFunds: (e: React.MouseEvent) => void;
 }) {
   const pct = Math.min(100, Math.round((jar.amount / Math.max(jar.goal, 0.01)) * 100));
   const isUsdc = jar.currency === "usdc";
@@ -2215,15 +2255,31 @@ function NewJarCard({ jar, isChartActive, onSelect, onChart }: {
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{jar.name}</div>
         {/* Unlock / target */}
         <div style={{ fontSize: 11, color: "#999999", marginBottom: 10 }}>{unlockStr}</div>
-        {/* Future value hero */}
+        {/* Hero: future value if date set, current balance otherwise */}
         <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 24, fontWeight: 700, color: "#059669", letterSpacing: "-0.8px", lineHeight: 1 }}>{fmtFuture}</div>
-          <div style={{ fontSize: 10, color: "#999999", marginTop: 2 }}>{yearsLabel}</div>
+          {jar.unlockDate > 0 ? (
+            <>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "#059669", letterSpacing: "-0.8px", lineHeight: 1 }}>{fmtFuture}</div>
+              <div style={{ fontSize: 10, color: "#999999", marginTop: 2 }}>{yearsLabel}</div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "#111111", letterSpacing: "-0.8px", lineHeight: 1 }}>{fmtSaved}</div>
+              <div style={{ fontSize: 10, color: "#999999", marginTop: 2 }}>current balance</div>
+            </>
+          )}
         </div>
-        {/* Saved */}
-        <div style={{ fontSize: 11, color: "#555555", marginBottom: 8 }}>
-          <strong style={{ color: "#111111" }}>{fmtSaved}</strong> saved{fmtGoal ? ` · ${fmtGoal} goal` : ""}
-        </div>
+        {/* Saved line — only show when date-projected (otherwise hero IS the balance) */}
+        {jar.unlockDate > 0 && (
+          <div style={{ fontSize: 11, color: "#555555", marginBottom: 8 }}>
+            <strong style={{ color: "#111111" }}>{fmtSaved}</strong> saved{fmtGoal ? ` · ${fmtGoal} goal` : ""}
+          </div>
+        )}
+        {jar.unlockDate === 0 && fmtGoal && (
+          <div style={{ fontSize: 11, color: "#555555", marginBottom: 8 }}>
+            Goal: <strong style={{ color: "#111111" }}>{fmtGoal}</strong>
+          </div>
+        )}
         {/* Progress bar */}
         <div style={{ height: 3, background: "#E2E2DC", borderRadius: 2, overflow: "hidden", marginBottom: 10 }}>
           <div style={{ width: `${pct}%`, height: "100%", background: "#059669", borderRadius: 2 }} />
@@ -2238,12 +2294,20 @@ function NewJarCard({ jar, isChartActive, onSelect, onChart }: {
             </div>
             <span style={{ fontSize: 10, color: "#999999", marginLeft: 6 }}>1</span>
           </div>
-          <button
-            onClick={onChart}
-            style={{ fontSize: 10, fontWeight: 600, color: "#059669", padding: "3px 7px", background: "#ECFDF5", borderRadius: 6, border: "none", cursor: "pointer", fontFamily: "var(--font)" }}
-          >
-            Chart ↗
-          </button>
+          <div style={{ display: "flex", gap: 5 }}>
+            <button
+              onClick={onAddFunds}
+              style={{ fontSize: 10, fontWeight: 600, color: "#fff", padding: "3px 9px", background: "#111111", borderRadius: 6, border: "none", cursor: "pointer", fontFamily: "var(--font)" }}
+            >
+              + Add funds
+            </button>
+            <button
+              onClick={onChart}
+              style={{ fontSize: 10, fontWeight: 600, color: "#059669", padding: "3px 7px", background: "#ECFDF5", borderRadius: 6, border: "none", cursor: "pointer", fontFamily: "var(--font)" }}
+            >
+              Chart ↗
+            </button>
+          </div>
         </div>
       </div>
     </div>

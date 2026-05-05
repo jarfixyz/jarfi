@@ -24,7 +24,7 @@ export default function TripPage({ params }: { params: Promise<{ jar: string }> 
   useEffect(() => {
     fetchGroup(jarPubkey)
       .then(setGroup)
-      .catch(() => setError("Не вдалося завантажити інформацію про поїздку"))
+      .catch(() => setError("Failed to load trip information"))
       .finally(() => setLoading(false));
   }, [jarPubkey]);
 
@@ -32,7 +32,7 @@ export default function TripPage({ params }: { params: Promise<{ jar: string }> 
 
   const daysLeft = group ? Math.max(0, Math.ceil((group.trip_date * 1000 - Date.now()) / 86_400_000)) : 0;
   const tripDateLabel = group
-    ? new Date(group.trip_date * 1000).toLocaleDateString("uk-UA", { day: "numeric", month: "long", year: "numeric" })
+    ? new Date(group.trip_date * 1000).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" })
     : "";
 
   async function handleJoin() {
@@ -65,8 +65,8 @@ export default function TripPage({ params }: { params: Promise<{ jar: string }> 
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#FAFAF8] text-center">
         <div className="text-5xl">🏺</div>
-        <div className="font-display text-xl font-semibold">Поїздку не знайдено</div>
-        <Link href="/" className="text-sm text-sol-purple underline">На головну</Link>
+        <div className="font-display text-xl font-semibold">Trip not found</div>
+        <Link href="/" className="text-sm text-sol-purple underline">Back to home</Link>
       </div>
     );
   }
@@ -90,13 +90,17 @@ export default function TripPage({ params }: { params: Promise<{ jar: string }> 
           <div className="mt-3 flex justify-center gap-6 text-sm text-ink-muted">
             <span className="flex items-center gap-1.5">
               <Calendar className="h-4 w-4" /> {tripDateLabel}
-              {daysLeft > 0 && <span className="ml-1 rounded-full bg-sol-purple/10 px-2 py-0.5 text-[11px] font-semibold text-sol-purple">{daysLeft} днів</span>}
+              {daysLeft > 0 && (
+                <span className="ml-1 rounded-full bg-sol-purple/10 px-2 py-0.5 text-[11px] font-semibold text-sol-purple">
+                  {daysLeft} {daysLeft === 1 ? "day" : "days"} left
+                </span>
+              )}
             </span>
             <span className="flex items-center gap-1.5">
-              <Target className="h-4 w-4" /> ${(group.budget_per_person_cents / 100).toLocaleString()} / особу
+              <Target className="h-4 w-4" /> ${(group.budget_per_person_cents / 100).toLocaleString()} / person
             </span>
             <span className="flex items-center gap-1.5">
-              <Users className="h-4 w-4" /> {group.members.length} учасників
+              <Users className="h-4 w-4" /> {group.members.length} {group.members.length === 1 ? "member" : "members"}
             </span>
           </div>
         </div>
@@ -104,7 +108,7 @@ export default function TripPage({ params }: { params: Promise<{ jar: string }> 
         {/* Total progress */}
         <div className="mb-6 rounded-2xl bg-white border border-black/5 p-6">
           <div className="mb-3 flex items-center justify-between">
-            <span className="font-display text-lg font-semibold">Загальний прогрес</span>
+            <span className="font-display text-lg font-semibold">Overall progress</span>
             <span className="text-sm font-semibold text-sol-purple">{group.total_progress_pct}%</span>
           </div>
           <div className="h-3 overflow-hidden rounded-full bg-black/5">
@@ -114,14 +118,14 @@ export default function TripPage({ params }: { params: Promise<{ jar: string }> 
             />
           </div>
           <div className="mt-2 flex justify-between text-xs text-ink-muted">
-            <span>${totalSaved.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} зібрано</span>
-            <span>Ціль ${totalGoal.toLocaleString()}</span>
+            <span>${totalSaved.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} collected</span>
+            <span>Goal ${totalGoal.toLocaleString()}</span>
           </div>
         </div>
 
         {/* Members */}
         <div className="mb-6 rounded-2xl bg-white border border-black/5 p-6">
-          <h2 className="mb-4 font-display text-base font-semibold">Учасники ({group.members.length})</h2>
+          <h2 className="mb-4 font-display text-base font-semibold">Members ({group.members.length})</h2>
           <div className="space-y-4">
             {group.members.map((m, i) => {
               const gradients = [
@@ -145,7 +149,7 @@ export default function TripPage({ params }: { params: Promise<{ jar: string }> 
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-semibold">{m.nickname}</span>
                         <span className={`text-xs font-semibold ${done ? "text-sol-green" : "text-ink-muted"}`}>
-                          {done ? "✅ Готово" : `$${saved.toFixed(0)} / $${goal.toLocaleString()}`}
+                          {done ? "✅ Done" : `$${saved.toFixed(0)} / $${goal.toLocaleString()}`}
                         </span>
                       </div>
                       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-black/5">
@@ -170,26 +174,26 @@ export default function TripPage({ params }: { params: Promise<{ jar: string }> 
             </div>
           ) : isMember ? (
             <div className="flex-1 rounded-2xl border border-black/5 bg-white px-4 py-3 text-center text-sm font-medium text-sol-green">
-              ✅ Ти вже в групі
+              ✅ You&apos;re already in this group
             </div>
           ) : (
             <button
               onClick={() => setJoinModal(true)}
               className="flex-1 rounded-full bg-ink py-3.5 text-sm font-medium text-white hover:bg-ink/90"
             >
-              Приєднатись до поїздки
+              Join this trip
             </button>
           )}
           <button
             onClick={copyLink}
             className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-medium hover:bg-black/5"
           >
-            <Copy className="h-4 w-4" /> {copied ? "Скопійовано!" : "Поділитись"}
+            <Copy className="h-4 w-4" /> {copied ? "Copied!" : "Share"}
           </button>
         </div>
 
         <p className="mt-5 text-center text-xs text-ink-muted">
-          Внески через банківську картку — не потрібен крипто-гаманець
+          Contribute via bank card — no crypto wallet needed
         </p>
       </div>
 
@@ -199,8 +203,8 @@ export default function TripPage({ params }: { params: Promise<{ jar: string }> 
           <div className="w-full max-w-sm rounded-3xl bg-white p-7 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="mb-5 flex items-start justify-between">
               <div>
-                <div className="font-display text-xl font-semibold">Приєднатись</div>
-                <div className="mt-0.5 text-sm text-ink-muted">Введи своє ім&apos;я у групі</div>
+                <div className="font-display text-xl font-semibold">Join trip</div>
+                <div className="mt-0.5 text-sm text-ink-muted">Enter your name for the group</div>
               </div>
               <button onClick={() => setJoinModal(false)} className="rounded-full p-2 hover:bg-black/5">
                 <X className="h-4 w-4" />
@@ -208,7 +212,7 @@ export default function TripPage({ params }: { params: Promise<{ jar: string }> 
             </div>
             <input
               autoFocus
-              placeholder="Твоє ім'я (напр. Аня)"
+              placeholder="Your name (e.g. Anna)"
               value={nickname}
               onChange={e => setNickname(e.target.value)}
               className="w-full rounded-xl border border-black/10 bg-[#FAFAF8] px-4 py-3 text-sm outline-none focus:border-sol-purple"
@@ -219,7 +223,7 @@ export default function TripPage({ params }: { params: Promise<{ jar: string }> 
               disabled={joining}
               className="mt-4 w-full rounded-full bg-ink py-3 text-sm font-medium text-white disabled:opacity-40"
             >
-              {joining ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : "Приєднатись ✈️"}
+              {joining ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : "Join ✈️"}
             </button>
           </div>
         </div>

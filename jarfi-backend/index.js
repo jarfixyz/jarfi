@@ -846,44 +846,21 @@ app.listen(PORT, () => {
   startCronRunner(async (schedule, subscription) => {
     const shortJar = `${schedule.jar_pubkey.slice(0, 4)}…${schedule.jar_pubkey.slice(-4)}`
     const amountUsd = (schedule.amount_usdc / 100).toFixed(2)
-    const jarPubkey = new PublicKey(schedule.jar_pubkey)
-    // cents → USDC micro-units (6 dec): $10.00 = 1000 cents = 10_000_000 micro
-    const usdcMicroUnits = schedule.amount_usdc * 10_000
 
-    let depositOk = false
+    console.log(`[schedule] reminder fired: $${amountUsd} → ${schedule.jar_pubkey}`)
 
-    // 1. Attempt auto-deposit from server wallet
-    try {
-      await onrampDepositUsdc(jarPubkey, usdcMicroUnits, 'Recurring deposit 🔄')
-      depositOk = true
-      console.log(`[schedule] auto-deposit OK: $${amountUsd} → ${schedule.jar_pubkey}`)
-
-      // Auto-stake into Kamino after deposit
-      depositToKamino(connection, serverKeypair, schedule.jar_pubkey, usdcMicroUnits)
-        .then(r => console.log('[kamino] auto-stake after recurring:', r))
-        .catch(e => console.error('[kamino] recurring stake FAILED — yield NOT accrued:', e))
-    } catch (e) {
-      console.warn(`[schedule] auto-deposit failed (no server USDC?): ${e.message}`)
-    }
-
-    // 2. Send push notification
+    // Send push notification — user deposits manually via Transak
     if (!subscription || !process.env.VAPID_PUBLIC_KEY) return
 
-    const payload = depositOk
-      ? JSON.stringify({
-          title: 'Регулярний внесок виконано ✅',
-          body: `$${amountUsd} → Jar ${shortJar}`,
-          data: { jar_pubkey: schedule.jar_pubkey, amount_usdc: schedule.amount_usdc },
-        })
-      : JSON.stringify({
-          title: 'Auto-deposit failed ⚠️',
-          body: `Deposit $${amountUsd} manually — server wallet is out of funds`,
-          data: { jar_pubkey: schedule.jar_pubkey, amount_usdc: schedule.amount_usdc, manual: true },
-        })
+    const payload = JSON.stringify({
+      title: 'Monthly contribution reminder 💰',
+      body: `Time to add $${amountUsd} to your jar ${shortJar}`,
+      data: { jar_pubkey: schedule.jar_pubkey, amount_usdc: schedule.amount_usdc, manual: true },
+    })
 
     try {
       await webpush.sendNotification(subscription, payload)
-      console.log(`[schedule] push sent to ${schedule.owner_pubkey} (deposit=${depositOk})`)
+      console.log(`[schedule] push sent to ${schedule.owner_pubkey}`)
     } catch (err) {
       console.warn(`[schedule] push failed:`, err.message)
     }
