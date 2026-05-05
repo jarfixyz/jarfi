@@ -241,11 +241,24 @@ app.post('/jar/create', async (req, res) => {
 // POST /jar/meta  — save off-chain name + emoji for a jar
 // ---------------------------------------------------------------------------
 
-function generateShareSlug() {
-  const chars = 'abcdefghjkmnpqrstuvwxyz23456789'
-  let s = ''
-  for (let i = 0; i < 6; i++) s += chars[Math.floor(Math.random() * chars.length)]
-  return s
+function nameToSlug(name) {
+  const base = (name || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .slice(0, 24)
+  return base || 'jar'
+}
+
+function uniqueSlug(base) {
+  let slug = base
+  let i = 2
+  while (dbMod.getJarMetaBySlug(slug)) {
+    slug = `${base}-${i}`
+    i++
+  }
+  return slug
 }
 
 app.post('/jar/meta', (req, res) => {
@@ -255,9 +268,7 @@ app.post('/jar/meta', (req, res) => {
     const existing = getJarMeta(pubkey)
     let slug = existing?.share_slug
     if (!slug) {
-      // Generate unique slug
-      let attempts = 0
-      do { slug = generateShareSlug(); attempts++ } while (dbMod.getJarMetaBySlug(slug) && attempts < 20)
+      slug = uniqueSlug(nameToSlug(name))
     }
     saveJarMeta(pubkey, name ?? '', emoji ?? '🏺', jarType ?? '', slug)
     res.json({ ok: true, share_slug: slug })

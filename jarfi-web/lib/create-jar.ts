@@ -90,7 +90,7 @@ export async function createUsdcJarOnChain(
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       } as never)
       .signers([jarKeypair])
-      .rpc({ skipPreflight, maxRetries: 5, commitment: "confirmed" })
+      .rpc({ skipPreflight })
   );
 
   return { jarPubkey: jarKeypair.publicKey.toBase58(), txSignature };
@@ -127,7 +127,7 @@ export async function createJarOnChain(
         owner: wallet.publicKey,
       } as never)
       .signers([jarKeypair])
-      .rpc({ skipPreflight, maxRetries: 5, commitment: "confirmed" })
+      .rpc({ skipPreflight })
   );
 
   return { jarPubkey: jarKeypair.publicKey.toBase58(), txSignature };
