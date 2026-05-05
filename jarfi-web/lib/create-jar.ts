@@ -10,11 +10,15 @@ import {
   getAssociatedTokenAddress,
 } from "@solana/spl-token";
 
-const TRANSIENT_PATTERNS = ["blockhash", "timeout", "503", "502", "network", "too many"];
+const TRANSIENT_PATTERNS = [
+  "blockhash", "timeout", "503", "502", "network", "too many",
+  "429", "rate limit", "rate_limit", "confirmation", "socket", "econnreset",
+  "fetch failed", "failed to fetch",
+];
 
 async function withRetry<T>(fn: (skipPreflight: boolean) => Promise<T>): Promise<T> {
   let lastErr: unknown;
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     try {
       return await fn(i > 0);
     } catch (e) {
@@ -22,7 +26,7 @@ async function withRetry<T>(fn: (skipPreflight: boolean) => Promise<T>): Promise
       const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
       const isTransient = TRANSIENT_PATTERNS.some(p => msg.includes(p));
       if (!isTransient) throw e;
-      await new Promise(r => setTimeout(r, 1200 * (i + 1)));
+      await new Promise(r => setTimeout(r, 1500 * (i + 1)));
     }
   }
   throw lastErr;

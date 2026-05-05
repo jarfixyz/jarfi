@@ -10,6 +10,7 @@ import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 // Type casts: wallet adapter compiled with React 19 types, project uses React 18
 const CP = ConnectionProvider as React.ComponentType<{
   endpoint: string;
+  config?: { commitment?: string; confirmTransactionInitialTimeout?: number };
   children: React.ReactNode;
 }>;
 const WP = WalletProvider as React.ComponentType<{
@@ -33,7 +34,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   ) as never[];
 
   return (
-    <CP endpoint={endpoint}>
+    <CP endpoint={endpoint} config={{ commitment: "confirmed", confirmTransactionInitialTimeout: 60000 }}>
       <WP wallets={wallets} autoConnect>
         {children}
       </WP>
