@@ -14,6 +14,7 @@ export const RPC_URL =
 export function getProgram(wallet: AnchorWallet, connection: Connection) {
   const provider = new AnchorProvider(connection, wallet, {
     commitment: "confirmed",
+    preflightCommitment: "processed",
   });
   return new Program<JarfiContract>(IDL, provider);
 }
@@ -65,6 +66,7 @@ const DUMMY_WALLET: AnchorWallet = {
 export function getReadonlyProgram(connection: Connection) {
   const provider = new AnchorProvider(connection, DUMMY_WALLET, {
     commitment: "confirmed",
+    preflightCommitment: "processed",
   });
   return new Program<JarfiContract>(IDL, provider);
 }

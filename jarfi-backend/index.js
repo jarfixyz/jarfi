@@ -633,6 +633,37 @@ app.delete('/schedule/:id', (req, res) => {
 })
 
 // ---------------------------------------------------------------------------
+// POST /schedule/test-fire/:id  — fire a schedule immediately (devnet testing)
+// ---------------------------------------------------------------------------
+
+app.post('/schedule/test-fire/:id', async (req, res) => {
+  const dbMod = require('./db')
+  const all = dbMod.getActiveSchedules()
+  const schedule = all.find(s => s.id === req.params.id)
+  if (!schedule) return res.status(404).json({ ok: false, error: 'schedule not found' })
+
+  const jarPubkey = new PublicKey(schedule.jar_pubkey)
+  const usdcMicroUnits = schedule.amount_usdc * 10_000
+  const amountUsd = (schedule.amount_usdc / 100).toFixed(2)
+
+  let depositOk = false
+  let depositTx = null
+  try {
+    depositTx = await onrampDepositUsdc(jarPubkey, usdcMicroUnits, 'Test recurring deposit 🔄')
+    depositOk = true
+    console.log(`[test-fire] auto-deposit OK: $${amountUsd} → ${schedule.jar_pubkey} tx:`, depositTx)
+
+    depositToKamino(connection, serverKeypair, schedule.jar_pubkey, usdcMicroUnits)
+      .then(r => console.log('[test-fire] kamino stake:', r))
+      .catch(e => console.error('[test-fire] kamino stake FAILED:', e))
+  } catch (e) {
+    console.warn(`[test-fire] deposit failed: ${e.message}`)
+  }
+
+  res.json({ ok: true, depositOk, depositTx, amount_usd: amountUsd })
+})
+
+// ---------------------------------------------------------------------------
 // POST /push/subscribe
 //
 // Body:

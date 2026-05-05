@@ -10,6 +10,24 @@ import {
   getAssociatedTokenAddress,
 } from "@solana/spl-token";
 
+const TRANSIENT_PATTERNS = ["blockhash", "timeout", "503", "502", "network", "too many"];
+
+async function withRetry<T>(fn: (skipPreflight: boolean) => Promise<T>): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < 3; i++) {
+    try {
+      return await fn(i > 0);
+    } catch (e) {
+      lastErr = e;
+      const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
+      const isTransient = TRANSIENT_PATTERNS.some(p => msg.includes(p));
+      if (!isTransient) throw e;
+      await new Promise(r => setTimeout(r, 1200 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 export const USDC_MINT_DEVNET  = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
 export const USDC_MINT_MAINNET = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 
@@ -48,25 +66,27 @@ export async function createUsdcJarOnChain(
   const vaultAuthority = await getVaultAuthority(jarKeypair.publicKey);
   const jarUsdcVault = await getAssociatedTokenAddress(mint, vaultAuthority, true);
 
-  const txSignature = await program.methods
-    .createUsdcJar(
-      params.mode,
-      new BN(params.unlockDate),
-      new BN(params.goalAmount),
-      childWalletPubkey
-    )
-    .accounts({
-      jar:                    jarKeypair.publicKey,
-      vaultAuthority,
-      jarUsdcVault,
-      usdcMint:               mint,
-      owner:                  wallet.publicKey,
-      systemProgram:          new PublicKey("11111111111111111111111111111111"),
-      tokenProgram:           TOKEN_PROGRAM_ID,
-      associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-    } as never)
-    .signers([jarKeypair])
-    .rpc();
+  const txSignature = await withRetry((skipPreflight) =>
+    program.methods
+      .createUsdcJar(
+        params.mode,
+        new BN(params.unlockDate),
+        new BN(params.goalAmount),
+        childWalletPubkey
+      )
+      .accounts({
+        jar:                    jarKeypair.publicKey,
+        vaultAuthority,
+        jarUsdcVault,
+        usdcMint:               mint,
+        owner:                  wallet.publicKey,
+        systemProgram:          new PublicKey("11111111111111111111111111111111"),
+        tokenProgram:           TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+      } as never)
+      .signers([jarKeypair])
+      .rpc({ skipPreflight })
+  );
 
   return { jarPubkey: jarKeypair.publicKey.toBase58(), txSignature };
 }
@@ -89,19 +109,21 @@ export async function createJarOnChain(
   const jarKeypair = Keypair.generate();
   const childWalletPubkey = new PublicKey(params.childWallet);
 
-  const txSignature = await program.methods
-    .createJar(
-      params.mode,
-      new BN(params.unlockDate),
-      new BN(params.goalAmount),
-      childWalletPubkey
-    )
-    .accounts({
-      jar:   jarKeypair.publicKey,
-      owner: wallet.publicKey,
-    } as never)
-    .signers([jarKeypair])
-    .rpc();
+  const txSignature = await withRetry((skipPreflight) =>
+    program.methods
+      .createJar(
+        params.mode,
+        new BN(params.unlockDate),
+        new BN(params.goalAmount),
+        childWalletPubkey
+      )
+      .accounts({
+        jar:   jarKeypair.publicKey,
+        owner: wallet.publicKey,
+      } as never)
+      .signers([jarKeypair])
+      .rpc({ skipPreflight })
+  );
 
   return { jarPubkey: jarKeypair.publicKey.toBase58(), txSignature };
 }

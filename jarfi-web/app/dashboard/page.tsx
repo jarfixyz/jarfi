@@ -459,12 +459,13 @@ export default function Dashboard() {
                 params.groupTrip ? "Group trip created ✈️" : "Jar created 🏺"
               );
             } catch (e: unknown) {
-              const msg = e instanceof Error ? e.message : "Unknown error";
-              const friendly = msg.includes("blockhash")
-                ? "Network error — try again in a moment"
-                : msg.includes("rejected") || msg.includes("User rejected")
+              const msg = e instanceof Error ? e.message : String(e);
+              console.error("[create-jar] error:", msg);
+              const friendly = msg.includes("rejected") || msg.includes("User rejected")
                 ? "Transaction cancelled"
-                : msg.slice(0, 60);
+                : msg.includes("blockhash")
+                ? "RPC timeout — retried 3x, check connection"
+                : msg.slice(0, 80);
               showToast("Failed: " + friendly);
             }
           }}

@@ -1,13 +1,19 @@
 const { Marinade, MarinadeConfig } = require('@marinade.finance/marinade-ts-sdk')
 const { PublicKey } = require('@solana/web3.js')
 
-// mSOL mint — same on mainnet and devnet (Marinade uses same program)
 const MSOL_MINT = new PublicKey('mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So')
+const IS_MAINNET = process.env.SOLANA_NETWORK === 'mainnet'
 
 // ---------------------------------------------------------------------------
 // Stake SOL into Marinade, return mSOL lamports received
+// On devnet: Marinade program is not deployed — log and return simulated result
 // ---------------------------------------------------------------------------
 async function stakeWithMarinade(connection, keypair, lamports) {
+  if (!IS_MAINNET) {
+    console.log(`[marinade] devnet — simulating stake of ${lamports} lamports (no real tx)`)
+    return { signature: 'devnet-simulated', msol_lamports: lamports, msol_account: 'devnet-simulated' }
+  }
+
   const config = new MarinadeConfig({
     connection,
     publicKey: keypair.publicKey,
@@ -24,7 +30,6 @@ async function stakeWithMarinade(connection, keypair, lamports) {
   const signature = await connection.sendRawTransaction(transaction.serialize())
   await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight })
 
-  // Read mSOL balance of server wallet after staking
   const { getAssociatedTokenAddress, getAccount } = require('@solana/spl-token')
   const msolAta = await getAssociatedTokenAddress(MSOL_MINT, keypair.publicKey)
   const msolAccount = await getAccount(connection, msolAta)
@@ -37,9 +42,15 @@ async function stakeWithMarinade(connection, keypair, lamports) {
 }
 
 // ---------------------------------------------------------------------------
-// Unstake mSOL back to SOL (for withdrawal flow)
+// Unstake mSOL back to SOL
+// On devnet: no-op
 // ---------------------------------------------------------------------------
 async function unstakeWithMarinade(connection, keypair, msolLamports) {
+  if (!IS_MAINNET) {
+    console.log(`[marinade] devnet — simulating unstake of ${msolLamports} mSOL lamports`)
+    return { signature: 'devnet-simulated' }
+  }
+
   const config = new MarinadeConfig({
     connection,
     publicKey: keypair.publicKey,
