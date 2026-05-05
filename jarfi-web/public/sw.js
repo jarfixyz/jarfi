@@ -16,9 +16,9 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   if (event.action === 'later') return
-  const { jar_pubkey, amount_usdc } = event.notification.data ?? {}
+  const { jar_pubkey, amount_usdc, manual } = event.notification.data ?? {}
   const url = jar_pubkey
-    ? `/dashboard?confirm=${jar_pubkey}&amount=${amount_usdc}`
+    ? `/dashboard?confirm=${jar_pubkey}&amount=${amount_usdc}${manual ? '&manual=1' : ''}`
     : '/dashboard'
   event.waitUntil(clients.openWindow(url))
 })

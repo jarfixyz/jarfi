@@ -128,6 +128,7 @@ export default function Dashboard() {
   const [confirmBanner, setConfirmBanner] = useState<{
     jar_pubkey: string;
     amount_usdc: number;
+    manual?: boolean;
   } | null>(null);
   const [showDepositTransak, setShowDepositTransak] = useState(false);
 
@@ -165,7 +166,8 @@ export default function Dashboard() {
     const p = new URLSearchParams(window.location.search);
     const jar_pubkey = p.get("confirm");
     const amount_usdc = Number(p.get("amount") ?? 0);
-    if (jar_pubkey) setConfirmBanner({ jar_pubkey, amount_usdc });
+    const manual = p.get("manual") === "1";
+    if (jar_pubkey) setConfirmBanner({ jar_pubkey, amount_usdc, manual });
   }, []);
 
   // Close sidebar when navigating
@@ -310,10 +312,9 @@ export default function Dashboard() {
         {confirmBanner && (
           <div className="sticky top-0 z-20 flex items-center justify-between bg-sol-purple px-6 py-3 text-sm font-medium text-white shadow">
             <span>
-              ⏰ Time to top up your jar — $
-              {(confirmBanner.amount_usdc / 100).toFixed(2)} → Jar{" "}
-              {confirmBanner.jar_pubkey.slice(0, 4)}…
-              {confirmBanner.jar_pubkey.slice(-4)}
+              {confirmBanner.manual
+                ? `⚠️ Auto-deposit failed — deposit $${(confirmBanner.amount_usdc / 100).toFixed(2)} manually`
+                : `⏰ Time to top up — $${(confirmBanner.amount_usdc / 100).toFixed(2)} → Jar ${confirmBanner.jar_pubkey.slice(0, 4)}…${confirmBanner.jar_pubkey.slice(-4)}`}
             </span>
             <div className="ml-4 flex items-center gap-2">
               <button

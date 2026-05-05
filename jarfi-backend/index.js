@@ -409,8 +409,9 @@ app.post('/transak-webhook', async (req, res) => {
     const partnerOrderId = data.partnerOrderId || data.partner_order_id || ''
     const transakOrderId = data.id || ''
 
-    if (transakOrderId && isWebhookProcessed(transakOrderId)) {
-      console.log('[transak-webhook] duplicate, skipping:', transakOrderId)
+    const dedupId = transakOrderId || partnerOrderId
+    if (dedupId && isWebhookProcessed(dedupId)) {
+      console.log('[transak-webhook] duplicate, skipping:', dedupId)
       return res.json({ ok: true, skipped: true, reason: 'duplicate' })
     }
 
@@ -447,7 +448,7 @@ app.post('/transak-webhook', async (req, res) => {
 
     let txSignature
 
-    if (transakOrderId) markWebhookProcessed(transakOrderId, 'transak')
+    if (dedupId) markWebhookProcessed(dedupId, 'transak')
 
     if (isUsdcJar) {
       const usdcMicroUnits = Math.round(cryptoAmount * 1_000_000)
@@ -457,7 +458,7 @@ app.post('/transak-webhook', async (req, res) => {
       // Auto-stake into Kamino after on-chain deposit
       depositToKamino(connection, serverKeypair, jarPubkey.toBase58(), usdcMicroUnits)
         .then(r => console.log('[kamino] auto-stake result:', r))
-        .catch(e => console.warn('[kamino] auto-stake failed:', e.message))
+        .catch(e => console.error('[kamino] auto-stake FAILED — yield NOT accrued:', e))
     } else {
       // SOL jar — Jupiter swap USDC→SOL, then on-chain deposit + Marinade stake
       const usdcMicroUnits = Math.round(cryptoAmount * 1_000_000)
@@ -484,7 +485,7 @@ app.post('/transak-webhook', async (req, res) => {
           console.log('[marinade] staked, mSOL:', msol_lamports, 'tx:', stakeSig)
           await recordMarinadeStake(jarPubkey, msol_lamports)
         })
-        .catch(e => console.warn('[marinade] stake failed:', e.message))
+        .catch(e => console.error('[marinade] stake FAILED — staking_shares NOT updated:', e))
     }
 
     res.json({ ok: true, txSignature })
@@ -710,7 +711,7 @@ app.post('/jar/deposit-sol', async (req, res) => {
         await recordMarinadeStake(jarPubkey, msol_lamports)
         console.log('[marinade] recorded staking_shares:', msol_lamports)
       })
-      .catch(e => console.warn('[marinade] stake failed:', e.message))
+      .catch(e => console.error('[marinade] stake FAILED — staking_shares NOT updated:', e))
 
     res.json({ ok: true, depositTx })
   } catch (err) {
@@ -828,7 +829,7 @@ app.listen(PORT, () => {
       // Auto-stake into Kamino after deposit
       depositToKamino(connection, serverKeypair, schedule.jar_pubkey, usdcMicroUnits)
         .then(r => console.log('[kamino] auto-stake after recurring:', r))
-        .catch(e => console.warn('[kamino] recurring stake failed:', e.message))
+        .catch(e => console.error('[kamino] recurring stake FAILED — yield NOT accrued:', e))
     } catch (e) {
       console.warn(`[schedule] auto-deposit failed (no server USDC?): ${e.message}`)
     }
@@ -843,9 +844,9 @@ app.listen(PORT, () => {
           data: { jar_pubkey: schedule.jar_pubkey, amount_usdc: schedule.amount_usdc },
         })
       : JSON.stringify({
-          title: 'Час поповнити банку 🏺',
-          body: `$${amountUsd} → Jar ${shortJar}`,
-          data: { jar_pubkey: schedule.jar_pubkey, amount_usdc: schedule.amount_usdc },
+          title: 'Auto-deposit failed ⚠️',
+          body: `Deposit $${amountUsd} manually — server wallet is out of funds`,
+          data: { jar_pubkey: schedule.jar_pubkey, amount_usdc: schedule.amount_usdc, manual: true },
         })
 
     try {
