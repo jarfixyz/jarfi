@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import TransakWidget from "@/components/TransakWidget";
+import { contractToJarType, JAR_TYPE_LABELS, JAR_TYPE_ICONS, UNLOCK_RULE_LABEL } from "@/lib/jarTypes";
+import type { JarType as JarTypeEnum } from "@/lib/jarTypes";
 
 export type DisplayJar = {
   name: string;
@@ -11,6 +13,9 @@ export type DisplayJar = {
   goalCents: number;
   unlockLabel: string;
   contributors: number;
+  jarType: JarTypeEnum;
+  mode: number;
+  unlockDate: number;
 };
 
 // Demo jars — real on-chain accounts on devnet
@@ -70,6 +75,7 @@ export default function GiftClient({ slug }: { slug: string }) {
         const slugMeta = SLUG_META[slug];
         const rawBalance = j.usdcBalance ?? j.balance ?? 0;
         const divisor = isUsdc ? 10_000 : 10_000_000;
+        const jarType = contractToJarType(j.mode, j.unlockDate);
 
         setJar({
           name:  j.name || slugMeta?.name || "Savings Jar",
@@ -78,6 +84,9 @@ export default function GiftClient({ slug }: { slug: string }) {
           goalCents:   Math.round((j.goalAmount ?? 0) / divisor),
           unlockLabel,
           contributors: data.contributions?.length ?? 0,
+          jarType,
+          mode: j.mode,
+          unlockDate: j.unlockDate,
         });
       })
       .catch(() => { clearTimeout(timeout); setJarNotFound(true); });
@@ -179,18 +188,38 @@ export default function GiftClient({ slug }: { slug: string }) {
         {/* Jar summary */}
         <div style={{ textAlign: "center", marginBottom: 28 }}>
           <div style={{ fontSize: 36, marginBottom: 8 }}>{jar.emoji}</div>
-          <div style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.5px", marginBottom: 16 }}>{jar.name}</div>
+          <div style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.5px", marginBottom: 8 }}>{jar.name}</div>
+          {/* Jar type badge */}
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
+            <span style={{ fontSize: 11, background: "#F0F0EC", color: "#555", padding: "3px 10px", borderRadius: 20, fontWeight: 500 }}>
+              {JAR_TYPE_ICONS[jar.jarType]} {JAR_TYPE_LABELS[jar.jarType]}
+            </span>
+          </div>
           <div style={{ fontSize: 15, color: "var(--text-secondary)", marginBottom: 8 }}>
-            <strong style={{ color: "var(--text-primary)", fontWeight: 600 }}>${saved}</strong> raised · Goal: ${goal}
+            <strong style={{ color: "var(--text-primary)", fontWeight: 600 }}>${saved}</strong> raised
+            {jar.goalCents > 0 && <> · Goal: ${goal}</>}
+          </div>
+          {/* Unlock rule line */}
+          <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 8 }}>
+            {jar.jarType === "SHARED"
+              ? "Creator can withdraw anytime"
+              : UNLOCK_RULE_LABEL[jar.jarType === "GOAL" ? "GOAL_REACHED" : jar.jarType === "DATE" ? "DATE_REACHED" : "GOAL_OR_DATE"]}
           </div>
           <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.5 }}>
             Contribute in seconds — no crypto needed
           </div>
         </div>
 
-        {/* Progress */}
-        {jar.goalCents > 0 && (
+        {/* Progress — only for GOAL or GOAL_BY_DATE with a goal set */}
+        {(jar.jarType === "GOAL" || jar.jarType === "GOAL_BY_DATE") && jar.goalCents > 0 && (
           <div style={{ marginBottom: 28 }}>
+            {/* Goal reached banner for GOAL_BY_DATE */}
+            {jar.jarType === "GOAL_BY_DATE" && jar.amountCents >= jar.goalCents && (
+              <div style={{ padding: "8px 12px", background: "#ECFDF5", borderRadius: 8, fontSize: 13, color: "#059669", marginBottom: 10, textAlign: "center" }}>
+                🎉 Goal reached — still accepting contributions
+                {jar.unlockDate > 0 && ` until ${new Date(jar.unlockDate * 1000).toLocaleDateString("en-US", { month: "long", year: "numeric" })}`}
+              </div>
+            )}
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-tertiary)", marginBottom: 8 }}>
               <span>{pct}% of goal</span>
               <span>${toGo.toLocaleString(undefined, { maximumFractionDigits: 0 })} to go</span>

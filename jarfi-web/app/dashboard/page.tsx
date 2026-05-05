@@ -39,6 +39,8 @@ import {
 } from "@/lib/api";
 import { subscribeToPush } from "@/lib/push";
 import TransakWidget from "@/components/TransakWidget";
+import { contractToJarType, jarTypeToContract, JAR_TYPE_LABELS, JAR_TYPE_ICONS, UNLOCK_RULE_LABEL, unlockRuleForType, STEP_FLOWS, JAR_TYPE_DESCRIPTIONS } from "@/lib/jarTypes";
+import type { JarType as JarTypeEnum, StepName } from "@/lib/jarTypes";
 
 // ---------------------------------------------------------------------------
 // Jar name storage (localStorage) — on-chain jars have no name field
@@ -103,6 +105,8 @@ type JarType = {
   currency: "usdc" | "sol";
   unlockDate: number;
   futureValue?: number;
+  jarType: JarTypeEnum;
+  mode: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -184,9 +188,9 @@ export default function Dashboard() {
     () =>
       liveJars.map((j) => {
         const isUsdc = j.jarCurrency === CURRENCY_USDC;
-        const modeLabel =
-          j.mode === 0 ? "by date" : j.mode === 1 ? "by goal" : "goal or date";
         const unlockDate = j.unlockDate;
+        const jarType: JarTypeEnum = contractToJarType(j.mode, j.unlockDate);
+        const modeLabel = JAR_TYPE_LABELS[jarType];
         const unlockDateStr =
           unlockDate > 0
             ? new Date(unlockDate * 1000).toLocaleDateString("en-US", {
@@ -223,6 +227,8 @@ export default function Dashboard() {
           currency: isUsdc ? "usdc" : "sol",
           unlockDate,
           futureValue,
+          jarType,
+          mode: j.mode,
         };
       }),
     [liveJars]
@@ -421,11 +427,11 @@ export default function Dashboard() {
               fetchJarByPubkey(connection, new PublicKey(jarPubkey))
                 .then(jar => { if (jar) addJar(jar); })
                 .catch(() => {});
-              // Persist name+emoji to backend so gift page can display them
+              // Persist name+emoji+jarType to backend so gift page can display them
               fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:3001"}/jar/meta`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ pubkey: jarPubkey, name: params.jarName, emoji: params.jarEmoji }),
+                body: JSON.stringify({ pubkey: jarPubkey, name: params.jarName, emoji: params.jarEmoji, jarType: contractToJarType(params.mode, params.unlockDate) }),
               }).catch(() => {});
               if (params.recurring) {
                 try {
@@ -1233,29 +1239,6 @@ type RecurringParams = {
   minute: number;
 };
 
-function recurLabel(
-  amount: string,
-  frequency: string,
-  day: string,
-  time: string
-): string {
-  const [hh = "09", mm = "00"] = time.split(":");
-  const t = `${hh}:${mm}`;
-  if (frequency === "weekly") {
-    const names = [
-      "неділі",
-      "понеділка",
-      "вівторка",
-      "середи",
-      "четверга",
-      "п'ятниці",
-      "суботи",
-    ];
-    return `Буду відкладати $${amount || "?"} кожного ${names[+day] ?? "?"} о ${t}`;
-  }
-  return `Буду відкладати $${amount || "?"} кожного ${day || "?"}-го числа о ${t}`;
-}
-
 function NewJarModal({
   onClose,
   onCreate,
@@ -1269,60 +1252,114 @@ function NewJarModal({
     unlockDate: number;
     goalAmount: number;
     currency: "usdc" | "sol";
-    recurring: RecurringParams | null;
+    recurring: { amount_usdc: number; frequency: "weekly" | "monthly"; day: number; hour: number; minute: number } | null;
     groupTrip: GroupTripParams | null;
   }) => Promise<void>;
   apy: { usdc_kamino: number; sol_marinade: number };
-})
-{
+}) {
   const EMOJIS = ["🫙","🎯","✈️","🏖️","🏍️","🚗","🏡","👧","👶","🎓","💍","🎸","📱","💪","🌍","🎁","💰","🐕","🌱","🏋️"];
-  const TOTAL_STEPS = 5;
 
-  const [step, setStep] = useState(1);
+  const [selectedType, setSelectedType] = useState<JarTypeEnum | null>(null);
+  const [guideQ1, setGuideQ1] = useState<"yes" | "no" | null>(null);
+  const [step, setStep] = useState<StepName>("type");
+  const [stepHistory, setStepHistory] = useState<StepName[]>([]);
+
+  // Name
   const [jarName, setJarName] = useState("");
   const [jarEmoji, setJarEmoji] = useState("🫙");
+
+  // Goal
   const [goalInput, setGoalInput] = useState("");
+
+  // Date
   const [selectedYears, setSelectedYears] = useState<number | null>(5);
   const [customDate, setCustomDate] = useState("");
-  const [recurChoice, setRecurChoice] = useState<"monthly" | "once">("monthly");
-  const [recurAmount, setRecurAmount] = useState("100");
-  const [initialDeposit, setInitialDeposit] = useState("");
+
+  // Reminder
+  const [reminderChoice, setReminderChoice] = useState<"monthly" | "none">("monthly");
+  const [reminderAmount, setReminderAmount] = useState("100");
+
+  // Security
+  const [approvalMode, setApprovalMode] = useState<"NONE" | "FAMILY_APPROVAL">("NONE");
+
   const [submitting, setSubmitting] = useState(false);
 
   const { publicKey } = useWallet();
   const walletConnected = !!publicKey;
 
+  // ── Derived values ──
   const goalUsd = parseFloat(goalInput) || 0;
   const hasGoal = goalUsd > 0;
   const hasDate = !!(selectedYears || customDate);
-  const isRecurring = recurChoice === "monthly";
-  const initialDepositUsd = parseFloat(initialDeposit) || 0;
+  const isReminder = reminderChoice === "monthly";
+  const monthly = isReminder ? (parseFloat(reminderAmount) || 100) : 0;
 
-  const years = selectedYears ?? (customDate ? Math.max(1, Math.round((new Date(customDate).getTime() - Date.now()) / (365.25 * 86400 * 1000))) : 5);
-  const monthly = isRecurring ? (parseFloat(recurAmount) || 100) : 0;
+  const years = selectedYears ?? (customDate
+    ? Math.max(1, Math.round((new Date(customDate).getTime() - Date.now()) / (365.25 * 86400 * 1000)))
+    : 5);
 
   const r12 = 0.055 / 12;
-  // Months to reach goal via recurring deposits (null if not applicable)
-  const monthsToGoal = (hasGoal && isRecurring && monthly > 0)
+  const monthsToGoal = (hasGoal && isReminder && monthly > 0)
     ? Math.ceil(Math.log(goalUsd * r12 / monthly + 1) / Math.log(1 + r12))
     : null;
-
-  // Effective horizon: use explicit date → time-to-goal → 5yr fallback
   const effectiveYears = hasDate ? years : monthsToGoal ? monthsToGoal / 12 : 5;
   const nMonths = Math.round(effectiveYears * 12);
 
-  const projJarfi = isRecurring && monthly > 0
+  const projJarfi = isReminder && monthly > 0
     ? Math.round(monthly * ((Math.pow(1 + r12, nMonths) - 1) / r12))
-    : initialDepositUsd > 0
-    ? Math.round(initialDepositUsd * Math.pow(1.055, effectiveYears))
     : 0;
-  const projBank = isRecurring && monthly > 0
+  const projBank = isReminder && monthly > 0
     ? Math.round(monthly * ((Math.pow(1 + 0.02 / 12, nMonths) - 1) / (0.02 / 12)))
-    : initialDepositUsd > 0
-    ? Math.round(initialDepositUsd * Math.pow(1.02, effectiveYears))
     : 0;
 
+  // ── Suggested reminder amount for GOAL_BY_DATE ──
+  const suggestedMonthly = (selectedType === "GOAL_BY_DATE" && hasGoal && hasDate && years > 0)
+    ? Math.ceil(goalUsd / (years * 12))
+    : null;
+
+  // ── Step flows ──
+  const typeSteps: StepName[] = selectedType ? STEP_FLOWS[selectedType] : [];
+
+  function goTo(s: StepName) {
+    setStepHistory(h => [...h, step]);
+    setStep(s);
+  }
+
+  function goBack() {
+    const prev = stepHistory[stepHistory.length - 1];
+    if (prev) {
+      setStepHistory(h => h.slice(0, -1));
+      setStep(prev);
+    } else {
+      if (step !== "type") { setStep("type"); setSelectedType(null); }
+      else onClose();
+    }
+  }
+
+  function selectType(t: JarTypeEnum) {
+    setSelectedType(t);
+    setStepHistory(["type"]);
+    setStep(STEP_FLOWS[t][0]);
+  }
+
+  function advanceStep() {
+    const idx = typeSteps.indexOf(step);
+    if (idx < typeSteps.length - 1) goTo(typeSteps[idx + 1]);
+  }
+
+  // Review unlock date
+  const unlockDateForReview = customDate
+    ? Math.floor(new Date(customDate).getTime() / 1000)
+    : selectedYears
+    ? Math.floor(Date.now() / 1000 + selectedYears * 365.25 * 86400)
+    : 0;
+  const unlockDateStr = unlockDateForReview > 1
+    ? new Date(unlockDateForReview * 1000).toLocaleDateString("en-US", { year: "numeric", month: "long" })
+    : null;
+
+  // ── Create ──
   async function handleCreate() {
+    if (!selectedType) return;
     setSubmitting(true);
     try {
       const unlockDate = customDate
@@ -1331,17 +1368,25 @@ function NewJarModal({
         ? Math.floor(Date.now() / 1000 + selectedYears * 365.25 * 86400)
         : 0;
       const goalAmount = goalUsd > 0 ? Math.round(goalUsd * 1_000_000) : 0;
-      const mode = unlockDate > 0 && goalAmount > 0 ? 2 : goalAmount > 0 ? 1 : 0;
-      const recurring: RecurringParams | null = recurChoice === "monthly" && monthly > 0
-        ? { amount_usdc: Math.round(monthly * 100), frequency: "monthly", day: 1, hour: 9, minute: 0 }
+      const { mode, contractUnlockDate, contractGoal } = jarTypeToContract(selectedType, unlockDate, goalAmount);
+
+      const recurring = isReminder && monthly > 0
+        ? { amount_usdc: Math.round(monthly * 100), frequency: "monthly" as const, day: 1, hour: 9, minute: 0 }
         : null;
-      await onCreate({ jarName, jarEmoji, mode, unlockDate, goalAmount, currency: "usdc", recurring, groupTrip: null });
+
+      await onCreate({ jarName, jarEmoji, mode, unlockDate: contractUnlockDate, goalAmount: contractGoal, currency: "usdc", recurring, groupTrip: null });
     } finally {
       setSubmitting(false);
     }
   }
 
-  const dots = Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1);
+  // ── Total steps indicator ──
+  const allSteps: StepName[] = ["type", ...typeSteps];
+  const currentIdx = allSteps.indexOf(step);
+
+  // suppress unused warning
+  void guideQ1;
+  void apy;
 
   return (
     <div
@@ -1349,42 +1394,111 @@ function NewJarModal({
       onClick={onClose}
     >
       <div
-        style={{ width: "100%", maxWidth: 480, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 20, padding: 40, maxHeight: "90vh", overflowY: "auto" }}
+        style={{ width: "100%", maxWidth: 520, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 20, padding: 40, maxHeight: "90vh", overflowY: "auto" }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Step dots */}
-        <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "center", marginBottom: 36 }}>
-          {dots.map((d) => (
-            <div key={d} style={{
-              height: 4, borderRadius: 2,
-              width: d === step ? 24 : 8,
-              background: d < step ? "var(--green)" : d === step ? "var(--text-primary)" : "var(--border)",
-              transition: "all 0.3s",
-            }} />
-          ))}
-        </div>
+        {/* Progress dots */}
+        {selectedType && (
+          <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "center", marginBottom: 36 }}>
+            {allSteps.map((s, i) => (
+              <div key={s} style={{
+                height: 4, borderRadius: 2,
+                width: i === currentIdx ? 24 : 8,
+                background: i < currentIdx ? "var(--green)" : i === currentIdx ? "var(--text-primary)" : "var(--border)",
+                transition: "all 0.3s",
+              }} />
+            ))}
+          </div>
+        )}
 
-        {/* ── STEP 1: Name ── */}
-        {step === 1 && (
+        {/* ── STEP: type ── */}
+        {step === "type" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <div>
+              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px", marginBottom: 8 }}>What kind of jar?</div>
+              <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>Choose the type that fits your goal best.</div>
+            </div>
+            {(["GOAL", "DATE", "GOAL_BY_DATE", "SHARED"] as JarTypeEnum[]).map((t) => (
+              <button key={t} onClick={() => selectType(t)}
+                style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", border: "1px solid var(--border)", borderRadius: 12, cursor: "pointer", background: "var(--bg)", fontFamily: "var(--font)", textAlign: "left", transition: "border-color 0.15s" }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = "var(--text-primary)"}
+                onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}
+              >
+                <span style={{ fontSize: 24, width: 36, textAlign: "center" }}>{JAR_TYPE_ICONS[t]}</span>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>{JAR_TYPE_LABELS[t]}</div>
+                  <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 2 }}>{JAR_TYPE_DESCRIPTIONS[t]}</div>
+                </div>
+              </button>
+            ))}
+            <button onClick={() => { setStepHistory(["type"]); setStep("guide"); }}
+              style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", border: "1px solid var(--border)", borderRadius: 12, cursor: "pointer", background: "var(--bg)", fontFamily: "var(--font)", textAlign: "left" }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = "var(--text-primary)"}
+              onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}
+            >
+              <span style={{ fontSize: 24, width: 36, textAlign: "center" }}>💡</span>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>Guide me</div>
+                <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 2 }}>Answer a few questions and Jarfi will suggest the best setup.</div>
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* ── STEP: guide ── */}
+        {step === "guide" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>Step 1 of {TOTAL_STEPS}</div>
+              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>Let&apos;s find the right jar</div>
+              <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>Is there a specific amount you&apos;re saving for?</div>
+            </div>
+            {[
+              { val: "yes" as const, icon: "🎯", title: "Yes — I have a target amount", desc: "e.g. $5,000 for a car" },
+              { val: "no"  as const, icon: "📅", title: "No — saving until a date or collecting", desc: "e.g. birthday fund, child savings" },
+            ].map(o => (
+              <button key={o.val} onClick={() => {
+                setGuideQ1(o.val);
+                if (o.val === "yes") {
+                  setGuideQ1("yes");
+                  selectType("GOAL");
+                } else {
+                  selectType("SHARED");
+                }
+              }}
+                style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", border: "1px solid var(--border)", borderRadius: 12, cursor: "pointer", background: "var(--bg)", fontFamily: "var(--font)", textAlign: "left" }}>
+                <span style={{ fontSize: 22, width: 36, textAlign: "center" }}>{o.icon}</span>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 500 }}>{o.title}</div>
+                  <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 2 }}>{o.desc}</div>
+                </div>
+              </button>
+            ))}
+            <FlowNav onBack={goBack} />
+          </div>
+        )}
+
+        {/* ── STEP: name ── */}
+        {step === "name" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>
+                {selectedType && `${JAR_TYPE_ICONS[selectedType]} ${JAR_TYPE_LABELS[selectedType]}`}
+              </div>
               <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>What are you saving for?</div>
-              <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, marginTop: 6 }}>Give your jar a name — it&apos;ll appear on the gift link you share with friends and family.</div>
+              <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>Give your jar a name — it&apos;ll appear on the gift link you share.</div>
             </div>
             <div>
               <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
                 <button
                   style={{ height: 44, width: 44, flexShrink: 0, borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", fontSize: 22, cursor: "pointer" }}
                   onClick={() => { const i = EMOJIS.indexOf(jarEmoji); setJarEmoji(EMOJIS[(i + 1) % EMOJIS.length]); }}
-                  title="Click to change emoji"
                 >{jarEmoji}</button>
                 <input
                   autoFocus
-                  placeholder="E.g. Eva's 18th Birthday"
+                  placeholder={selectedType === "SHARED" ? "e.g. Birthday Collection" : selectedType === "DATE" ? "e.g. Eva's 18th Birthday" : "e.g. Japan Trip"}
                   value={jarName}
                   onChange={(e) => setJarName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && jarName.trim() && setStep(2)}
+                  onKeyDown={(e) => e.key === "Enter" && jarName.trim() && advanceStep()}
                   style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 8, padding: "11px 14px", fontSize: 17, fontFamily: "var(--font)", outline: "none" }}
                 />
               </div>
@@ -1394,51 +1508,63 @@ function NewJarModal({
                 ))}
               </div>
             </div>
-            <FlowNav onNext={() => setStep(2)} nextDisabled={!jarName.trim()} />
+            <FlowNav onBack={goBack} onNext={advanceStep} nextDisabled={!jarName.trim()} />
           </div>
         )}
 
-        {/* ── STEP 2: Goal ── */}
-        {step === 2 && (
+        {/* ── STEP: goal ── */}
+        {step === "goal" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>Step 2 of {TOTAL_STEPS}</div>
-              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>Do you have a goal?</div>
-              <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, marginTop: 6 }}>A goal helps track progress — e.g. $10,000 for a car. Skip it if you just want to save until a certain date.</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>
+                {selectedType && `${JAR_TYPE_ICONS[selectedType]} ${JAR_TYPE_LABELS[selectedType]}`}
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>
+                {selectedType === "SHARED" ? "Add a goal? (optional)" : "What's your target amount?"}
+              </div>
+              <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>
+                {selectedType === "SHARED"
+                  ? "Optional. Leave empty if you just want to collect contributions."
+                  : "Set the amount you want to reach."}
+              </div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <div style={{ padding: "11px 14px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 15, fontWeight: 600, background: "var(--bg-muted)", color: "var(--text-secondary)", minWidth: 48, textAlign: "center" }}>$</div>
               <input
                 autoFocus
                 type="number"
-                placeholder="10,000"
+                placeholder={selectedType === "SHARED" ? "Optional" : "10,000"}
                 value={goalInput}
                 onChange={(e) => setGoalInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && setStep(3)}
+                onKeyDown={(e) => e.key === "Enter" && advanceStep()}
                 style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 8, padding: "11px 14px", fontSize: 15, fontFamily: "var(--font)", outline: "none" }}
               />
             </div>
-            <button
-              onClick={() => { setGoalInput(""); setStep(3); }}
-              style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", border: "1px solid var(--border)", borderRadius: 12, cursor: "pointer", background: "var(--bg)", fontFamily: "var(--font)", textAlign: "left" }}
-            >
-              <span style={{ fontSize: 22, width: 36, textAlign: "center" }}>📅</span>
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 500, color: "var(--text-primary)" }}>No goal — save by time</div>
-                <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 2 }}>The jar unlocks on a date you choose</div>
-              </div>
-            </button>
-            <FlowNav onBack={() => setStep(1)} onNext={() => setStep(3)} />
+            <FlowNav
+              onBack={goBack}
+              onNext={advanceStep}
+              nextDisabled={selectedType !== "SHARED" && selectedType !== "GOAL" && !goalInput}
+              nextLabel={selectedType === "SHARED" && !goalInput ? "Skip" : "Continue"}
+            />
           </div>
         )}
 
-        {/* ── STEP 3: Timeline ── */}
-        {step === 3 && (
+        {/* ── STEP: date ── */}
+        {step === "date" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>Step 3 of {TOTAL_STEPS}</div>
-              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>When do you need it?</div>
-              <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, marginTop: 6 }}>Funds stay locked until this date, earning yield automatically. You can always unlock early if needed.</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>
+                {selectedType && `${JAR_TYPE_ICONS[selectedType]} ${JAR_TYPE_LABELS[selectedType]}`}
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>
+                {selectedType === "SHARED" ? "Add an event date? (optional)" : "When do you need it?"}
+              </div>
+              <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>
+                {selectedType === "DATE" && "Funds stay locked until this date, earning yield automatically."}
+                {selectedType === "GOAL_BY_DATE" && "Jar unlocks when the goal is reached OR this date arrives — whichever comes first."}
+                {selectedType === "GOAL" && "Optional planning date. Does not lock the jar by date."}
+                {selectedType === "SHARED" && "Optional. Useful to show an event deadline on the contribution page."}
+              </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
               {[1, 3, 5, 10, 18, 0].map((y) => {
@@ -1448,7 +1574,9 @@ function NewJarModal({
                   <button key={y} onClick={() => { setSelectedYears(isNone ? null : y); setCustomDate(""); }}
                     style={{ padding: 12, border: "1px solid", borderColor: active ? "var(--text-primary)" : "var(--border)", borderRadius: 8, cursor: "pointer", background: active ? "var(--bg-muted)" : "var(--bg)", fontFamily: "var(--font)", textAlign: "center" }}>
                     <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: "-0.5px" }}>{isNone ? "—" : y}</div>
-                    <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2 }}>{isNone ? "no deadline" : y === 1 ? "year" : "years"}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2 }}>
+                      {isNone ? (selectedType === "DATE" || selectedType === "GOAL_BY_DATE" ? "required" : "no date") : y === 1 ? "year" : "years"}
+                    </div>
                   </button>
                 );
               })}
@@ -1462,160 +1590,198 @@ function NewJarModal({
                 style={{ width: "100%", border: "1px solid var(--border)", borderRadius: 8, padding: "11px 14px", fontSize: 15, fontFamily: "var(--font)", outline: "none" }}
               />
             </div>
-            <FlowNav onBack={() => setStep(2)} onNext={() => setStep(4)} />
+            <FlowNav
+              onBack={goBack}
+              onNext={advanceStep}
+              nextDisabled={(selectedType === "DATE" || selectedType === "GOAL_BY_DATE") && !hasDate}
+              nextLabel={selectedType === "GOAL" || selectedType === "SHARED" ? (hasDate ? "Continue" : "Skip") : "Continue"}
+            />
           </div>
         )}
 
-        {/* ── STEP 4: Recurring ── */}
-        {step === 4 && (
+        {/* ── STEP: reminder ── */}
+        {step === "reminder" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>Step 4 of {TOTAL_STEPS}</div>
-              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>Will you add funds regularly?</div>
-              <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, marginTop: 6 }}>Monthly auto-deposits happen from your wallet on the 1st of each month. You can pause or cancel anytime.</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>
+                {selectedType && `${JAR_TYPE_ICONS[selectedType]} ${JAR_TYPE_LABELS[selectedType]}`}
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>Monthly contribution reminder</div>
+              <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, marginTop: 6 }}>
+                Jarfi can remind you to add money each month. You approve every payment from your wallet — nothing is charged automatically.
+              </div>
             </div>
+
+            {/* GOAL_BY_DATE: show suggested amount */}
+            {selectedType === "GOAL_BY_DATE" && suggestedMonthly && (
+              <div style={{ padding: "12px 14px", background: "#ECFDF5", borderRadius: 10, fontSize: 13, color: "#059669" }}>
+                💡 To reach ${goalUsd.toLocaleString()} by {unlockDateStr ?? `${years} years`}, you need about <strong>${suggestedMonthly}/month</strong>
+              </div>
+            )}
+
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {[
-                { val: "monthly", icon: "🔄", title: "Yes — monthly", desc: "Set a recurring amount each month" },
-                { val: "once",    icon: "💸", title: "No — one-time",  desc: "Just an initial deposit" },
-              ].map((o) => (
-                <button key={o.val} onClick={() => setRecurChoice(o.val as typeof recurChoice)}
-                  style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", border: "1px solid", borderColor: recurChoice === o.val ? "var(--text-primary)" : "var(--border)", borderRadius: 12, cursor: "pointer", background: recurChoice === o.val ? "var(--bg-muted)" : "var(--bg)", fontFamily: "var(--font)", textAlign: "left" }}>
+                { val: "monthly" as const, icon: "🔔", title: "Yes — remind me monthly", desc: "You approve each payment from your wallet" },
+                { val: "none"    as const, icon: "⏭️", title: "No reminders", desc: "I'll add funds manually when I want" },
+              ].map(o => (
+                <button key={o.val} onClick={() => setReminderChoice(o.val)}
+                  style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", border: "1px solid", borderColor: reminderChoice === o.val ? "var(--text-primary)" : "var(--border)", borderRadius: 12, cursor: "pointer", background: reminderChoice === o.val ? "var(--bg-muted)" : "var(--bg)", fontFamily: "var(--font)", textAlign: "left" }}>
                   <span style={{ fontSize: 22, width: 36, textAlign: "center" }}>{o.icon}</span>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 500, color: "var(--text-primary)" }}>{o.title}</div>
+                    <div style={{ fontSize: 15, fontWeight: 500 }}>{o.title}</div>
                     <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 2 }}>{o.desc}</div>
                   </div>
                 </button>
               ))}
             </div>
-            {recurChoice === "monthly" && (
+            {reminderChoice === "monthly" && (
               <div>
                 <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>Monthly amount</div>
                 <div style={{ display: "flex", gap: 8 }}>
                   <div style={{ padding: "11px 14px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 15, fontWeight: 600, background: "var(--bg-muted)", color: "var(--text-secondary)", minWidth: 48, textAlign: "center" }}>$</div>
-                  <input type="number" value={recurAmount} onChange={(e) => setRecurAmount(e.target.value)} style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 8, padding: "11px 14px", fontSize: 15, fontFamily: "var(--font)", outline: "none" }} />
-                </div>
-              </div>
-            )}
-            <FlowNav onBack={() => setStep(3)} onNext={() => setStep(5)} />
-          </div>
-        )}
-
-        {/* ── STEP 5: Projection + Create ── */}
-        {step === 5 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>Step 5 of {TOTAL_STEPS}</div>
-              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>
-                {projJarfi > 0 ? "If you continue, you'll have:" : hasGoal ? "Your goal" : "Almost done"}
-              </div>
-            </div>
-
-            {/* One-time: ask initial deposit for projection */}
-            {!isRecurring && (
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>How much are you depositing? (optional)</div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <div style={{ padding: "11px 14px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 15, fontWeight: 600, background: "var(--bg-muted)", color: "var(--text-secondary)", minWidth: 48, textAlign: "center" }}>$</div>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={initialDeposit}
-                    onChange={(e) => setInitialDeposit(e.target.value)}
+                  <input type="number"
+                    value={suggestedMonthly && !reminderAmount ? String(suggestedMonthly) : reminderAmount}
+                    onChange={(e) => setReminderAmount(e.target.value)}
                     style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 8, padding: "11px 14px", fontSize: 15, fontFamily: "var(--font)", outline: "none" }}
                   />
                 </div>
               </div>
             )}
+            <FlowNav onBack={goBack} onNext={advanceStep} />
+          </div>
+        )}
 
-            {projJarfi > 0 ? (
-              <div style={{ background: "var(--bg-muted)", borderRadius: 12, padding: 24 }}>
-                {/* Goal-only + recurring: show time to goal */}
-                {isRecurring && monthsToGoal && !hasDate ? (
-                  <>
-                    <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginBottom: 8 }}>Time to reach your ${goalUsd.toLocaleString()} goal</div>
-                    <div style={{ fontSize: 44, fontWeight: 600, color: "var(--green)", letterSpacing: "-1.5px", lineHeight: 1 }}>
-                      ~{monthsToGoal < 24 ? `${monthsToGoal} mo` : `${Math.round(monthsToGoal / 12)} yr`}
-                    </div>
-                    <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>
-                      at ${monthly}/month · total ${projJarfi.toLocaleString()} with yield
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginBottom: 8 }}>Estimated future value</div>
-                    <div style={{ fontSize: 44, fontWeight: 600, color: "var(--green)", letterSpacing: "-1.5px", lineHeight: 1 }}>
-                      ${projJarfi.toLocaleString()}
-                    </div>
-                    <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>
-                      {hasDate
-                        ? `by ${customDate ? new Date(customDate).toLocaleDateString("en-US", { year: "numeric", month: "short" }) : `${years} ${years === 1 ? "year" : "years"}`}`
-                        : `in ${Math.round(effectiveYears)} ${Math.round(effectiveYears) === 1 ? "year" : "years"}`}
-                    </div>
-                  </>
-                )}
-                <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                    <span style={{ color: "var(--text-secondary)" }}>Do nothing</span>
-                    <span style={{ fontWeight: 500, color: "var(--text-tertiary)" }}>$0</span>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                    <span style={{ color: "var(--text-secondary)" }}>In a bank (2%)</span>
-                    <span style={{ fontWeight: 500, color: "var(--text-secondary)" }}>${projBank.toLocaleString()}</span>
+        {/* ── STEP: security ── */}
+        {step === "security" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>
+                {selectedType && `${JAR_TYPE_ICONS[selectedType]} ${JAR_TYPE_LABELS[selectedType]}`}
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>Who can unlock this jar?</div>
+              <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>
+                Family approval is recommended for long-term and child savings jars.
+              </div>
+            </div>
+            {[
+              { val: "NONE" as const,            icon: "🔑", title: "Just me", desc: "You can withdraw when jar conditions are met." },
+              { val: "FAMILY_APPROVAL" as const, icon: "👨‍👩‍👧", title: "Family approval (recommended)", desc: "Protected by 2-of-2 family approval. Co-signers approve withdrawals." },
+            ].map(o => (
+              <button key={o.val} onClick={() => setApprovalMode(o.val)}
+                style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", border: "1px solid", borderColor: approvalMode === o.val ? "var(--text-primary)" : "var(--border)", borderRadius: 12, cursor: "pointer", background: approvalMode === o.val ? "var(--bg-muted)" : "var(--bg)", fontFamily: "var(--font)", textAlign: "left" }}>
+                <span style={{ fontSize: 22, width: 36, textAlign: "center" }}>{o.icon}</span>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 500 }}>{o.title}</div>
+                  <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 2 }}>{o.desc}</div>
+                </div>
+              </button>
+            ))}
+            {approvalMode === "FAMILY_APPROVAL" && (
+              <div style={{ padding: "12px 14px", background: "#ECFDF5", borderRadius: 10, fontSize: 13, color: "#059669" }}>
+                👨‍👩‍👧 After creating the jar, you&apos;ll get an invite link to share with your co-signer. They connect their wallet to activate approval. <span style={{ color: "#555", display: "block", marginTop: 4 }}>Note: co-signers can only approve withdrawals — they cannot edit jar settings.</span>
+              </div>
+            )}
+            <FlowNav onBack={goBack} onNext={advanceStep} />
+          </div>
+        )}
+
+        {/* ── STEP: review ── */}
+        {step === "review" && selectedType && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>Review</div>
+              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>Ready to create?</div>
+            </div>
+
+            {/* Summary card */}
+            <div style={{ background: "var(--bg-muted)", borderRadius: 12, padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 28 }}>{jarEmoji}</span>
+                <div>
+                  <div style={{ fontSize: 17, fontWeight: 600 }}>{jarName || "Untitled jar"}</div>
+                  <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                    {JAR_TYPE_ICONS[selectedType]} {JAR_TYPE_LABELS[selectedType]}
                   </div>
                 </div>
               </div>
-            ) : (
-              /* No projection data — show goal or open jar message */
-              <div style={{ background: "var(--bg-muted)", borderRadius: 12, padding: 24 }}>
-                {hasGoal ? (
+              <div style={{ borderTop: "1px solid var(--border)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+                {hasGoal && (
+                  <ReviewRow label="Goal" value={`$${goalUsd.toLocaleString()}`} />
+                )}
+                {unlockDateStr && selectedType !== "SHARED" && (
+                  <ReviewRow label="Unlock date" value={unlockDateStr} />
+                )}
+                <ReviewRow
+                  label="Unlock rule"
+                  value={UNLOCK_RULE_LABEL[unlockRuleForType(selectedType)]}
+                />
+                <ReviewRow
+                  label="Monthly reminders"
+                  value={isReminder ? `$${monthly}/month` : "Off"}
+                />
+                {approvalMode === "FAMILY_APPROVAL" && (
+                  <ReviewRow label="Approval" value="👨‍👩‍👧 2-of-2 family approval" />
+                )}
+                <ReviewRow label="Yield" value="~5.5% APY via Kamino (USDC)" />
+              </div>
+            </div>
+
+            {/* Projection */}
+            {projJarfi > 0 && (
+              <div style={{ padding: "14px 16px", background: "#ECFDF5", borderRadius: 10, display: "flex", flexDirection: "column", gap: 4 }}>
+                {monthsToGoal && !hasDate ? (
                   <>
-                    <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginBottom: 8 }}>Goal</div>
-                    <div style={{ fontSize: 44, fontWeight: 600, color: "var(--green)", letterSpacing: "-1.5px", lineHeight: 1 }}>${goalUsd.toLocaleString()}</div>
-                    <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>Share the link — friends & family can contribute by card</div>
+                    <div style={{ fontSize: 12, color: "#059669" }}>Time to reach goal at ${monthly}/month</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: "#059669" }}>
+                      ~{monthsToGoal < 24 ? `${monthsToGoal} months` : `${Math.round(monthsToGoal / 12)} years`}
+                    </div>
                   </>
                 ) : (
                   <>
-                    <div style={{ fontSize: 15, fontWeight: 500, color: "var(--text-primary)", marginBottom: 6 }}>Open jar — ready to collect</div>
-                    <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6 }}>Anyone can contribute via the gift link using a card or Apple Pay. No deadline or goal needed.</div>
+                    <div style={{ fontSize: 12, color: "#059669" }}>Estimated value in {Math.round(effectiveYears)} years</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: "#059669" }}>${projJarfi.toLocaleString()}</div>
+                    <div style={{ fontSize: 12, color: "#555" }}>vs ${projBank.toLocaleString()} in a bank account</div>
                   </>
                 )}
               </div>
             )}
-            <div style={{ fontSize: 13, color: "var(--text-tertiary)", lineHeight: 1.6 }}>
-              {isRecurring ? "Estimate based on 5.5% APY compounded monthly." : "Funds earn ~5.5% APY automatically after deposit."}
-            </div>
+
             {walletConnected ? (
               <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "#f0faf5", borderRadius: 8, fontSize: 13, color: "var(--green)" }}>
-                <span>✓</span>
-                <span>Wallet connected — ready to create</span>
+                <span>✓</span><span>Wallet connected — ready to create</span>
               </div>
             ) : (
               <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: "var(--bg-muted)", borderRadius: 8, fontSize: 13, color: "var(--text-secondary)" }}>
-                <span>🔐</span>
-                <span>Connect a wallet to create your jar. It only takes a moment.</span>
+                <span>🔐</span><span>Connect a wallet to create your jar.</span>
               </div>
             )}
+
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <button onClick={() => setStep(4)} style={{ fontSize: 14, color: "var(--text-secondary)", cursor: "pointer", padding: "13px 0", border: "none", background: "none", fontFamily: "var(--font)" }}>Back</button>
+              <button onClick={goBack} style={{ fontSize: 14, color: "var(--text-secondary)", cursor: "pointer", padding: "13px 0", border: "none", background: "none", fontFamily: "var(--font)" }}>Back</button>
               {walletConnected ? (
                 <button
                   onClick={handleCreate}
                   disabled={submitting}
                   style={{ flex: 1, background: "var(--green)", color: "#fff", fontSize: 15, fontWeight: 500, padding: "13px 20px", borderRadius: 8, border: "none", cursor: submitting ? "not-allowed" : "pointer", fontFamily: "var(--font)", opacity: submitting ? 0.6 : 1 }}
                 >
-                  {submitting ? "Creating…" : "Create your jar"}
+                  {submitting ? "Creating…" : "Create jar"}
                 </button>
               ) : (
-                <div style={{ flex: 1 }}>
-                  <WalletButton />
-                </div>
+                <div style={{ flex: 1 }}><WalletButton /></div>
               )}
             </div>
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function ReviewRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+      <span style={{ color: "var(--text-secondary)" }}>{label}</span>
+      <span style={{ fontWeight: 500, color: "var(--text-primary)", maxWidth: "60%", textAlign: "right" }}>{value}</span>
     </div>
   );
 }
@@ -1935,16 +2101,23 @@ function JarCard({ jar, onSelect }: { jar: JarType; onSelect?: () => void }) {
       <div style={{ fontSize: 14, color: "#555555", marginTop: 16, marginBottom: 12 }}>
         <strong style={{ color: "#111111", fontWeight: 600 }}>{fmtSaved}</strong> saved so far
       </div>
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#999999", marginBottom: 6 }}>
-          <span>Progress to goal</span><span>{pct}%</span>
+      {(jar.jarType !== "SHARED" || jar.goal > 0) && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#999999", marginBottom: 6 }}>
+            <span>Progress to goal</span><span>{pct}%</span>
+          </div>
+          <div style={{ height: 3, background: "#E2E2DC", borderRadius: 2, overflow: "hidden" }}>
+            <div style={{ width: `${pct}%`, height: "100%", background: "#059669", borderRadius: 2 }} />
+          </div>
         </div>
-        <div style={{ height: 3, background: "#E2E2DC", borderRadius: 2, overflow: "hidden" }}>
-          <div style={{ width: `${pct}%`, height: "100%", background: "#059669", borderRadius: 2 }} />
-        </div>
-      </div>
-      <div style={{ fontSize: 13, color: "#999999" }}>
-        {jar.locked ? "🔒 Locked" : "Open"} · {jar.unlockLabel}
+      )}
+      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11, background: "#F0F0EC", color: "#555", padding: "2px 8px", borderRadius: 20, fontWeight: 500 }}>
+          {JAR_TYPE_ICONS[jar.jarType]} {JAR_TYPE_LABELS[jar.jarType]}
+        </span>
+        <span style={{ fontSize: 13, color: "#999999" }}>
+          {jar.jarType === "SHARED" ? "Creator withdraws anytime" : jar.locked ? "🔒 Locked · " + jar.unlockLabel : "Unlocked"}
+        </span>
       </div>
     </div>
   );
@@ -1955,26 +2128,17 @@ function JarCard({ jar, onSelect }: { jar: JarType; onSelect?: () => void }) {
 // ---------------------------------------------------------------------------
 
 function getJarCoverGradient(jar: JarType): string {
-  const isUsdc = jar.currency === "usdc";
-  // mode 0 = time-lock, mode 1 = goal, mode 2 = goal+date
-  // We determine mode from unlockLabel
-  const label = jar.unlockLabel;
-  if (label === "by date") {
-    return isUsdc
-      ? "linear-gradient(135deg,#d1fae5,#a7f3d0)"
-      : "linear-gradient(135deg,#dbeafe,#bfdbfe)";
+  switch (jar.jarType) {
+    case "DATE":         return "linear-gradient(135deg,#d1fae5,#a7f3d0)";
+    case "GOAL":         return "linear-gradient(135deg,#ede9fe,#ddd6fe)";
+    case "GOAL_BY_DATE": return "linear-gradient(135deg,#fce7f3,#fbcfe8)";
+    case "SHARED":       return "linear-gradient(135deg,#fef3c7,#fde68a)";
+    default:             return "linear-gradient(135deg,#d1fae5,#a7f3d0)";
   }
-  if (label === "by goal") return "linear-gradient(135deg,#ede9fe,#ddd6fe)";
-  if (label === "goal or date") return "linear-gradient(135deg,#fce7f3,#fbcfe8)";
-  return "linear-gradient(135deg,#fef3c7,#fde68a)";
 }
 
 function getJarTypeLabel(jar: JarType): string {
-  const label = jar.unlockLabel;
-  if (label === "by date") return "Time-lock";
-  if (label === "by goal") return "Goal";
-  if (label === "goal or date") return "Shared";
-  return "No deadline";
+  return JAR_TYPE_LABELS[jar.jarType] ?? jar.unlockLabel;
 }
 
 function NewJarCard({ jar, isChartActive, onSelect, onChart }: {

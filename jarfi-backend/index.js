@@ -241,9 +241,9 @@ app.post('/jar/create', async (req, res) => {
 
 app.post('/jar/meta', (req, res) => {
   try {
-    const { pubkey, name, emoji } = req.body
+    const { pubkey, name, emoji, jarType } = req.body
     if (!pubkey) return res.status(400).json({ ok: false, error: 'pubkey required' })
-    saveJarMeta(pubkey, name ?? '', emoji ?? '🏺')
+    saveJarMeta(pubkey, name ?? '', emoji ?? '🏺', jarType ?? '')
     res.json({ ok: true })
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message })
@@ -289,6 +289,7 @@ app.get('/jar/:pubkey', async (req, res) => {
         owner:                jar.owner.toBase58(),
         name:                 meta?.name || null,
         emoji:                meta?.emoji || null,
+        jarType:              meta?.jar_type || null,
         mode:                 jar.mode,
         unlockDate:           jar.unlockDate.toNumber(),
         goalAmount:           jar.goalAmount.toNumber(),

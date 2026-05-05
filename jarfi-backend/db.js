@@ -57,9 +57,10 @@ db.exec(`
   );
 
   CREATE TABLE IF NOT EXISTS jar_meta (
-    pubkey TEXT PRIMARY KEY,
-    name   TEXT NOT NULL DEFAULT '',
-    emoji  TEXT NOT NULL DEFAULT '🏺'
+    pubkey   TEXT PRIMARY KEY,
+    name     TEXT NOT NULL DEFAULT '',
+    emoji    TEXT NOT NULL DEFAULT '🏺',
+    jar_type TEXT NOT NULL DEFAULT ''
   );
 `)
 
@@ -145,12 +146,12 @@ const markWebhookProcessed  = db.prepare(`
 // ---------------------------------------------------------------------------
 
 const upsertJarMeta = db.prepare(`
-  INSERT INTO jar_meta (pubkey, name, emoji)
-  VALUES (@pubkey, @name, @emoji)
-  ON CONFLICT(pubkey) DO UPDATE SET name = excluded.name, emoji = excluded.emoji
+  INSERT INTO jar_meta (pubkey, name, emoji, jar_type)
+  VALUES (@pubkey, @name, @emoji, @jar_type)
+  ON CONFLICT(pubkey) DO UPDATE SET name = excluded.name, emoji = excluded.emoji, jar_type = excluded.jar_type
 `)
 
-const selectJarMeta = db.prepare(`SELECT name, emoji FROM jar_meta WHERE pubkey = ?`)
+const selectJarMeta = db.prepare(`SELECT name, emoji, jar_type FROM jar_meta WHERE pubkey = ?`)
 
 module.exports = {
   // Webhooks idempotency
@@ -174,7 +175,7 @@ module.exports = {
   },
 
   // Jar meta
-  saveJarMeta(pubkey, name, emoji) { upsertJarMeta.run({ pubkey, name: name ?? '', emoji: emoji ?? '🏺' }) },
+  saveJarMeta(pubkey, name, emoji, jarType = '') { upsertJarMeta.run({ pubkey, name: name ?? '', emoji: emoji ?? '🏺', jar_type: jarType ?? '' }) },
   getJarMeta(pubkey) { return selectJarMeta.get(pubkey) ?? null },
 
   // Trips
