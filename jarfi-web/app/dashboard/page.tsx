@@ -193,7 +193,13 @@ export default function Dashboard() {
       setContributions([]);
       return;
     }
-    fetchContributionsForJar(liveJars[0].pubkey).then(setContributions);
+    Promise.all(liveJars.map(j => fetchContributionsForJar(j.pubkey)))
+      .then(all => {
+        const seen = new Set<string>();
+        const merged = all.flat().filter(c => seen.has(c.pubkey) ? false : (seen.add(c.pubkey), true));
+        setContributions(merged);
+      })
+      .catch(() => {});
   }, [liveJars]);
 
   useEffect(() => {
@@ -252,7 +258,7 @@ export default function Dashboard() {
             ? `Unlocks ${unlockDateStr}`
             : `${isUsdc ? "$" : "◎"}${displayAmount.toFixed(2)} deposited`,
           amount: displayAmount,
-          goal: displayGoal > 0 ? displayGoal : 1000,
+          goal: displayGoal,
           locked: !j.unlocked,
           unlockLabel: modeLabel,
           currency: isUsdc ? "usdc" : "sol",
@@ -350,7 +356,7 @@ export default function Dashboard() {
           <div className="sticky top-0 z-20 flex items-center justify-between bg-sol-purple px-6 py-3 text-sm font-medium text-white shadow">
             <span>
               {confirmBanner.manual
-                ? `⚠️ Auto-deposit failed — deposit $${(confirmBanner.amount_usdc / 100).toFixed(2)} manually`
+                ? `⚠️ Reminder — deposit $${(confirmBanner.amount_usdc / 100).toFixed(2)} manually`
                 : `⏰ Time to top up — $${(confirmBanner.amount_usdc / 100).toFixed(2)} → Jar ${confirmBanner.jar_pubkey.slice(0, 4)}…${confirmBanner.jar_pubkey.slice(-4)}`}
             </span>
             <div className="ml-4 flex items-center gap-2">

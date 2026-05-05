@@ -23,7 +23,8 @@ Jarfi lets you create savings jars on Solana. Set a goal or a date, invite anyon
 - **Shared jars** — one link, anyone contributes. No wallet, no sign-up required.
 - **Gifting** — send a link in the family chat. Grandma pays by card, funds land onchain.
 - **Automatic yield** — USDC earns ~8% APY via Kamino, SOL earns ~6.85% via Marinade.
-- **Recurring deposits** — set it once, your jar tops up on autopilot.
+- **Monthly reminders** — set a reminder once, get a push notification each month to top up. You approve every payment — nothing is charged automatically.
+- **Family approval** — optional co-signer: share an invite link, they connect their wallet, both must approve withdrawals.
 
 ---
 
@@ -31,7 +32,7 @@ Jarfi lets you create savings jars on Solana. Set a goal or a date, invite anyon
 
 **Eva's 18th birthday.** A parent creates a jar the day Eva is born. Unlock date: January 2034. They share the link with grandparents, aunts, family friends. Over 10 years, small contributions from a dozen people — $25 here, $100 at Christmas — compound at 8% APY. By the time Eva turns 18, the jar holds $38,000+. One push notification, one withdrawal.
 
-**Japan trip.** Four friends want to save for a trip together. One creates a goal jar: $4,000, split four ways. Each sets up a recurring monthly deposit. Progress is visible. The jar unlocks the moment the goal is hit — no waiting, no manual transfers between group members.
+**Japan trip.** Four friends want to save for a trip together. One creates a goal jar: $4,000, split four ways. Each sets up a monthly reminder at $100/month. They get a push notification every month, tap once, pay by card. Progress is visible. The jar unlocks the moment the goal is hit — no waiting, no manual transfers between group members.
 
 **Birthday collection.** Twenty colleagues want to pool money for a gift. One person creates a jar, shares the link in Slack. Everyone pays $15–$50 by card during lunch. The money is collected, on-chain, in minutes. No spreadsheets, no Venmo requests, no one fronting the full amount.
 
@@ -55,12 +56,14 @@ Contributors need nothing — no wallet, no account. They open a URL, pick an am
 
 ## Jar types
 
-| Type | Description |
-|---|---|
-| **Time-lock** | Unlocks on a set date — perfect for milestones (18th birthday, graduation) |
-| **Goal** | Unlocks when balance reaches the target amount |
-| **Goal + date** | Unlocks at whichever comes first |
-| **Gift** | Share a link, collect contributions, no deadline required |
+| Type | Unlocks when | Use case |
+|---|---|---|
+| **Date jar** | Set date is reached | Child savings, birthday fund, graduation |
+| **Goal jar** | Balance hits the target | Motorcycle, trip, emergency fund |
+| **Goal by date** | Goal OR date — whichever comes first | Focused savings with a deadline |
+| **Shared jar** | Anytime (no lock) | Gift collection, group pooling |
+
+Each jar type supports optional **monthly reminders** (push notification → you pay via card) and optional **family approval** (co-signer must approve withdrawals).
 
 ---
 
