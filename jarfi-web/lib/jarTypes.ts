@@ -29,10 +29,10 @@ export type StepName =
 
 // Steps to show per jar type (in order)
 export const STEP_FLOWS: Record<JarType, StepName[]> = {
-  GOAL:         ["name", "goal", "date", "reminder", "review"],
+  GOAL:         ["name", "goal", "date", "reminder", "security", "review"],
   DATE:         ["name", "date", "reminder", "security", "review"],
-  GOAL_BY_DATE: ["name", "goal", "date", "reminder", "review"],
-  SHARED:       ["name", "goal", "date", "review"],
+  GOAL_BY_DATE: ["name", "goal", "date", "reminder", "security", "review"],
+  SHARED:       ["name", "goal", "date", "security", "review"],
 };
 
 export const JAR_TYPE_LABELS: Record<JarType, string> = {

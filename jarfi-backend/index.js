@@ -25,7 +25,8 @@ const IDL = require('./idl.json')
 const { depositToKamino, getYieldEarned, getLiveApyPublic } = require('./kaminoService')
 const { stakeWithMarinade } = require('./marinadeService')
 const { swapUsdcToSol } = require('./jupiterService')
-const { isWebhookProcessed, markWebhookProcessed, saveJarMeta, getJarMeta } = require('./db')
+const dbMod = require('./db')
+const { isWebhookProcessed, markWebhookProcessed, saveJarMeta, getJarMeta } = dbMod
 const { createGroup, getGroup, joinGroup, listGroupsByOwner } = require('./groupService')
 const {
   addSchedule,
@@ -240,15 +241,36 @@ app.post('/jar/create', async (req, res) => {
 // POST /jar/meta  — save off-chain name + emoji for a jar
 // ---------------------------------------------------------------------------
 
+function generateShareSlug() {
+  const chars = 'abcdefghjkmnpqrstuvwxyz23456789'
+  let s = ''
+  for (let i = 0; i < 6; i++) s += chars[Math.floor(Math.random() * chars.length)]
+  return s
+}
+
 app.post('/jar/meta', (req, res) => {
   try {
     const { pubkey, name, emoji, jarType } = req.body
     if (!pubkey) return res.status(400).json({ ok: false, error: 'pubkey required' })
-    saveJarMeta(pubkey, name ?? '', emoji ?? '🏺', jarType ?? '')
-    res.json({ ok: true })
+    const existing = getJarMeta(pubkey)
+    let slug = existing?.share_slug
+    if (!slug) {
+      // Generate unique slug
+      let attempts = 0
+      do { slug = generateShareSlug(); attempts++ } while (dbMod.getJarMetaBySlug(slug) && attempts < 20)
+    }
+    saveJarMeta(pubkey, name ?? '', emoji ?? '🏺', jarType ?? '', slug)
+    res.json({ ok: true, share_slug: slug })
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message })
   }
+})
+
+app.get('/jar/by-slug/:slug', (req, res) => {
+  const dbMod = require('./db')
+  const row = dbMod.getJarMetaBySlug(req.params.slug)
+  if (!row) return res.status(404).json({ ok: false, error: 'not found' })
+  res.json({ ok: true, pubkey: row.pubkey, name: row.name, emoji: row.emoji })
 })
 
 // ---------------------------------------------------------------------------

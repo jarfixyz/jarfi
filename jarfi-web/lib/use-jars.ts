@@ -60,7 +60,16 @@ export function useJars() {
           setExtraJars([]);
         }
       })
-      .catch((e) => setError(e.message))
+      .catch(async (e) => {
+        setError(e.message);
+        const known = loadKnownPubkeys(owner);
+        if (known.length > 0) {
+          const fetched = await Promise.all(
+            known.map(pk => fetchJarByPubkey(connection, new PublicKey(pk)).catch(() => null))
+          );
+          setExtraJars(fetched.filter(Boolean) as JarAccount[]);
+        }
+      })
       .finally(() => setLoading(false));
   }, [publicKey, connection, wallet, tick]);
 

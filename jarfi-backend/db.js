@@ -178,13 +178,19 @@ const markWebhookProcessed  = db.prepare(`
 // Jar meta (name + emoji — off-chain)
 // ---------------------------------------------------------------------------
 
+// Add share_slug column if it doesn't exist yet
+try { db.exec(`ALTER TABLE jar_meta ADD COLUMN share_slug TEXT`) } catch {}
+try { db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_jar_meta_slug ON jar_meta(share_slug)`) } catch {}
+
 const upsertJarMeta = db.prepare(`
-  INSERT INTO jar_meta (pubkey, name, emoji, jar_type)
-  VALUES (@pubkey, @name, @emoji, @jar_type)
-  ON CONFLICT(pubkey) DO UPDATE SET name = excluded.name, emoji = excluded.emoji, jar_type = excluded.jar_type
+  INSERT INTO jar_meta (pubkey, name, emoji, jar_type, share_slug)
+  VALUES (@pubkey, @name, @emoji, @jar_type, @share_slug)
+  ON CONFLICT(pubkey) DO UPDATE SET name = excluded.name, emoji = excluded.emoji, jar_type = excluded.jar_type,
+    share_slug = COALESCE(share_slug, excluded.share_slug)
 `)
 
-const selectJarMeta = db.prepare(`SELECT name, emoji, jar_type FROM jar_meta WHERE pubkey = ?`)
+const selectJarMeta = db.prepare(`SELECT name, emoji, jar_type, share_slug FROM jar_meta WHERE pubkey = ?`)
+const selectJarMetaBySlug = db.prepare(`SELECT pubkey, name, emoji, jar_type FROM jar_meta WHERE share_slug = ?`)
 
 module.exports = {
   // Webhooks idempotency
@@ -215,8 +221,11 @@ module.exports = {
   },
 
   // Jar meta
-  saveJarMeta(pubkey, name, emoji, jarType = '') { upsertJarMeta.run({ pubkey, name: name ?? '', emoji: emoji ?? '🏺', jar_type: jarType ?? '' }) },
+  saveJarMeta(pubkey, name, emoji, jarType = '', shareSlug = '') {
+    upsertJarMeta.run({ pubkey, name: name ?? '', emoji: emoji ?? '🏺', jar_type: jarType ?? '', share_slug: shareSlug || null })
+  },
   getJarMeta(pubkey) { return selectJarMeta.get(pubkey) ?? null },
+  getJarMetaBySlug(slug) { return selectJarMetaBySlug.get(slug) ?? null },
 
   // Trips
   createTripRow(trip) { insertTrip.run(trip) },

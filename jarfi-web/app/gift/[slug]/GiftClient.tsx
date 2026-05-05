@@ -35,21 +35,33 @@ const IS_SOLANA_PUBKEY = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:3001";
 
 export default function GiftClient({ slug }: { slug: string }) {
-  const resolvedSlug = SLUG_TO_PUBKEY[slug] ?? slug;
-  const isRealJar = IS_SOLANA_PUBKEY.test(resolvedSlug);
+  const knownPubkey = SLUG_TO_PUBKEY[slug];
+  const isShortSlug = !knownPubkey && !IS_SOLANA_PUBKEY.test(slug);
 
+  const [resolvedPubkey, setResolvedPubkey] = useState<string | null>(
+    knownPubkey ?? (IS_SOLANA_PUBKEY.test(slug) ? slug : null)
+  );
   const [jar, setJar] = useState<DisplayJar | null>(null);
   const [jarNotFound, setJarNotFound] = useState(false);
   const [amount, setAmount] = useState<number>(50);
   const [showTransak, setShowTransak] = useState(false);
   const [done, setDone] = useState(false);
 
+  // Resolve short slug → pubkey via backend
   useEffect(() => {
-    if (!isRealJar) { setJarNotFound(true); return; }
+    if (!isShortSlug) return;
+    fetch(`${BACKEND_URL}/jar/by-slug/${slug}`)
+      .then(r => r.json())
+      .then(d => { if (d.ok && d.pubkey) setResolvedPubkey(d.pubkey); else setJarNotFound(true); })
+      .catch(() => setJarNotFound(true));
+  }, [slug, isShortSlug]);
+
+  useEffect(() => {
+    if (!resolvedPubkey) return;
 
     const timeout = setTimeout(() => setJarNotFound(true), 8000);
 
-    fetch(`${BACKEND_URL}/jar/${resolvedSlug}`)
+    fetch(`${BACKEND_URL}/jar/${resolvedPubkey}`)
       .then((r) => r.json())
       .then((data: {
         ok: boolean;
@@ -90,9 +102,9 @@ export default function GiftClient({ slug }: { slug: string }) {
         });
       })
       .catch(() => { clearTimeout(timeout); setJarNotFound(true); });
-  }, [resolvedSlug, isRealJar, slug]);
+  }, [resolvedPubkey]);
 
-  const vaultAddress = isRealJar ? resolvedSlug : "11111111111111111111111111111111";
+  const vaultAddress = resolvedPubkey ?? "11111111111111111111111111111111";
   const pct   = jar ? Math.min(100, Math.round((jar.amountCents / Math.max(jar.goalCents, 1)) * 100)) : 0;
   const saved = jar ? (jar.amountCents / 100).toLocaleString(undefined, { minimumFractionDigits: 0 }) : "0";
   const goal  = jar ? (jar.goalCents  / 100).toLocaleString() : "0";

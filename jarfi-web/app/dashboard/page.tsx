@@ -60,6 +60,16 @@ function saveJarName(pubkey: string, name: string) {
   if (name.trim()) localStorage.setItem(`jar_name_${pubkey}`, name.trim());
 }
 
+function getJarSlug(pubkey: string): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(`jar_slug_${pubkey}`) ?? null;
+}
+
+function saveJarSlug(pubkey: string, slug: string) {
+  if (typeof window === "undefined") return;
+  if (slug) localStorage.setItem(`jar_slug_${pubkey}`, slug);
+}
+
 function getJarEmoji(pubkey: string, fallback = "🏺"): string {
   if (typeof window === "undefined") return fallback;
   return localStorage.getItem(`jar_emoji_${pubkey}`) ?? fallback;
@@ -522,7 +532,7 @@ export default function Dashboard() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ pubkey: jarPubkey, name: params.jarName, emoji: params.jarEmoji, jarType: contractToJarType(params.mode, params.unlockDate) }),
-              }).catch(() => {});
+              }).then(r => r.json()).then(d => { if (d.share_slug) saveJarSlug(jarPubkey, d.share_slug); }).catch(() => {});
               if (params.recurring) {
                 try {
                   await createScheduleApi({
@@ -2005,8 +2015,10 @@ function JarDetailPanel({
   const jarSchedule = schedules.find(s => s.jar_pubkey === jar.id) ?? null;
 
   const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://jarfi.up.railway.app";
-  const giftUrl = `jarfi.xyz/gift/${jar.id}`;
-  const giftFullUrl = `https://jarfi.xyz/gift/${jar.id}`;
+  const slug = getJarSlug(jar.id);
+  const giftPath = slug ?? jar.id;
+  const giftUrl = `jarfi.xyz/gift/${giftPath}`;
+  const giftFullUrl = `https://jarfi.xyz/gift/${giftPath}`;
 
   useEffect(() => {
     if (!wallet?.adapter) return;
