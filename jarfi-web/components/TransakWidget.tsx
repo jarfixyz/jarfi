@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 interface TransakWidgetProps {
   vaultAddress: string;
@@ -20,10 +20,6 @@ export default function TransakWidget({
   onSuccess,
   onClose,
 }: TransakWidgetProps) {
-  const transakRef = useRef<InstanceType<
-    (typeof import("@transak/transak-sdk"))["Transak"]
-  > | null>(null);
-
   useEffect(() => {
     const isProduction = process.env.NEXT_PUBLIC_ENV === "production";
     const baseUrl = isProduction ? PROD_URL : STAGING_URL;
@@ -40,37 +36,28 @@ export default function TransakWidget({
     };
     if (fiatAmount && fiatAmount > 0) paramObj.fiatAmount = String(fiatAmount);
     const params = new URLSearchParams(paramObj);
-
     const widgetUrl = `${baseUrl}?${params.toString()}`;
 
+    // Try SDK first, fall back to new tab
     import("@transak/transak-sdk").then(({ Transak }) => {
-      const transak = new Transak({
-        widgetUrl,
-        referrer: window.location.hostname,
-        themeColor: "9945FF",
-      });
+      try {
+        const transak = new Transak({ widgetUrl, referrer: window.location.hostname, themeColor: "059669" });
+        transak.init();
 
-      transakRef.current = transak;
-      transak.init();
-
-      Transak.on(Transak.EVENTS.TRANSAK_ORDER_SUCCESSFUL, (raw) => {
-        const data = raw as { id?: string };
-        onSuccess(data?.id ?? partnerOrderId);
-        transak.close();
-      });
-
-      Transak.on(Transak.EVENTS.TRANSAK_WIDGET_CLOSE, () => {
+        Transak.on(Transak.EVENTS.TRANSAK_ORDER_SUCCESSFUL, (raw) => {
+          const data = raw as { id?: string };
+          onSuccess(data?.id ?? partnerOrderId);
+          try { transak.close(); } catch { /* ignore */ }
+        });
+        Transak.on(Transak.EVENTS.TRANSAK_WIDGET_CLOSE, () => { onClose(); });
+      } catch {
+        window.open(widgetUrl, "_blank", "noopener,noreferrer");
         onClose();
-      });
+      }
     }).catch(() => {
-      // SDK failed to load — open Transak directly in new tab
       window.open(widgetUrl, "_blank", "noopener,noreferrer");
       onClose();
     });
-
-    return () => {
-      transakRef.current?.close();
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
