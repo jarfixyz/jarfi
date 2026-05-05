@@ -454,7 +454,12 @@ export default function Dashboard() {
               );
             } catch (e: unknown) {
               const msg = e instanceof Error ? e.message : "Unknown error";
-              showToast("Failed: " + msg.slice(0, 60));
+              const friendly = msg.includes("blockhash")
+                ? "Network error — try again in a moment"
+                : msg.includes("rejected") || msg.includes("User rejected")
+                ? "Transaction cancelled"
+                : msg.slice(0, 60);
+              showToast("Failed: " + friendly);
             }
           }}
         />
@@ -1281,18 +1286,41 @@ function NewJarModal({
   const [customDate, setCustomDate] = useState("");
   const [recurChoice, setRecurChoice] = useState<"monthly" | "once">("monthly");
   const [recurAmount, setRecurAmount] = useState("100");
+  const [initialDeposit, setInitialDeposit] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const { publicKey } = useWallet();
   const walletConnected = !!publicKey;
 
   const goalUsd = parseFloat(goalInput) || 0;
+  const hasGoal = goalUsd > 0;
+  const hasDate = !!(selectedYears || customDate);
+  const isRecurring = recurChoice === "monthly";
+  const initialDepositUsd = parseFloat(initialDeposit) || 0;
+
   const years = selectedYears ?? (customDate ? Math.max(1, Math.round((new Date(customDate).getTime() - Date.now()) / (365.25 * 86400 * 1000))) : 5);
-  const monthly = recurChoice === "monthly" ? (parseFloat(recurAmount) || 100) : 0;
-  const rJ = 0.055 / 12;
-  const n = years * 12;
-  const projJarfi = Math.round(monthly * ((Math.pow(1 + rJ, n) - 1) / rJ));
-  const projBank = Math.round(monthly * ((Math.pow(1 + 0.02/12, n) - 1) / (0.02/12)));
+  const monthly = isRecurring ? (parseFloat(recurAmount) || 100) : 0;
+
+  const r12 = 0.055 / 12;
+  // Months to reach goal via recurring deposits (null if not applicable)
+  const monthsToGoal = (hasGoal && isRecurring && monthly > 0)
+    ? Math.ceil(Math.log(goalUsd * r12 / monthly + 1) / Math.log(1 + r12))
+    : null;
+
+  // Effective horizon: use explicit date → time-to-goal → 5yr fallback
+  const effectiveYears = hasDate ? years : monthsToGoal ? monthsToGoal / 12 : 5;
+  const nMonths = Math.round(effectiveYears * 12);
+
+  const projJarfi = isRecurring && monthly > 0
+    ? Math.round(monthly * ((Math.pow(1 + r12, nMonths) - 1) / r12))
+    : initialDepositUsd > 0
+    ? Math.round(initialDepositUsd * Math.pow(1.055, effectiveYears))
+    : 0;
+  const projBank = isRecurring && monthly > 0
+    ? Math.round(monthly * ((Math.pow(1 + 0.02 / 12, nMonths) - 1) / (0.02 / 12)))
+    : initialDepositUsd > 0
+    ? Math.round(initialDepositUsd * Math.pow(1.02, effectiveYears))
+    : 0;
 
   async function handleCreate() {
     setSubmitting(true);
@@ -1300,7 +1328,7 @@ function NewJarModal({
       const unlockDate = customDate
         ? Math.floor(new Date(customDate).getTime() / 1000)
         : selectedYears
-        ? Math.floor(Date.now() / 1000) + selectedYears * 365.25 * 86400
+        ? Math.floor(Date.now() / 1000 + selectedYears * 365.25 * 86400)
         : 0;
       const goalAmount = goalUsd > 0 ? Math.round(goalUsd * 1_000_000) : 0;
       const mode = unlockDate > 0 && goalAmount > 0 ? 2 : goalAmount > 0 ? 1 : 0;
@@ -1413,13 +1441,17 @@ function NewJarModal({
               <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, marginTop: 6 }}>Funds stay locked until this date, earning yield automatically. You can always unlock early if needed.</div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-              {[1, 3, 5, 10, 18, 0].map((y) => (
-                <button key={y} onClick={() => { setSelectedYears(y || null); setCustomDate(""); }}
-                  style={{ padding: 12, border: "1px solid", borderColor: selectedYears === y ? "var(--text-primary)" : "var(--border)", borderRadius: 8, cursor: "pointer", background: selectedYears === y ? "var(--bg-muted)" : "var(--bg)", fontFamily: "var(--font)", textAlign: "center" }}>
-                  <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: "-0.5px" }}>{y || "—"}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2 }}>{y === 0 ? "no deadline" : y === 1 ? "year" : "years"}</div>
-                </button>
-              ))}
+              {[1, 3, 5, 10, 18, 0].map((y) => {
+                const isNone = y === 0;
+                const active = isNone ? (selectedYears === null && !customDate) : selectedYears === y;
+                return (
+                  <button key={y} onClick={() => { setSelectedYears(isNone ? null : y); setCustomDate(""); }}
+                    style={{ padding: 12, border: "1px solid", borderColor: active ? "var(--text-primary)" : "var(--border)", borderRadius: 8, cursor: "pointer", background: active ? "var(--bg-muted)" : "var(--bg)", fontFamily: "var(--font)", textAlign: "center" }}>
+                    <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: "-0.5px" }}>{isNone ? "—" : y}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2 }}>{isNone ? "no deadline" : y === 1 ? "year" : "years"}</div>
+                  </button>
+                );
+              })}
             </div>
             <div>
               <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 6 }}>Or pick a specific date</div>
@@ -1475,27 +1507,84 @@ function NewJarModal({
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>Step 5 of {TOTAL_STEPS}</div>
-              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>If you continue, you&apos;ll have:</div>
-            </div>
-            <div style={{ background: "var(--bg-muted)", borderRadius: 12, padding: 24 }}>
-              <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginBottom: 8 }}>Estimated future value</div>
-              <div style={{ fontSize: 44, fontWeight: 600, color: "var(--green)", letterSpacing: "-1.5px", lineHeight: 1 }}>
-                ${projJarfi.toLocaleString()}
-              </div>
-              <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>in {years} {years === 1 ? "year" : "years"}</div>
-              <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                  <span style={{ color: "var(--text-secondary)" }}>Do nothing</span>
-                  <span style={{ fontWeight: 500, color: "var(--text-tertiary)" }}>$0</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                  <span style={{ color: "var(--text-secondary)" }}>In a bank (2%)</span>
-                  <span style={{ fontWeight: 500, color: "var(--text-secondary)" }}>${projBank.toLocaleString()}</span>
-                </div>
+              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>
+                {projJarfi > 0 ? "If you continue, you'll have:" : hasGoal ? "Your goal" : "Almost done"}
               </div>
             </div>
+
+            {/* One-time: ask initial deposit for projection */}
+            {!isRecurring && (
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>How much are you depositing? (optional)</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ padding: "11px 14px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 15, fontWeight: 600, background: "var(--bg-muted)", color: "var(--text-secondary)", minWidth: 48, textAlign: "center" }}>$</div>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={initialDeposit}
+                    onChange={(e) => setInitialDeposit(e.target.value)}
+                    style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 8, padding: "11px 14px", fontSize: 15, fontFamily: "var(--font)", outline: "none" }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {projJarfi > 0 ? (
+              <div style={{ background: "var(--bg-muted)", borderRadius: 12, padding: 24 }}>
+                {/* Goal-only + recurring: show time to goal */}
+                {isRecurring && monthsToGoal && !hasDate ? (
+                  <>
+                    <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginBottom: 8 }}>Time to reach your ${goalUsd.toLocaleString()} goal</div>
+                    <div style={{ fontSize: 44, fontWeight: 600, color: "var(--green)", letterSpacing: "-1.5px", lineHeight: 1 }}>
+                      ~{monthsToGoal < 24 ? `${monthsToGoal} mo` : `${Math.round(monthsToGoal / 12)} yr`}
+                    </div>
+                    <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>
+                      at ${monthly}/month · total ${projJarfi.toLocaleString()} with yield
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginBottom: 8 }}>Estimated future value</div>
+                    <div style={{ fontSize: 44, fontWeight: 600, color: "var(--green)", letterSpacing: "-1.5px", lineHeight: 1 }}>
+                      ${projJarfi.toLocaleString()}
+                    </div>
+                    <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>
+                      {hasDate
+                        ? `by ${customDate ? new Date(customDate).toLocaleDateString("en-US", { year: "numeric", month: "short" }) : `${years} ${years === 1 ? "year" : "years"}`}`
+                        : `in ${Math.round(effectiveYears)} ${Math.round(effectiveYears) === 1 ? "year" : "years"}`}
+                    </div>
+                  </>
+                )}
+                <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                    <span style={{ color: "var(--text-secondary)" }}>Do nothing</span>
+                    <span style={{ fontWeight: 500, color: "var(--text-tertiary)" }}>$0</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                    <span style={{ color: "var(--text-secondary)" }}>In a bank (2%)</span>
+                    <span style={{ fontWeight: 500, color: "var(--text-secondary)" }}>${projBank.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* No projection data — show goal or open jar message */
+              <div style={{ background: "var(--bg-muted)", borderRadius: 12, padding: 24 }}>
+                {hasGoal ? (
+                  <>
+                    <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginBottom: 8 }}>Goal</div>
+                    <div style={{ fontSize: 44, fontWeight: 600, color: "var(--green)", letterSpacing: "-1.5px", lineHeight: 1 }}>${goalUsd.toLocaleString()}</div>
+                    <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>Share the link — friends & family can contribute by card</div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 15, fontWeight: 500, color: "var(--text-primary)", marginBottom: 6 }}>Open jar — ready to collect</div>
+                    <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6 }}>Anyone can contribute via the gift link using a card or Apple Pay. No deadline or goal needed.</div>
+                  </>
+                )}
+              </div>
+            )}
             <div style={{ fontSize: 13, color: "var(--text-tertiary)", lineHeight: 1.6 }}>
-              This includes your contributions and growth over time.
+              {isRecurring ? "Estimate based on 5.5% APY compounded monthly." : "Funds earn ~5.5% APY automatically after deposit."}
             </div>
             {walletConnected ? (
               <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "#f0faf5", borderRadius: 8, fontSize: 13, color: "var(--green)" }}>
