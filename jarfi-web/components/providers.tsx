@@ -34,7 +34,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   ) as never[];
 
   return (
-    <CP endpoint={endpoint} config={{ commitment: "confirmed", confirmTransactionInitialTimeout: 60000 }}>
+    <CP endpoint={endpoint} config={{ commitment: "processed", confirmTransactionInitialTimeout: 90000 }}>
       <WP wallets={wallets} autoConnect>
         {children}
       </WP>

@@ -13,7 +13,7 @@ export const RPC_URL =
 
 export function getProgram(wallet: AnchorWallet, connection: Connection) {
   const provider = new AnchorProvider(connection, wallet, {
-    commitment: "confirmed",
+    commitment: "processed",
     preflightCommitment: "processed",
   });
   return new Program<JarfiContract>(IDL, provider);

@@ -44,32 +44,24 @@ export function useJars() {
     setLoading(true);
     setError(null);
 
+    // Step 1: immediately show localStorage jars so they never disappear on refresh
+    const known = loadKnownPubkeys(owner);
+    if (known.length > 0) {
+      Promise.all(known.map(pk => fetchJarByPubkey(connection, new PublicKey(pk)).catch(() => null)))
+        .then(fetched => setExtraJars(fetched.filter(Boolean) as JarAccount[]));
+    }
+
+    // Step 2: try getProgramAccounts to discover any jars not in localStorage
     fetchJarsByOwner(connection, publicKey, wallet.adapter as never)
-      .then(async (jars) => {
-        setChainJars(jars);
-        // If chain returned nothing, fall back to locally-known pubkeys
-        if (jars.length === 0) {
-          const known = loadKnownPubkeys(owner);
-          if (known.length > 0) {
-            const fetched = await Promise.all(
-              known.map(pk => fetchJarByPubkey(connection, new PublicKey(pk)).catch(() => null))
-            );
-            setExtraJars(fetched.filter(Boolean) as JarAccount[]);
-          }
-        } else {
-          setExtraJars([]);
+      .then((jars) => {
+        if (jars.length > 0) {
+          jars.forEach(j => saveKnownPubkey(owner, j.pubkey));
+          setChainJars(jars);
+          setExtraJars([]); // chain is authoritative when it works
         }
+        // if empty, localStorage jars remain visible
       })
-      .catch(async (e) => {
-        setError(e.message);
-        const known = loadKnownPubkeys(owner);
-        if (known.length > 0) {
-          const fetched = await Promise.all(
-            known.map(pk => fetchJarByPubkey(connection, new PublicKey(pk)).catch(() => null))
-          );
-          setExtraJars(fetched.filter(Boolean) as JarAccount[]);
-        }
-      })
+      .catch(() => { /* localStorage already loaded above */ })
       .finally(() => setLoading(false));
   }, [publicKey, connection, wallet, tick]);
 
