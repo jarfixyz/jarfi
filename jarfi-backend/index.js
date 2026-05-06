@@ -464,13 +464,14 @@ app.post('/transak/session', async (req, res) => {
     const { data: { accessToken } } = await tokenResp.json()
 
     // Step 2: create widget session
+    // walletAddress = server wallet (Transak sends USDC here), jar pubkey is in partnerOrderId
     const partnerOrderId = `${vaultAddress}__${Date.now()}__${message || ''}`
     const widgetParams = {
       apiKey:             TRANSAK_API_KEY,
       referrerDomain:     'jarfi.xyz',
       network:            'solana',
       cryptoCurrencyCode: 'USDC',
-      walletAddress:      vaultAddress,
+      walletAddress:      serverKeypair.publicKey.toBase58(),
       disableWalletAddressForm: true,
       hideMenu:           true,
       partnerOrderId,
@@ -521,7 +522,6 @@ app.post('/transak-webhook', async (req, res) => {
     }
 
     const data          = payload.webhookData || payload.data || {}
-    const vaultAddress  = data.walletAddress || data.wallet_address
     const fiatAmount    = Number(data.fiatAmount    || data.fiat_amount    || 0)
     const cryptoAmount  = Number(data.cryptoAmount  || data.crypto_amount  || 0)
     const partnerOrderId = data.partnerOrderId || data.partner_order_id || ''
@@ -533,21 +533,23 @@ app.post('/transak-webhook', async (req, res) => {
       return res.json({ ok: true, skipped: true, reason: 'duplicate' })
     }
 
+    // jar pubkey is always parts[0] of partnerOrderId (walletAddress is now server wallet)
     const parts = partnerOrderId.split('__')
+    const jarAddress = parts[0] || ''
     const rawMsg = parts.length >= 3 && parts[2].trim()
       ? decodeURIComponent(parts.slice(2).join('__'))
       : ''
     const contributorMessage = (rawMsg || 'gift deposit').slice(0, 120)
 
-    if (!vaultAddress) {
-      return res.status(400).json({ ok: false, error: 'walletAddress (jar pubkey) missing' })
+    if (!jarAddress) {
+      return res.status(400).json({ ok: false, error: 'jar pubkey missing from partnerOrderId' })
     }
 
     let jarPubkey
     try {
-      jarPubkey = new PublicKey(vaultAddress)
+      jarPubkey = new PublicKey(jarAddress)
     } catch {
-      return res.status(400).json({ ok: false, error: `Invalid jar pubkey: ${vaultAddress}` })
+      return res.status(400).json({ ok: false, error: `Invalid jar pubkey: ${jarAddress}` })
     }
 
     // Fetch jar to determine currency
@@ -561,7 +563,7 @@ app.post('/transak-webhook', async (req, res) => {
     const isUsdcJar = !jar || jar.jarCurrency === CURRENCY_USDC
 
     console.log('[transak-webhook] ORDER_COMPLETED', {
-      vaultAddress, fiatAmount, cryptoAmount, isUsdcJar, contributorMessage,
+      jarAddress, fiatAmount, cryptoAmount, isUsdcJar, contributorMessage,
     })
 
     let txSignature

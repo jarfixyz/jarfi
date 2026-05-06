@@ -251,6 +251,13 @@ const DEMO_CONTRIBUTIONS_BY_JAR: Record<string, JarContribution[]> = {
   "28teBgT2U1y25ARUkgGfHjeyBHhnJXorVtLs6Qk93ppc": [
     { pubkey:"m1", contributor:"1kRt8mPs3nQvZxCu", amount:20_000_000,  comment:"Ride safe! 🤘",         createdAt: NOW - 7 * 86400 },
     { pubkey:"m2", contributor:"7vK2MtR3mPq9xNsL", amount:25_000_000,  comment:"Fuel for the road 🏍️", createdAt: NOW - 40 * 86400 },
+    { pubkey:"m3", contributor:"8pQr7nKs1mLtXvBo", amount:75_000_000,  comment:"Go for it! 💪",         createdAt: NOW - 80 * 86400 },
+  ],
+  "DemoJar4SharedXXXXXXXXXXXXXXXXXXXXXXXXXXXXX": [
+    { pubkey:"f1", contributor:"5mP4kLs2nQrTbYzX", amount:300_000_000, comment:"From Mom 💐",            createdAt: NOW - 5 * 86400 },
+    { pubkey:"f2", contributor:"9xWt3nR8kLsPvCmN", amount:500_000_000, comment:"Dad's contribution 🎯", createdAt: NOW - 15 * 86400 },
+    { pubkey:"f3", contributor:"7vK2MtR3mPq9xNsL", amount:200_000_000, comment:"From Grandma 👵",       createdAt: NOW - 30 * 86400 },
+    { pubkey:"f4", contributor:"3nR8xWt9kLsPmVqJ", amount:150_000_000, comment:"Uncle Mike pitches in 🎩", createdAt: NOW - 60 * 86400 },
   ],
 };
 
@@ -273,7 +280,7 @@ export default function Dashboard() {
   const { publicKey, wallet } = useWallet();
   const { connection } = useConnection();
   const { jars: liveJars, loading: jarsLoading, refresh: refreshJars, addJar, removeJar } = useJars();
-  const [apy, setApy] = useState({ usdc_kamino: 8.2, sol_marinade: 6.85 });
+  const [apy, setApy] = useState({ usdc_kamino: 5.5, sol_marinade: 6.85 });
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [contributions, setContributions] = useState<JarContribution[]>([]);
@@ -458,7 +465,7 @@ export default function Dashboard() {
             // "Docs" opens external link
             if (key === "docs") {
               return (
-                <a key="docs" href="https://app.gitbook.com/o/wk5vJJXk4fxcDH3nmeC3/s/LMzY6IFQxwIgx9cv15x1/" target="_blank" rel="noopener noreferrer"
+                <a key="docs" href="https://jarfi.gitbook.io/jarfi-docs/" target="_blank" rel="noopener noreferrer"
                   style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 10px", borderRadius: 8, textDecoration: "none", transition: "background .12s" }}
                   onMouseEnter={e => { e.currentTarget.style.background = "#F5F5F3"; }}
                   onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
@@ -1341,7 +1348,7 @@ function V3Forecast({
   const [targetYears, setTargetYears] = useState(10);
 
   const avgApy = (apy.usdc_kamino + apy.sol_marinade) / 2 / 100;
-  const APY = 0.075;
+  const APY = avgApy;
 
   function forecastSeries(mo: number, yrs: number, rate: number, principal: number, pts: number): number[] {
     const arr: number[] = [];
@@ -1376,8 +1383,6 @@ function V3Forecast({
 
   const fmt = (v: number) => `$${Math.round(v).toLocaleString()}`;
 
-  void avgApy;
-
   return (
     <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "22px 26px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
@@ -1402,7 +1407,7 @@ function V3Forecast({
             <div>
               <div style={{ fontSize: 11, color: "#666", fontWeight: 500, marginBottom: 4 }}>Of which is yield</div>
               <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.025em", lineHeight: 1, marginTop: 8 }}>{fmt(Math.max(0, yieldGain))}</div>
-              <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>at 7.5% avg APY</div>
+              <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>at {(APY * 100).toFixed(1)}% avg APY</div>
             </div>
             <div>
               <div style={{ fontSize: 11, color: "#666", fontWeight: 500, marginBottom: 4 }}>vs. bank (0.5%)</div>
