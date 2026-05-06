@@ -2066,11 +2066,19 @@ function JarDetailPanel({
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://jarfi.up.railway.app";
       let txSignature: string | null = null;
 
-      if (jar.amount <= 0) {
+      // Always fetch live balance from chain — cache may be stale after deposits
+      const { fetchJarByPubkey: fetchLive } = await import("@/lib/program");
+      const liveJar = await fetchLive(connection, new (await import("@solana/web3.js")).PublicKey(jar.id)).catch(() => null);
+      const isUsdc = jar.currency === "usdc";
+      const liveAmount = liveJar
+        ? (isUsdc ? liveJar.usdcBalance / 1_000_000 : liveJar.balance / 1_000_000_000)
+        : jar.amount;
+
+      if (liveAmount <= 0) {
         // Empty jar — no on-chain withdrawal needed, just clean up
         txSignature = null;
-      } else if (jar.currency === "usdc") {
-        const microUnits = Math.round(jar.amount * 1_000_000);
+      } else if (isUsdc) {
+        const microUnits = Math.round(liveAmount * 1_000_000);
         txSignature = await breakUsdcJarOnChain(wallet.adapter as never, connection, jar.id, microUnits);
       } else {
         txSignature = await breakSolJarOnChain(wallet.adapter as never, connection, jar.id);
@@ -2080,7 +2088,7 @@ function JarDetailPanel({
       setShowBreakModal(false);
       setBreakResult({
         txSignature: txSignature ?? "",
-        amount: jar.amount,
+        amount: liveAmount,
         currency: jar.currency,
         walletAddr: publicKey.toBase58(),
       });
