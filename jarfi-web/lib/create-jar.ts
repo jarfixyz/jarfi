@@ -1,6 +1,6 @@
 "use client";
 
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey, Transaction } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
 import type { AnchorWallet } from "@solana/wallet-adapter-react";
 import { getProgram, PROGRAM_ID } from "./program";
@@ -10,27 +10,58 @@ import {
   getAssociatedTokenAddress,
 } from "@solana/spl-token";
 
-const TRANSIENT_PATTERNS = [
-  "blockhash", "timeout", "503", "502", "network", "too many",
-  "429", "rate limit", "rate_limit", "confirmation", "socket", "econnreset",
-  "fetch failed", "failed to fetch",
-];
+// Sign once → resend same bytes every 5s until confirmed or blockhash expires.
+// Avoids multiple Phantom popups and "already in use" errors on retry.
+async function sendAndConfirmRobust(
+  connection: Connection,
+  wallet: AnchorWallet,
+  buildTx: () => Promise<Transaction>,
+  extraSigners: Keypair[]
+): Promise<string> {
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
 
-async function withRetry<T>(fn: (skipPreflight: boolean) => Promise<T>): Promise<T> {
-  let lastErr: unknown;
-  for (let i = 0; i < 4; i++) {
-    try {
-      // Always skip preflight on devnet — simulation blockhash often lags behind actual state
-      return await fn(true);
-    } catch (e) {
-      lastErr = e;
-      const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
-      const isTransient = TRANSIENT_PATTERNS.some(p => msg.includes(p));
-      if (!isTransient) throw e;
-      await new Promise(r => setTimeout(r, 1500 * (i + 1)));
+  const tx = await buildTx();
+  tx.recentBlockhash = blockhash;
+  tx.feePayer = wallet.publicKey;
+  for (const signer of extraSigners) tx.partialSign(signer);
+
+  const signedTx = await wallet.signTransaction(tx);
+  const rawTx = signedTx.serialize();
+
+  const signature = await connection.sendRawTransaction(rawTx, {
+    skipPreflight: true,
+    maxRetries: 0,
+  });
+
+  const deadline = Date.now() + 90_000;
+  let lastResend = Date.now();
+
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 2000));
+
+    const { value: status } = await connection.getSignatureStatus(signature);
+    if (status) {
+      if (status.err) throw new Error(`Transaction failed: ${JSON.stringify(status.err)}`);
+      if (status.confirmationStatus === "processed" ||
+          status.confirmationStatus === "confirmed" ||
+          status.confirmationStatus === "finalized") {
+        return signature;
+      }
+    }
+
+    // Resend same signed bytes every 5s — no new signing, no new Phantom popup
+    if (Date.now() - lastResend > 5000) {
+      connection.sendRawTransaction(rawTx, { skipPreflight: true, maxRetries: 0 }).catch(() => {});
+      lastResend = Date.now();
+    }
+
+    const blockHeight = await connection.getBlockHeight();
+    if (blockHeight > lastValidBlockHeight) {
+      throw new Error("blockhash expired — please try again");
     }
   }
-  throw lastErr;
+
+  throw new Error("Transaction timed out after 90s");
 }
 
 export const USDC_MINT_DEVNET  = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
@@ -71,8 +102,10 @@ export async function createUsdcJarOnChain(
   const vaultAuthority = await getVaultAuthority(jarKeypair.publicKey);
   const jarUsdcVault = await getAssociatedTokenAddress(mint, vaultAuthority, true);
 
-  const txSignature = await withRetry((skipPreflight) =>
-    program.methods
+  const txSignature = await sendAndConfirmRobust(
+    connection,
+    wallet,
+    () => program.methods
       .createUsdcJar(
         params.mode,
         new BN(params.unlockDate),
@@ -89,8 +122,8 @@ export async function createUsdcJarOnChain(
         tokenProgram:           TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       } as never)
-      .signers([jarKeypair])
-      .rpc({ skipPreflight })
+      .transaction(),
+    [jarKeypair]
   );
 
   return { jarPubkey: jarKeypair.publicKey.toBase58(), txSignature };
@@ -114,8 +147,10 @@ export async function createJarOnChain(
   const jarKeypair = Keypair.generate();
   const childWalletPubkey = new PublicKey(params.childWallet);
 
-  const txSignature = await withRetry((skipPreflight) =>
-    program.methods
+  const txSignature = await sendAndConfirmRobust(
+    connection,
+    wallet,
+    () => program.methods
       .createJar(
         params.mode,
         new BN(params.unlockDate),
@@ -126,8 +161,8 @@ export async function createJarOnChain(
         jar:   jarKeypair.publicKey,
         owner: wallet.publicKey,
       } as never)
-      .signers([jarKeypair])
-      .rpc({ skipPreflight })
+      .transaction(),
+    [jarKeypair]
   );
 
   return { jarPubkey: jarKeypair.publicKey.toBase58(), txSignature };
