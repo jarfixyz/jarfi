@@ -922,7 +922,7 @@ function DashboardPage({
         onAddFunds={onAddFunds}
         onScheduleUpdate={onScheduleUpdate}
         onJarBroken={(pubkey) => { onJarBroken(pubkey); setSelectedJar(null); }}
-        initialContribs={!greeting ? (DEMO_CONTRIBUTIONS_BY_JAR[selectedJar.id] ?? []) : undefined}
+        initialContribs={DEMO_CONTRIBUTIONS_BY_JAR[selectedJar.id]}
       />
     );
   }
@@ -984,6 +984,7 @@ function DashboardPage({
                 estimatedYieldMonthly={estimatedYieldMonthly}
                 uniqueContributors={uniqueContributors}
                 liveJars={effectiveJars}
+                apy={apy}
               />
             )}
 
@@ -1034,7 +1035,7 @@ function DashboardPage({
                   <div style={{ background: "#ECFAF3", borderRadius: 18, padding: "48px 24px", textAlign: "center" }}>
                     <div style={{ width: 56, height: 56, borderRadius: 14, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, margin: "0 auto 20px", boxShadow: "0 2px 8px rgba(0,0,0,.08)" }}>🫙</div>
                     <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.03em", marginBottom: 10 }}>Create your first jar</div>
-                    <div style={{ fontSize: 14, color: "#555", lineHeight: 1.6, marginBottom: 28, maxWidth: 340, margin: "0 auto 28px" }}>Set aside money for a goal, a date, or a person. It earns ~7.5%/yr automatically while you wait.</div>
+                    <div style={{ fontSize: 14, color: "#555", lineHeight: 1.6, marginBottom: 28, maxWidth: 340, margin: "0 auto 28px" }}>Set aside money for a goal, a date, or a person. It earns yield automatically while you wait.</div>
                     <button onClick={onNewJar} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#111", color: "#fff", fontSize: 14, fontWeight: 600, padding: "12px 28px", borderRadius: 10, border: "none", cursor: "pointer", fontFamily: "var(--font)" }}>+ New jar</button>
                   </div>
 
@@ -1277,6 +1278,7 @@ function V3Hero({
   estimatedYieldMonthly,
   uniqueContributors,
   liveJars,
+  apy,
 }: {
   totalSaved: number;
   totalFutureValue: number;
@@ -1284,9 +1286,11 @@ function V3Hero({
   estimatedYieldMonthly: number;
   uniqueContributors: number;
   liveJars: JarType[];
+  apy: { usdc_kamino: number; sol_marinade: number };
 }) {
   const gain = totalFutureValue - totalSaved;
   const fmt = (v: number) => `$${Math.round(v).toLocaleString()}`;
+  const avgApyPct = ((apy.usdc_kamino + apy.sol_marinade) / 2).toFixed(1);
   const fmtCents = (v: number) => `$${v.toFixed(2)}`;
 
   return (
@@ -1305,7 +1309,7 @@ function V3Hero({
             )}
           </div>
           <div style={{ fontSize: 14, color: "#666", marginTop: 12 }}>
-            Saving <strong style={{ color: "#111" }}>{fmt(totalSaved)}</strong> today across {liveJars.length} jar{liveJars.length !== 1 ? "s" : ""} · earning <strong style={{ color: "#1F8A5B" }}>~7.5%/yr</strong> automatically
+            Saving <strong style={{ color: "#111" }}>{fmt(totalSaved)}</strong> today across {liveJars.length} jar{liveJars.length !== 1 ? "s" : ""} · earning <strong style={{ color: "#1F8A5B" }}>~{avgApyPct}%/yr</strong> automatically
           </div>
         </div>
 
