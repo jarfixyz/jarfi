@@ -426,45 +426,6 @@ async function onrampDepositUsdc(jarPubkey, cryptoAmount, comment) {
 }
 
 // ---------------------------------------------------------------------------
-// POST /transak/session — generate Secure Widget URL (server-side JWT signing)
-// ---------------------------------------------------------------------------
-
-app.post('/transak/session', (req, res) => {
-  try {
-    const { vaultAddress, fiatAmount, message } = req.body
-    if (!vaultAddress) return res.status(400).json({ error: 'vaultAddress required' })
-
-    const apiKey    = process.env.TRANSAK_API_KEY || process.env.NEXT_PUBLIC_TRANSAK_API_KEY
-    const apiSecret = process.env.TRANSAK_API_SECRET
-    if (!apiKey || !apiSecret) return res.status(500).json({ error: 'Transak not configured' })
-
-    const isProduction  = process.env.SOLANA_NETWORK === 'mainnet'
-    const partnerOrderId = `${vaultAddress}__${Date.now()}__${message || ''}`
-
-    const widgetParams = {
-      apiKey,
-      network:                  'solana',
-      cryptoCurrencyCode:       'USDC',
-      walletAddress:            vaultAddress,
-      disableWalletAddressForm: true,
-      hideMenu:                 true,
-      partnerOrderId,
-      themeColor:               '059669',
-    }
-    if (fiatAmount && Number(fiatAmount) > 0) widgetParams.fiatAmount = String(fiatAmount)
-
-    const accessToken = jwt.sign(widgetParams, apiSecret, { expiresIn: '2h' })
-    const baseUrl     = isProduction ? 'https://global.transak.com' : 'https://global-stg.transak.com'
-    const widgetUrl   = `${baseUrl}?apiKey=${encodeURIComponent(apiKey)}&accessToken=${encodeURIComponent(accessToken)}`
-
-    res.json({ widgetUrl, partnerOrderId })
-  } catch (err) {
-    console.error('[transak/session]', err.message)
-    res.status(500).json({ error: err.message })
-  }
-})
-
-// ---------------------------------------------------------------------------
 // POST /transak-webhook
 // ---------------------------------------------------------------------------
 
