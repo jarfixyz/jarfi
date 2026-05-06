@@ -1,6 +1,6 @@
 "use client";
 
-import { Connection, PublicKey, Transaction } from "@solana/web3.js";
+import { Connection, PublicKey, Transaction, ComputeBudgetProgram } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
 import type { AnchorWallet } from "@solana/wallet-adapter-react";
 import { getProgram, PROGRAM_ID } from "./program";
@@ -26,6 +26,10 @@ async function sendAndConfirmRobust(
   const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
 
   const tx = await buildTx();
+  tx.instructions.unshift(
+    ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 200_000 }),
+    ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }),
+  );
   tx.recentBlockhash = blockhash;
   tx.feePayer = wallet.publicKey;
 

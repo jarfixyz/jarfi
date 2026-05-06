@@ -1,6 +1,9 @@
 "use client";
 
-import { Connection, Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import {
+  Connection, Keypair, PublicKey, Transaction,
+  ComputeBudgetProgram,
+} from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
 import type { AnchorWallet } from "@solana/wallet-adapter-react";
 import { getProgram, PROGRAM_ID } from "./program";
@@ -10,6 +13,18 @@ import {
   getAssociatedTokenAddress,
 } from "@solana/spl-token";
 
+// Priority fee helps skip the devnet congestion queue.
+// 200_000 microlamports ≈ $0.00003 on mainnet — negligible but effective on devnet.
+const PRIORITY_FEE_MICROLAMPORTS = 200_000;
+
+function addPriorityFee(tx: Transaction): Transaction {
+  tx.instructions.unshift(
+    ComputeBudgetProgram.setComputeUnitPrice({ microLamports: PRIORITY_FEE_MICROLAMPORTS }),
+    ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }),
+  );
+  return tx;
+}
+
 // Sign once → resend same bytes every 5s until confirmed or blockhash expires.
 // Avoids multiple Phantom popups and "already in use" errors on retry.
 async function sendAndConfirmRobust(
@@ -18,64 +33,78 @@ async function sendAndConfirmRobust(
   buildTx: () => Promise<Transaction>,
   extraSigners: Keypair[]
 ): Promise<string> {
-  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+  const MAX_ATTEMPTS = 3;
 
-  const tx = await buildTx();
-  tx.recentBlockhash = blockhash;
-  tx.feePayer = wallet.publicKey;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
 
-  // Wallet (Phantom) signs FIRST — this compiles the message canonically.
-  // Then extra signers (jarKeypair) sign the same compiled message bytes.
-  // Reversed order causes Phantom to recompile, invalidating jarKeypair's sig.
-  const signedTx = await wallet.signTransaction(tx);
-  for (const signer of extraSigners) signedTx.partialSign(signer);
+    const tx = await buildTx();
+    addPriorityFee(tx);
+    tx.recentBlockhash = blockhash;
+    tx.feePayer = wallet.publicKey;
 
-  const rawTx = signedTx.serialize();
+    // Wallet (Phantom) signs FIRST — compiles the message canonically.
+    // jarKeypair signs the same compiled bytes. Reversed order causes Phantom
+    // to recompile, invalidating jarKeypair's sig.
+    const signedTx = await wallet.signTransaction(tx);
+    for (const signer of extraSigners) signedTx.partialSign(signer);
 
-  const signature = await connection.sendRawTransaction(rawTx, {
-    skipPreflight: true,
-    maxRetries: 0,
-  });
+    const rawTx = signedTx.serialize();
 
-  const deadline = Date.now() + 90_000;
-  let lastResend = Date.now();
+    const signature = await connection.sendRawTransaction(rawTx, {
+      skipPreflight: true,
+      maxRetries: 0,
+    });
 
-  while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, 2000));
+    const deadline = Date.now() + 90_000;
+    let lastResend = Date.now();
+    let blockhashExpired = false;
 
-    try {
-      const { value: status } = await connection.getSignatureStatus(signature);
-      if (status) {
-        if (status.err) throw new Error(`Transaction failed: ${JSON.stringify(status.err)}`);
-        if (status.confirmationStatus === "processed" ||
-            status.confirmationStatus === "confirmed" ||
-            status.confirmationStatus === "finalized") {
-          return signature;
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 2000));
+
+      try {
+        const { value: status } = await connection.getSignatureStatus(signature);
+        if (status) {
+          if (status.err) throw new Error(`Transaction failed: ${JSON.stringify(status.err)}`);
+          if (status.confirmationStatus === "processed" ||
+              status.confirmationStatus === "confirmed" ||
+              status.confirmationStatus === "finalized") {
+            return signature;
+          }
         }
+      } catch (e) {
+        if ((e as Error).message?.startsWith("Transaction failed:")) throw e;
       }
-    } catch (e) {
-      // Re-throw real tx errors; ignore transient RPC failures and keep polling
-      if ((e as Error).message?.startsWith("Transaction failed:")) throw e;
+
+      // Resend same signed bytes every 5s — no new Phantom popup
+      if (Date.now() - lastResend > 5000) {
+        connection.sendRawTransaction(rawTx, { skipPreflight: true, maxRetries: 0 }).catch(() => {});
+        lastResend = Date.now();
+      }
+
+      try {
+        const blockHeight = await connection.getBlockHeight();
+        if (blockHeight > lastValidBlockHeight) {
+          blockhashExpired = true;
+          break;
+        }
+      } catch {
+        // Transient RPC error — keep polling
+      }
     }
 
-    // Resend same signed bytes every 5s — no new signing, no new Phantom popup
-    if (Date.now() - lastResend > 5000) {
-      connection.sendRawTransaction(rawTx, { skipPreflight: true, maxRetries: 0 }).catch(() => {});
-      lastResend = Date.now();
+    // Blockhash expired or timed out — retry with a fresh one (no new Phantom popup needed
+    // because Phantom already signed; but we must re-sign with new blockhash)
+    if (blockhashExpired && attempt < MAX_ATTEMPTS) {
+      console.warn(`[create-jar] blockhash expired, retrying (${attempt}/${MAX_ATTEMPTS})…`);
+      continue;
     }
 
-    try {
-      const blockHeight = await connection.getBlockHeight();
-      if (blockHeight > lastValidBlockHeight) {
-        throw new Error("blockhash expired — please try again");
-      }
-    } catch (e) {
-      if ((e as Error).message?.includes("blockhash expired")) throw e;
-      // Transient RPC error on getBlockHeight — keep polling
-    }
+    if (!blockhashExpired) throw new Error("Transaction timed out after 90s");
   }
 
-  throw new Error("Transaction timed out after 90s");
+  throw new Error("Transaction failed after 3 attempts — devnet may be congested, please retry");
 }
 
 export const USDC_MINT_DEVNET  = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
