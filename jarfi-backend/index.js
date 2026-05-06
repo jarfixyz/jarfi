@@ -264,14 +264,14 @@ function uniqueSlug(base) {
 
 app.post('/jar/meta', (req, res) => {
   try {
-    const { pubkey, name, emoji, jarType } = req.body
+    const { pubkey, name, emoji, jarType, image } = req.body
     if (!pubkey) return res.status(400).json({ ok: false, error: 'pubkey required' })
     const existing = getJarMeta(pubkey)
     let slug = existing?.share_slug
     if (!slug) {
       slug = uniqueSlug(nameToSlug(name))
     }
-    saveJarMeta(pubkey, name ?? '', emoji ?? '🏺', jarType ?? '', slug)
+    saveJarMeta(pubkey, name ?? '', emoji ?? '🏺', jarType ?? '', slug, image ?? null)
     res.json({ ok: true, share_slug: slug })
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message })
@@ -293,7 +293,7 @@ app.get('/jar/by-slug/:slug', (req, res) => {
   const dbMod = require('./db')
   const row = dbMod.getJarMetaBySlug(req.params.slug)
   if (!row) return res.status(404).json({ ok: false, error: 'not found' })
-  res.json({ ok: true, pubkey: row.pubkey, name: row.name, emoji: row.emoji })
+  res.json({ ok: true, pubkey: row.pubkey, name: row.name, emoji: row.emoji, image: row.image || null })
 })
 
 // ---------------------------------------------------------------------------
@@ -336,6 +336,7 @@ app.get('/jar/:pubkey', async (req, res) => {
         name:                 meta?.name || null,
         emoji:                meta?.emoji || null,
         jarType:              meta?.jar_type || null,
+        image:                meta?.image || null,
         mode:                 jar.mode,
         unlockDate:           jar.unlockDate.toNumber(),
         goalAmount:           jar.goalAmount.toNumber(),
