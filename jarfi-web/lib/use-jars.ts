@@ -12,8 +12,20 @@ export type { JarAccount, ContributionAccount };
 
 // ── localStorage helpers ─────────────────────────────────────────────────────
 
+const LAST_OWNER_KEY = "jar_last_owner";
+
 function pubkeysKey(owner: string) { return `jar_pubkeys_${owner}`; }
 function cacheKey(owner: string)   { return `jar_cache_${owner}`; }
+
+function getLastOwner(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(LAST_OWNER_KEY);
+}
+
+function setLastOwner(owner: string) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(LAST_OWNER_KEY, owner);
+}
 
 function loadKnownPubkeys(owner: string): string[] {
   if (typeof window === "undefined") return [];
@@ -58,12 +70,10 @@ export function useJars() {
   const { connection } = useConnection();
   const lastOwnerRef = useRef<string | null>(null);
 
-  // Initialise from cache immediately — no flash of empty dashboard
+  // Load last owner's cache immediately — jars visible before wallet connects
   const [jars, setJars] = useState<JarAccount[]>(() => {
-    if (typeof window === "undefined") return [];
-    // We don't know publicKey yet at module init, so start empty;
-    // the effect below loads the cache synchronously before any paint.
-    return [];
+    const lastOwner = getLastOwner();
+    return lastOwner ? loadCachedJars(lastOwner) : [];
   });
   const [loading, setLoading] = useState(false);
   const [tick, setTick] = useState(0);
@@ -79,6 +89,7 @@ export function useJars() {
       setJars([]);
     }
     lastOwnerRef.current = owner;
+    setLastOwner(owner); // remember for next page load
 
     // Step 1: show cached jar data instantly (no RPC needed)
     const cached = loadCachedJars(owner);
