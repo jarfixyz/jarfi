@@ -3,74 +3,108 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
-import { fetchJarByPubkey, fetchContributions } from "./program";
-import type { JarAccount, ContributionAccount } from "./program";
+import { fetchJarByPubkey } from "./program";
+import type { JarAccount } from "./program";
+import { fetchContributions } from "./program";
+import type { ContributionAccount } from "./program";
 
 export type { JarAccount, ContributionAccount };
 
-function knownPubkeysKey(owner: string) { return `jar_pubkeys_${owner}`; }
+// ── localStorage helpers ─────────────────────────────────────────────────────
+
+function pubkeysKey(owner: string) { return `jar_pubkeys_${owner}`; }
+function cacheKey(owner: string)   { return `jar_cache_${owner}`; }
 
 function loadKnownPubkeys(owner: string): string[] {
   if (typeof window === "undefined") return [];
-  try { return JSON.parse(localStorage.getItem(knownPubkeysKey(owner)) ?? "[]"); } catch { return []; }
+  try { return JSON.parse(localStorage.getItem(pubkeysKey(owner)) ?? "[]"); } catch { return []; }
 }
 
 function saveKnownPubkey(owner: string, pubkey: string) {
   if (typeof window === "undefined") return;
   const existing = loadKnownPubkeys(owner);
   if (!existing.includes(pubkey)) {
-    localStorage.setItem(knownPubkeysKey(owner), JSON.stringify([...existing, pubkey]));
+    localStorage.setItem(pubkeysKey(owner), JSON.stringify([...existing, pubkey]));
   }
 }
 
 function removeKnownPubkey(owner: string, pubkey: string) {
   if (typeof window === "undefined") return;
   const existing = loadKnownPubkeys(owner);
-  localStorage.setItem(knownPubkeysKey(owner), JSON.stringify(existing.filter(p => p !== pubkey)));
+  localStorage.setItem(pubkeysKey(owner), JSON.stringify(existing.filter(p => p !== pubkey)));
 }
 
+// Full jar data cache — survives RPC failures and page refreshes
+function loadCachedJars(owner: string): JarAccount[] {
+  if (typeof window === "undefined") return [];
+  try { return JSON.parse(localStorage.getItem(cacheKey(owner)) ?? "[]"); } catch { return []; }
+}
+
+function saveCachedJars(owner: string, jars: JarAccount[]) {
+  if (typeof window === "undefined" || jars.length === 0) return;
+  localStorage.setItem(cacheKey(owner), JSON.stringify(jars));
+}
+
+function removeCachedJar(owner: string, pubkey: string) {
+  if (typeof window === "undefined") return;
+  const existing = loadCachedJars(owner);
+  localStorage.setItem(cacheKey(owner), JSON.stringify(existing.filter(j => j.pubkey !== pubkey)));
+}
+
+// ── useJars ──────────────────────────────────────────────────────────────────
+
 export function useJars() {
-  // Use only publicKey (stable) — NOT wallet object (recreated every render)
   const { publicKey } = useWallet();
   const { connection } = useConnection();
-  const [chainJars, setChainJars] = useState<JarAccount[]>([]);
-  const [extraJars, setExtraJars] = useState<JarAccount[]>([]);
-  const [loading, setLoading]     = useState(false);
-  const [tick, setTick]           = useState(0);
-  const lastOwnerRef              = useRef<string | null>(null);
+  const lastOwnerRef = useRef<string | null>(null);
+
+  // Initialise from cache immediately — no flash of empty dashboard
+  const [jars, setJars] = useState<JarAccount[]>(() => {
+    if (typeof window === "undefined") return [];
+    // We don't know publicKey yet at module init, so start empty;
+    // the effect below loads the cache synchronously before any paint.
+    return [];
+  });
+  const [loading, setLoading] = useState(false);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
-    // Do NOT clear jars when publicKey is temporarily null (autoConnect in progress).
     if (!publicKey) return;
 
     const owner = publicKey.toBase58();
     const abortCtrl = new AbortController();
 
-    // Clear jars ONLY when switching to a different wallet address.
+    // Switch wallet — clear display
     if (lastOwnerRef.current !== null && lastOwnerRef.current !== owner) {
-      setChainJars([]);
-      setExtraJars([]);
+      setJars([]);
     }
     lastOwnerRef.current = owner;
 
-    setLoading(true);
+    // Step 1: show cached jar data instantly (no RPC needed)
+    const cached = loadCachedJars(owner);
+    if (cached.length > 0) setJars(cached);
 
-    // Load jars from localStorage-known pubkeys via individual getAccountInfo calls.
-    // We intentionally avoid getProgramAccounts — Helius devnet blocks it consistently.
+    // Step 2: refresh from RPC in background — use individual getAccountInfo
+    // (avoids getProgramAccounts which Helius devnet blocks)
     const known = loadKnownPubkeys(owner);
     if (known.length === 0) {
       setLoading(false);
-      return;
+      return () => { abortCtrl.abort(); };
     }
 
+    setLoading(true);
     Promise.all(
       known.map(pk => fetchJarByPubkey(connection, new PublicKey(pk)).catch(() => null))
     ).then(fetched => {
       if (abortCtrl.signal.aborted) return;
       const valid = fetched.filter(Boolean) as JarAccount[];
-      setChainJars(valid);
-    }).catch((err) => {
-      if (!abortCtrl.signal.aborted) console.warn("[useJars] fetch failed:", err?.message ?? err);
+      if (valid.length > 0) {
+        setJars(valid);
+        saveCachedJars(owner, valid);
+      }
+      // If all fetches failed: keep showing cached data (already set above)
+    }).catch(err => {
+      if (!abortCtrl.signal.aborted) console.warn("[useJars] RPC error:", err?.message);
     }).finally(() => {
       if (!abortCtrl.signal.aborted) setLoading(false);
     });
@@ -78,28 +112,32 @@ export function useJars() {
     return () => { abortCtrl.abort(); };
   }, [publicKey, connection, tick]);
 
-  // Chain jars are authoritative; extras fill in what the indexer missed
-  const jars = useMemo(() => {
-    const chainPks = new Set(chainJars.map(j => j.pubkey));
-    return [...chainJars, ...extraJars.filter(j => !chainPks.has(j.pubkey))];
-  }, [chainJars, extraJars]);
-
   const refresh = useCallback(() => setTick(t => t + 1), []);
 
   const addJar = useCallback((jar: JarAccount) => {
-    if (publicKey) saveKnownPubkey(publicKey.toBase58(), jar.pubkey);
-    setExtraJars(prev => prev.some(j => j.pubkey === jar.pubkey) ? prev : [...prev, jar]);
+    if (!publicKey) return;
+    const owner = publicKey.toBase58();
+    saveKnownPubkey(owner, jar.pubkey);
+    setJars(prev => {
+      const next = prev.some(j => j.pubkey === jar.pubkey) ? prev : [...prev, jar];
+      saveCachedJars(owner, next);
+      return next;
+    });
     setTick(t => t + 1);
   }, [publicKey]);
 
   const removeJar = useCallback((pubkey: string) => {
-    if (publicKey) removeKnownPubkey(publicKey.toBase58(), pubkey);
-    setChainJars(prev => prev.filter(j => j.pubkey !== pubkey));
-    setExtraJars(prev => prev.filter(j => j.pubkey !== pubkey));
+    if (!publicKey) return;
+    const owner = publicKey.toBase58();
+    removeKnownPubkey(owner, pubkey);
+    removeCachedJar(owner, pubkey);
+    setJars(prev => prev.filter(j => j.pubkey !== pubkey));
   }, [publicKey]);
 
   return { jars, loading, addJar, removeJar, refresh };
 }
+
+// ── useContributions ─────────────────────────────────────────────────────────
 
 export function useContributions(jarPubkey: string | null) {
   const { connection } = useConnection();
