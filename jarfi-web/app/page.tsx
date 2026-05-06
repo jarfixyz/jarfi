@@ -144,7 +144,7 @@ export default function Landing() {
               Your savings jar,<br /><em style={{ fontStyle:"normal", color:T.green }}>shared with anyone.</em>
             </h1>
             <p style={{ fontSize:16, lineHeight:1.65, color:T.text2, marginBottom:28, maxWidth:400 }}>
-              Create a jar, set a goal, and let family or friends top it up instantly — your money earns 5.5% APY automatically, onchain.
+              Create a jar, set a goal, and let family or friends top it up instantly — your money earns up to 8.2% APY automatically, onchain.
             </p>
             <div style={{ display:"flex", alignItems:"center", gap:12 }}>
               <Link href="/dashboard" style={btnDark}>Create a jar →</Link>
@@ -159,7 +159,7 @@ export default function Landing() {
                 <div style={{ fontSize:15, fontWeight:600, marginBottom:2 }}>Eva&apos;s 18th Birthday</div>
                 <div style={{ fontSize:12, color:T.text3, marginBottom:14 }}>Opens Jan 2034 · 10 years</div>
                 <div style={{ display:"inline-flex", alignItems:"center", gap:5, background:T.greenBg, color:T.green, fontSize:11, fontWeight:700, padding:"3px 9px", borderRadius:20, marginBottom:12 }}>
-                  ⚡ 5.5% APY — earning automatically
+                  ⚡ 8.2% APY — earning automatically
                 </div>
                 <div style={{ display:"flex", flexDirection:"column", gap:7, marginBottom:14 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -201,7 +201,7 @@ export default function Landing() {
         <div style={wrap}>
           <SecLabel>What can you save for?</SecLabel>
           <SecTitle>A jar for every goal</SecTitle>
-          <SecSub>Each jar has a purpose. Set rules, share it, and let it grow — automatically at 5.5% APY.</SecSub>
+          <SecSub>Each jar has a purpose. Set rules, share it, and let it grow — automatically at up to 8.2% APY.</SecSub>
           <div className="jar-types-grid" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginTop:36 }}>
             {[
               { icon:"⏳", name:"Time-lock jar", desc:"Funds unlock on a set date. Perfect for milestones — a birthday, graduation, or retirement.", eg:"Eva's 18th — unlocks Jan 2034, grows to $8,940" },
@@ -209,10 +209,10 @@ export default function Landing() {
               { icon:"👥", name:"Shared jar",    desc:"Multiple people contribute to one jar. Great for family funds or groups saving together.", eg:"One link sent in the family chat — everyone chips in, one child gets a gift they'll never forget." },
               { icon:"🎁", name:"Gift jar",      desc:"Share a link. Anyone can top it up with Apple Pay or a card. No wallet, no sign-up.", eg:"20 colleagues chip in for a birthday — one URL, one jar" },
             ].map(t => (
-              <div key={t.name} style={{ border:`1px solid ${T.border}`, borderRadius:T.r, padding:20, background:T.bg }}>
+              <div key={t.name} className="jar-type-card" style={{ border:`1px solid ${T.border}`, borderRadius:T.r, padding:20, background:T.bg, display:"flex", flexDirection:"column", transition:"border-color .18s, box-shadow .18s, transform .18s", cursor:"pointer" }}>
                 <div style={{ fontSize:26, marginBottom:12 }}>{t.icon}</div>
                 <div style={{ fontSize:14, fontWeight:600, marginBottom:5, letterSpacing:"-.2px" }}>{t.name}</div>
-                <div style={{ fontSize:13, color:T.text2, lineHeight:1.55 }}>{t.desc}</div>
+                <div style={{ fontSize:13, color:T.text2, lineHeight:1.55, flex:1 }}>{t.desc}</div>
                 <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${T.border}`, fontSize:11, color:T.text3, lineHeight:1.5 }}>
                   <strong style={{ color:T.text2, fontWeight:500 }}>Example:</strong> {t.eg}
                 </div>
@@ -250,7 +250,7 @@ export default function Landing() {
             </div>
             {/* right — phone mockup */}
             <div>
-              <div style={{ background:T.bg, border:`1px solid ${T.border}`, borderRadius:22, padding:18, boxShadow:"0 8px 36px rgba(0,0,0,.1)", maxWidth:268, margin:"0 auto" }}>
+              <div style={{ background:T.bg, border:`1px solid ${T.border}`, borderRadius:22, padding:18, boxShadow:"0 8px 36px rgba(0,0,0,.1)", maxWidth:380, width:"100%", margin:"0 auto" }}>
                 <div style={{ fontSize:13, fontWeight:600, textAlign:"center", marginBottom:3 }}>Contribute to Eva&apos;s jar 🎂</div>
                 <div style={{ fontSize:11, color:T.text3, textAlign:"center", marginBottom:16 }}>jarfi.xyz/gift/eva-birthday</div>
                 <div style={{ background:T.bg2, borderRadius:9, padding:12, marginBottom:14 }}>
@@ -285,13 +285,13 @@ export default function Landing() {
           <div className="recurring-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:64, alignItems:"center" }}>
             <div>
               <SecLabel>Set it and forget it</SecLabel>
-              <SecTitle>Automatic monthly<br />deposits from your wallet</SecTitle>
-              <SecSub style={{ marginBottom:28 }}>Turn on recurring payments and your wallet tops up the jar every month — automatically. No manual transfers, no forgetting.</SecSub>
+              <SecTitle>Monthly reminders<br />to keep saving</SecTitle>
+              <SecSub style={{ marginBottom:28 }}>Set up monthly reminders and get notified when it's time to top up your jar. Simple, consistent savings — always in your control.</SecSub>
               <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
                 {[
-                  { icon:"🔄", title:"Monthly auto-deposit",    desc:"Set an amount once. Funds move from your wallet to the jar on the same day each month." },
+                  { icon:"📅", title:"Monthly reminder",         desc:"Set an amount and get notified on the same day each month — so you never forget to save." },
                   { icon:"⏸️", title:"Pause or cancel anytime", desc:"Change the amount, skip a month, or stop completely — always in your control." },
-                  { icon:"📩", title:"Get notified",            desc:"Receive a notification each time a deposit goes through, so you always know." },
+                  { icon:"📩", title:"Push notification",        desc:"Receive a push notification when it's time to deposit, with a direct link to your jar." },
                 ].map(p => (
                   <div key={p.title} style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
                     <div style={{ width:34, height:34, borderRadius:9, background:T.bg3, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>{p.icon}</div>
@@ -304,7 +304,7 @@ export default function Landing() {
               </div>
             </div>
             {/* recurring demo card */}
-            <div style={{ background:T.bg, border:`1px solid ${T.border}`, borderRadius:22, padding:22, boxShadow:"0 8px 36px rgba(0,0,0,.1)", maxWidth:340, margin:"0 auto", width:"100%" }}>
+            <div style={{ background:T.bg, border:`1px solid ${T.border}`, borderRadius:22, padding:22, boxShadow:"0 8px 36px rgba(0,0,0,.1)", maxWidth:380, margin:"0 auto", width:"100%" }}>
               <div style={{ fontSize:13, fontWeight:600, marginBottom:14 }}>Eva&apos;s 18th Birthday · Recurring deposits</div>
               {[
                 { name:"May deposit",  date:"May 1, 2026 · auto",      status:"Done", done:true },
@@ -425,7 +425,7 @@ export default function Landing() {
                   <span style={{ fontSize:30, fontWeight:700, color:T.green, letterSpacing:"-1px" }}>{fmt(jarfi)}</span>
                 </div>
                 <div style={{ fontSize:11, color:T.text3, marginTop:14, lineHeight:1.5 }}>
-                  Based on 5.5% APY onchain staking yield. Past performance does not guarantee future results.
+                  Based on 5.5% APY USDC lending yield via Kamino (conservative estimate). Past performance does not guarantee future results.
                 </div>
               </div>
               <Link href="/dashboard" style={{ ...btnDark, marginTop:14, width:"100%", justifyContent:"center", boxSizing:"border-box" }}>
@@ -470,6 +470,11 @@ export default function Landing() {
         @media (max-width: 640px) {
           .nav-links-desktop { display: none !important; }
           .jar-types-grid { grid-template-columns: 1fr !important; }
+        }
+        .jar-type-card:hover {
+          border-color: #1F8A5B !important;
+          box-shadow: 0 4px 16px rgba(31,138,91,0.12);
+          transform: translateY(-2px);
         }
         input[type="range"] { -webkit-appearance:none; width:100%; height:3px; background:#E4E5E0; border-radius:2px; outline:none; cursor:pointer; }
         input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px; background:#111; border-radius:50%; cursor:pointer; }

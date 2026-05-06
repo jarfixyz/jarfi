@@ -197,19 +197,28 @@ const DEMO_JARS: JarType[] = [
   },
   {
     id: "28teBgT2U1y25ARUkgGfHjeyBHhnJXorVtLs6Qk93ppc",
-    emoji: "🏍️", name: "New Moto", description: "Saving for a motorcycle",
+    emoji: "🏍️", name: "Motorcycle Fund", description: "Saving for a motorcycle",
     amount: 850, goal: 3000, locked: false, unlockLabel: "Open", unlockDate: 0,
     currency: "usdc", futureValue: 930, jarType: "GOAL", mode: 1, image: "bike",
+  },
+  {
+    id: "DemoJar4SharedXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    emoji: "👨‍👩‍👧", name: "Family Fund", description: "Family group savings",
+    amount: 1240, goal: 5000, locked: false, unlockLabel: "Open", unlockDate: 0,
+    currency: "usdc", futureValue: 1360, jarType: "SHARED", mode: 0, image: "gift",
   },
 ];
 
 const NOW = Math.floor(Date.now() / 1000);
 const DEMO_CONTRIBUTIONS: JarContribution[] = [
-  { pubkey: "dc1", contributor: "7vK2MtR3mPq9", amount: 15_000_000, comment: "Happy birthday! 🎂", createdAt: NOW - 3_600 },
-  { pubkey: "dc2", contributor: "3nR8xWt9kLsP", amount: 50_000_000, comment: "", createdAt: NOW - 86_400 },
-  { pubkey: "dc3", contributor: "5mP4kLs2nQrT", amount: 20_000_000, comment: "From grandma 🌸", createdAt: NOW - 172_800 },
-  { pubkey: "dc4", contributor: "9xWt3nR8kLsP", amount: 100_000_000, comment: "", createdAt: NOW - 259_200 },
-  { pubkey: "dc5", contributor: "2kLs5mP4nQrT", amount: 30_000_000, comment: "Go Japan! ✈️", createdAt: NOW - 432_000 },
+  { pubkey:"dc1", contributor:"7vK2MtR3mPq9xNsL", amount:50_000_000,  comment:"Happy birthday! 🎂",    createdAt: NOW - 3_600 },
+  { pubkey:"dc2", contributor:"3nR8xWt9kLsPmVqJ", amount:100_000_000, comment:"From uncle Mike 🎉",    createdAt: NOW - 86_400 },
+  { pubkey:"dc3", contributor:"5mP4kLs2nQrTbYzX", amount:25_000_000,  comment:"From grandma 🌸",       createdAt: NOW - 172_800 },
+  { pubkey:"dc4", contributor:"9xWt3nR8kLsPvCmN", amount:200_000_000, comment:"",                       createdAt: NOW - 259_200 },
+  { pubkey:"dc5", contributor:"2kLs5mP4nQrTwEuI", amount:30_000_000,  comment:"Go Japan! ✈️",          createdAt: NOW - 432_000 },
+  { pubkey:"dc6", contributor:"8pQr7nKs1mLtXvBo", amount:75_000_000,  comment:"Fuel for the road 🏍️", createdAt: NOW - 518_400 },
+  { pubkey:"dc7", contributor:"4mNv6pQs9kLrYwAj", amount:150_000_000, comment:"Let's go to Tokyo!",    createdAt: NOW - 604_800 },
+  { pubkey:"dc8", contributor:"1kRt8mPs3nQvZxCu", amount:20_000_000,  comment:"Small contribution 🙏", createdAt: NOW - 691_200 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -224,6 +233,14 @@ export default function Dashboard() {
   const [toast, setToast] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [scenario, setScenario] = useState(50);
+  const [showWelcome, setShowWelcome] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return !localStorage.getItem("jarfi_welcomed");
+  });
+  const dismissWelcome = () => {
+    localStorage.setItem("jarfi_welcomed", "1");
+    setShowWelcome(false);
+  };
 
   const { publicKey, wallet } = useWallet();
   const { connection } = useConnection();
@@ -345,7 +362,7 @@ export default function Dashboard() {
           customImage: getJarCustomImage(j.pubkey),
         };
       }),
-    [liveJars]
+    [liveJars, apy]
   );
 
   const greeting = publicKey
@@ -372,8 +389,13 @@ export default function Dashboard() {
         style={{ width: 200, background: "#fff", borderRight: "1px solid #EBEBEB", padding: "20px 12px 20px", minHeight: "100vh", display: "flex", flexDirection: "column" }}
       >
         {/* Logo */}
-        <Link href="/" onClick={() => setSidebarOpen(false)} style={{ textDecoration: "none", padding: "0 8px", marginBottom: 20, display: "block" }}>
+        <Link href="/" onClick={() => setSidebarOpen(false)} style={{ textDecoration: "none", padding: "0 8px", marginBottom: 8, display: "block" }}>
           <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.5px", color: "#111" }}>jar<span style={{ color: "#1F8A5B" }}>fi</span></span>
+        </Link>
+
+        {/* Home link */}
+        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#888", textDecoration: "none", padding: "0 8px", marginBottom: 8 }}>
+          ← jarfi.xyz
         </Link>
 
         {/* New jar button */}
@@ -640,6 +662,41 @@ export default function Dashboard() {
           {toast}
         </div>
       )}
+
+      {/* ── Welcome modal (first-time, no wallet) ───────────────────────── */}
+      {showWelcome && !publicKey && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }} onClick={dismissWelcome}>
+          <div style={{ background:"#fff", borderRadius:24, padding:40, maxWidth:440, width:"100%", boxShadow:"0 20px 60px rgba(0,0,0,0.15)" }} onClick={e => e.stopPropagation()}>
+            <div style={{ textAlign:"center", marginBottom:32 }}>
+              <div style={{ fontSize:40, marginBottom:12 }}>🏺</div>
+              <div style={{ fontSize:24, fontWeight:700, letterSpacing:"-0.5px", marginBottom:8 }}>Welcome to Jarfi</div>
+              <div style={{ fontSize:14, color:"#666", lineHeight:1.6 }}>
+                Onchain savings jars anyone can top up — no crypto needed to contribute.
+              </div>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:12, marginBottom:28 }}>
+              {[
+                { icon:"🎯", text:"Set a savings goal and timeline" },
+                { icon:"🔗", text:"Share a link — anyone pays by card" },
+                { icon:"📈", text:"Earn up to 8.2% APY automatically" },
+              ].map(f => (
+                <div key={f.text} style={{ display:"flex", alignItems:"center", gap:12 }}>
+                  <div style={{ width:34, height:34, borderRadius:9, background:"#F4F4F1", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>{f.icon}</div>
+                  <div style={{ fontSize:13, color:"#444" }}>{f.text}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              <div style={{ display:"flex", justifyContent:"center" }} onClick={dismissWelcome}>
+                <WalletButton />
+              </div>
+              <button onClick={dismissWelcome} style={{ width:"100%", padding:"11px 0", background:"none", border:"1px solid #E0E0DC", borderRadius:9, fontSize:13, color:"#666", cursor:"pointer", fontFamily:"var(--font)" }}>
+                Explore demo first →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -730,10 +787,25 @@ function DashboardPage({
 }) {
   const hasWallet = !!greeting;
   const [selectedJar, setSelectedJar] = useState<JarType | null>(null);
+  const [sortBy, setSortBy] = useState<"recent" | "amount" | "progress" | "unlock">("recent");
 
   // When no wallet — display demo data so the page is useful immediately
   const effectiveJars = hasWallet ? liveJars : DEMO_JARS;
   const effectiveContribs = hasWallet ? contributions : DEMO_CONTRIBUTIONS;
+
+  const sortedJars = useMemo(() => {
+    const jars = [...effectiveJars];
+    switch (sortBy) {
+      case "amount":  return jars.sort((a, b) => b.amount - a.amount);
+      case "progress": return jars.sort((a, b) => {
+        const pA = a.goal > 0 ? a.amount / a.goal : 0;
+        const pB = b.goal > 0 ? b.amount / b.goal : 0;
+        return pB - pA;
+      });
+      case "unlock": return jars.sort((a, b) => (a.unlockDate || 9e9) - (b.unlockDate || 9e9));
+      default: return jars; // recent = original order
+    }
+  }, [effectiveJars, sortBy]);
 
   const totalSaved = effectiveJars.reduce((s, j) => s + j.amount, 0);
   const lockedCount = effectiveJars.filter((j) => j.locked).length;
@@ -817,9 +889,9 @@ function DashboardPage({
         {/* ── Header ──────────────────────────────────────────────────────────── */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <div style={{ fontSize: 12, color: "#666", marginBottom: 3 }}>Dashboard</div>
+            <div style={{ fontSize: 12, color: "#666", marginBottom: 3 }}>Overview</div>
             <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.025em" }}>
-              Good morning{greeting ? `, ${greeting}` : ""} 👋
+              My Jars
             </div>
           </div>
           <div className="hidden md:flex" style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -836,15 +908,14 @@ function DashboardPage({
         {!hasWallet && (
           <>
             {/* Connect banner */}
-            <div style={{ background: "#fff", border: "1px solid #EAEAEA", borderRadius: 14, padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+            <div style={{ background: "#fff", border: "1px solid #EAEAEA", borderRadius: 14, padding: "14px 20px", display: "flex", alignItems: "center", gap: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ width: 36, height: 36, borderRadius: 10, background: "#EAF4EE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🏺</div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 1 }}>This is a live demo — connect a wallet to create your own jars</div>
-                  <div style={{ fontSize: 12, color: "#888" }}>Real jars on Solana devnet · 5.5% APY</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 1 }}>Demo mode — connect a wallet to create your own jars</div>
+                  <div style={{ fontSize: 12, color: "#888" }}>Real jars on Solana devnet · up to 8.2% APY</div>
                 </div>
               </div>
-              <WalletButton compact />
             </div>
           </>
         )}
@@ -886,6 +957,22 @@ function DashboardPage({
                   <button onClick={onNewJar} style={{ fontSize: 12, color: "#666", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font)" }}>+ New</button>
                 </div>
               </div>
+
+              {effectiveJars.length > 0 && (
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                  <div style={{ fontSize:13, fontWeight:500, color:"#555" }}>{sortedJars.length} {sortedJars.length === 1 ? "jar" : "jars"}</div>
+                  <select
+                    value={sortBy}
+                    onChange={e => setSortBy(e.target.value as typeof sortBy)}
+                    style={{ fontSize:12, color:"#555", border:"1px solid #E0E0DC", borderRadius:7, padding:"4px 8px", background:"#fff", cursor:"pointer", fontFamily:"var(--font)", outline:"none" }}
+                  >
+                    <option value="recent">Sort: Recent</option>
+                    <option value="amount">Sort: Amount</option>
+                    <option value="progress">Sort: Progress</option>
+                    <option value="unlock">Sort: Unlock date</option>
+                  </select>
+                </div>
+              )}
 
               {effectiveJars.length === 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -938,7 +1025,7 @@ function DashboardPage({
                 </div>
               ) : (
                 <div className="jar-cards-grid" style={{ display: "grid", gap: 12 }}>
-                  {effectiveJars.map((j) => (
+                  {sortedJars.map((j) => (
                     <V2JarCard
                       key={j.id}
                       jar={j}
@@ -954,8 +1041,8 @@ function DashboardPage({
             {/* ── Monthly chart + Achievements ────────────────────────────────── */}
             {effectiveJars.length > 0 && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <V3MonthlyChart totalSaved={totalSaved} apy={apy} />
-                <V3Achievements totalSaved={totalSaved} uniqueContributors={uniqueContributors} />
+                <V3MonthlyChart contributions={effectiveContribs} />
+                <V3Achievements liveJars={effectiveJars} contributions={effectiveContribs} />
               </div>
             )}
 
@@ -1470,47 +1557,51 @@ function V3Timeline({ liveJars }: { liveJars: JarType[] }) {
 // V3 MONTHLY CHART
 // ---------------------------------------------------------------------------
 
-function V3MonthlyChart({
-  totalSaved,
-  apy,
-}: {
-  totalSaved: number;
-  apy: { usdc_kamino: number; sol_marinade: number };
-}) {
-  // Generate realistic-ish monthly data from totalSaved
-  const avgApy = (apy.usdc_kamino + apy.sol_marinade) / 2 / 100;
-  const baseDeposit = Math.max(50, totalSaved / 12);
-  const months = ["Dec", "Jan", "Feb", "Mar", "Apr", "May"];
-  const deposits = months.map((_, i) => Math.round(baseDeposit * (0.6 + i * 0.08 + Math.sin(i) * 0.15)));
-  const yields = months.map((_, i) => Math.round((totalSaved * avgApy / 12) * (0.7 + i * 0.06)));
-  const max = Math.max(...deposits.map((d, i) => d + yields[i]), 1);
-  const fmt = (v: number) => v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v}`;
+function V3MonthlyChart({ contributions }: { contributions: JarContribution[] }) {
+  if (contributions.length === 0) return null;
+
+  // Group contributions by month
+  const byMonth: Record<string, number> = {};
+  contributions.forEach(c => {
+    const d = new Date(c.createdAt * 1000);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    byMonth[key] = (byMonth[key] || 0) + c.amount / 1_000_000;
+  });
+
+  // Last 6 months (or fewer if less data)
+  const now = new Date();
+  const months = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleDateString("en-US", { month: "short" });
+    return { key, label, value: byMonth[key] || 0 };
+  }).filter(m => Object.keys(byMonth).some(k => k <= m.key));
+
+  if (months.every(m => m.value === 0)) return null;
+
+  const max = Math.max(...months.map(m => m.value), 1);
+  const fmt = (v: number) => v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${Math.round(v)}`;
+  const total = months.reduce((s, m) => s + m.value, 0);
 
   return (
-    <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "20px 22px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
+    <div style={{ background:"#fff", borderRadius:18, border:"1px solid #EAEAEA", padding:"20px 22px" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:20 }}>
         <div>
-          <div style={{ fontSize: 11, color: "#666", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Last 6 months</div>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>Monthly inflow</div>
+          <div style={{ fontSize:11, color:"#888", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>Contributions</div>
+          <div style={{ fontSize:14, fontWeight:600 }}>{fmt(total)} received</div>
         </div>
-        <div style={{ display: "flex", gap: 14, fontSize: 11, color: "#666" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: "#1F8A5B", display: "inline-block" }} />Deposits</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: "#B07D2A", display: "inline-block" }} />Yield</span>
-        </div>
+        <div style={{ fontSize:11, color:"#999" }}>Last {months.length} months</div>
       </div>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 12, height: 130 }}>
-        {months.map((m, i) => {
-          const total = deposits[i] + yields[i];
-          const totalH = (total / max) * 110;
-          const yieldH = (yields[i] / max) * 110;
+      <div style={{ display:"flex", alignItems:"flex-end", gap:8, height:100 }}>
+        {months.map(m => {
+          const h = max > 0 ? Math.max(4, (m.value / max) * 84) : 0;
           return (
-            <div key={m} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-              <div style={{ fontSize: 10, color: "#111", fontWeight: 600 }}>{fmt(total)}</div>
-              <div style={{ width: "100%", height: 110, display: "flex", flexDirection: "column", justifyContent: "flex-end", borderRadius: 4, overflow: "hidden" }}>
-                <div style={{ background: "#B07D2A", height: yieldH }} />
-                <div style={{ background: "#1F8A5B", height: totalH - yieldH, borderRadius: "4px 4px 0 0" }} />
+            <div key={m.key} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
+              {m.value > 0 && <div style={{ fontSize:9, color:"#666", fontWeight:500 }}>{fmt(m.value)}</div>}
+              <div style={{ width:"100%", display:"flex", flexDirection:"column", justifyContent:"flex-end", height:84 }}>
+                <div style={{ background: m.value > 0 ? "#1F8A5B" : "#F0F0EE", height: m.value > 0 ? h : 4, borderRadius:4, transition:"height .3s" }} />
               </div>
-              <div style={{ fontSize: 11, color: "#666" }}>{m}</div>
+              <div style={{ fontSize:10, color:"#999" }}>{m.label}</div>
             </div>
           );
         })}
@@ -1523,47 +1614,64 @@ function V3MonthlyChart({
 // V3 ACHIEVEMENTS
 // ---------------------------------------------------------------------------
 
-function V3Achievements({
-  totalSaved,
-  uniqueContributors,
-}: {
-  totalSaved: number;
-  uniqueContributors: number;
-}) {
+function V3Achievements({ liveJars, contributions }: { liveJars: JarType[]; contributions: JarContribution[] }) {
+  const [selected, setSelected] = useState<string | null>(null);
+
+  const totalSaved = liveJars.reduce((s, j) => s + j.amount, 0);
+  const uniqueContribs = new Set(contributions.map(c => c.contributor)).size;
+  const jarTypes = new Set(liveJars.map(j => j.jarType));
+  const now = Math.floor(Date.now() / 1000);
+
   const ach = [
-    { id: 1, label: "First $1k", emoji: "🌱", earned: totalSaved >= 1000, desc: "Saved your first $1,000" },
-    { id: 2, label: "10-day streak", emoji: "🔥", earned: true, desc: "10 days of saving in a row" },
-    { id: 3, label: "Family helper", emoji: "👨‍👩‍👧", earned: uniqueContributors > 4, desc: "5+ contributors on one jar" },
-    { id: 4, label: "Yield $100", emoji: "⚡", earned: false, desc: "$78 / $100 earned" },
-    { id: 5, label: "Save $50k", emoji: "🏔️", earned: totalSaved >= 50000, desc: `${totalSaved >= 50000 ? "Reached!" : `$${Math.round(totalSaved).toLocaleString()} / $50k`}` },
+    { id:"first_jar",    icon:"🥚", label:"First step",    desc:"Created your first jar",                      earned: liveJars.length > 0 },
+    { id:"goal_jar",     icon:"🎯", label:"Goal setter",   desc:"Created a Goal jar",                          earned: liveJars.some(j => j.jarType === "GOAL") },
+    { id:"date_jar",     icon:"📅", label:"Time lock",     desc:"Created a Date jar",                          earned: liveJars.some(j => j.jarType === "DATE") },
+    { id:"shared_jar",   icon:"🎁", label:"Gift giver",    desc:"Created a Shared or Gift jar",                earned: liveJars.some(j => j.jarType === "SHARED") },
+    { id:"funded",       icon:"💰", label:"Funded",        desc:"Your jar has a balance",                      earned: liveJars.some(j => j.amount > 0) },
+    { id:"century",      icon:"💯", label:"Century",       desc:"Saved over $100 total",                       earned: totalSaved >= 100 },
+    { id:"high_roller",  icon:"🚀", label:"High roller",   desc:"Saved over $1,000 total",                     earned: totalSaved >= 1000 },
+    { id:"popular",      icon:"👥", label:"Popular",       desc:"3 or more unique contributors",               earned: uniqueContribs >= 3 },
+    { id:"sharer",       icon:"🔗", label:"Sharer",        desc:"Shared a gift link for your jar",             earned: liveJars.length > 0 },
+    { id:"goal_reached", icon:"🏆", label:"Goal reached",  desc:"Reached the savings goal on a jar",           earned: liveJars.some(j => j.goal > 0 && j.amount >= j.goal) },
+    { id:"diversified",  icon:"🌍", label:"Diversified",   desc:"Have 3 or more different jar types",          earned: jarTypes.size >= 3 },
+    { id:"time_up",      icon:"⌛", label:"Time's up",     desc:"A date jar's unlock date has arrived",        earned: liveJars.some(j => j.jarType === "DATE" && j.unlockDate > 0 && j.unlockDate <= now) },
   ];
+
   const earnedCount = ach.filter(a => a.earned).length;
+  const selectedAch = ach.find(a => a.id === selected);
 
   return (
-    <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "20px 22px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+    <div style={{ background:"#fff", borderRadius:18, border:"1px solid #EAEAEA", padding:"20px 22px" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:16 }}>
         <div>
-          <div style={{ fontSize: 11, color: "#666", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Achievements</div>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>{earnedCount} of 12 unlocked</div>
+          <div style={{ fontSize:11, color:"#888", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>Achievements</div>
+          <div style={{ fontSize:14, fontWeight:600 }}>{earnedCount} of 12 unlocked</div>
         </div>
-        <div style={{ fontSize: 12, color: "#666", cursor: "pointer" }}>See all →</div>
+        {earnedCount > 0 && <div style={{ fontSize:12, color:"#1F8A5B", fontWeight:500 }}>{Math.round(earnedCount/12*100)}% done</div>}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(6, 1fr)", gap:8 }}>
         {ach.map(a => (
-          <div key={a.id} style={{
-            padding: "12px 8px",
-            background: a.earned ? "#EAF4EE" : "#F7F8F7",
-            border: `1px solid ${a.earned ? "#1F8A5B" : "#F0F0EE"}`,
-            borderRadius: 10,
-            textAlign: "center",
-            opacity: a.earned ? 1 : 0.55,
-          }}>
-            <div style={{ fontSize: 22, marginBottom: 4, filter: a.earned ? "none" : "grayscale(1)" }}>{a.emoji}</div>
-            <div style={{ fontSize: 10, fontWeight: 600, color: a.earned ? "#0f5e3d" : "#666" }}>{a.label}</div>
-            <div style={{ fontSize: 9, color: "#999", marginTop: 2, lineHeight: 1.3 }}>{a.desc}</div>
-          </div>
+          <button
+            key={a.id}
+            onClick={() => setSelected(selected === a.id ? null : a.id)}
+            title={a.label}
+            style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4, padding:"8px 4px", borderRadius:10, border:"none", background: a.earned ? "#ECFDF5" : "#F4F4F1", cursor:"pointer", opacity: a.earned ? 1 : 0.45, transition:"opacity .2s, background .2s", fontFamily:"var(--font)" }}
+          >
+            <div style={{ fontSize:20 }}>{a.icon}</div>
+            <div style={{ fontSize:9, fontWeight:600, color: a.earned ? "#1F8A5B" : "#888", textAlign:"center", lineHeight:1.2 }}>{a.label}</div>
+          </button>
         ))}
       </div>
+      {selectedAch && (
+        <div style={{ marginTop:12, padding:"10px 14px", background: selectedAch.earned ? "#ECFDF5" : "#F4F4F1", borderRadius:10, display:"flex", alignItems:"center", gap:10 }}>
+          <span style={{ fontSize:20 }}>{selectedAch.icon}</span>
+          <div>
+            <div style={{ fontSize:12, fontWeight:600, color: selectedAch.earned ? "#1F8A5B" : "#555" }}>{selectedAch.label}</div>
+            <div style={{ fontSize:11, color:"#777", marginTop:2 }}>{selectedAch.desc}</div>
+          </div>
+          {selectedAch.earned && <div style={{ marginLeft:"auto", fontSize:11, fontWeight:700, color:"#1F8A5B" }}>✓</div>}
+        </div>
+      )}
     </div>
   );
 }
@@ -2914,7 +3022,7 @@ function JarDetailPanel({
       fetch(`${BACKEND}/jar/meta`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pubkey: jar.id, name: jar.name, emoji: jar.emoji }),
+        body: JSON.stringify({ pubkey: jar.id, name: jar.name, emoji: jar.emoji, jarType: jar.jarType }),
       })
         .then(r => r.json())
         .then(d => { if (d.share_slug) { saveJarSlug(jar.id, d.share_slug); setSlug(d.share_slug); } })
@@ -2970,17 +3078,18 @@ function JarDetailPanel({
 
             {/* Balance / Future value */}
             <div style={{ marginBottom: 32 }}>
-              <div style={{ fontSize: 60, fontWeight: 600, letterSpacing: "-2.5px", lineHeight: 1, color: jar.unlockDate > 0 ? "var(--green)" : "var(--text-primary)" }}>
-                {jar.unlockDate > 0 ? fmtK(future) : fmt(jar.amount)}
+              <div style={{ fontSize: 60, fontWeight: 600, letterSpacing: "-2.5px", lineHeight: 1, color: "var(--text-primary)" }}>
+                {fmt(jar.amount)}
               </div>
-              <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
-                {jar.unlockDate > 0 ? (
-                  <>
-                    Estimated future value
-                    <span title="Projected value based on current savings and yield" style={{ width: 14, height: 14, borderRadius: "50%", border: "1px solid var(--text-tertiary)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 8, cursor: "help" }}>?</span>
-                  </>
-                ) : "Current balance"}
+              <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 6 }}>
+                Current balance
               </div>
+              {jar.unlockDate > 0 && future > jar.amount && (
+                <div style={{ fontSize: 13, color: "var(--green)", marginTop: 8, display: "flex", alignItems: "center", gap: 4 }}>
+                  Est. at unlock: <strong style={{ marginLeft: 3 }}>{fmtK(future)}</strong>
+                  <span title="Projected value based on current savings and yield at current APY" style={{ width: 14, height: 14, borderRadius: "50%", border: "1px solid var(--green)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 8, cursor: "help", opacity: 0.7 }}>?</span>
+                </div>
+              )}
               <div style={{ display: "flex", gap: 32, marginTop: 20 }}>
                 {[
                   { num: fmt(jar.amount), label: "Saved so far" },
@@ -3213,14 +3322,32 @@ function JarDetailPanel({
           </div>
 
           {/* Break jar */}
-          <div style={{ marginTop: 16 }}>
-            <button
-              onClick={() => setShowBreakModal(true)}
-              style={{ width: "100%", padding: "10px 0", background: "none", border: "1px solid #FCA5A5", borderRadius: 9, color: "#DC2626", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)" }}
-            >
-              🔨 Break jar & withdraw funds
-            </button>
-          </div>
+          {(() => {
+            const now = Math.floor(Date.now() / 1000);
+            const canBreak = !jar.locked ||
+              jar.jarType === "SHARED" ||
+              (jar.jarType === "DATE" && jar.unlockDate > 0 && now >= jar.unlockDate) ||
+              (jar.jarType === "GOAL" && jar.goal > 0 && jar.amount >= jar.goal) ||
+              (jar.jarType === "GOAL_BY_DATE" && ((jar.unlockDate > 0 && now >= jar.unlockDate) || (jar.goal > 0 && jar.amount >= jar.goal)));
+            const lockHint = jar.jarType === "DATE"
+              ? `Unlocks ${new Date(jar.unlockDate * 1000).toLocaleDateString("en-US", { month: "short", year: "numeric" })}`
+              : jar.jarType === "GOAL"
+              ? `Unlocks when goal of ${jar.goal > 0 ? `$${jar.goal.toLocaleString()}` : "?"} is reached`
+              : jar.jarType === "GOAL_BY_DATE"
+              ? `Unlocks at goal or on ${jar.unlockDate > 0 ? new Date(jar.unlockDate * 1000).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "date"}`
+              : "";
+            return (
+              <div style={{ marginTop: 16 }}>
+                <button
+                  onClick={() => canBreak && setShowBreakModal(true)}
+                  title={!canBreak ? lockHint : undefined}
+                  style={{ width: "100%", padding: "10px 0", background: "none", border: `1px solid ${canBreak ? "#FCA5A5" : "#E0E0DC"}`, borderRadius: 9, color: canBreak ? "#DC2626" : "#AAAAAA", fontSize: 13, fontWeight: 600, cursor: canBreak ? "pointer" : "not-allowed", fontFamily: "var(--font)" }}
+                >
+                  🔨 {canBreak ? "Break jar & withdraw funds" : `Locked · ${lockHint}`}
+                </button>
+              </div>
+            );
+          })()}
 
           {/* Break jar modal */}
           {showBreakModal && (
