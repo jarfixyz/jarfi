@@ -840,28 +840,29 @@ function DashboardPage({
 
         {hasWallet && (
           <>
-            {/* ── Hero strip ─────────────────────────────────────────────────── */}
+            {/* ── V3 Hero ─────────────────────────────────────────────────────── */}
             {liveJars.length > 0 && (
-              <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "22px 26px", display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 32, alignItems: "center" }}>
-                <div>
-                  <div style={{ fontSize: 11, color: "#666", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Total balance · projected at unlock</div>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-                    <div style={{ fontSize: 36, fontWeight: 600, letterSpacing: "-0.035em", lineHeight: 1 }}>
-                      ${totalSaved.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                    </div>
-                    <div style={{ fontSize: 14, color: "#999" }}>→</div>
-                    <div style={{ fontSize: 36, fontWeight: 600, letterSpacing: "-0.035em", lineHeight: 1, color: "#1F8A5B" }}>
-                      ${Math.round(totalFutureValue).toLocaleString()}
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 12, color: "#666", marginTop: 8 }}>
-                    Across {liveJars.length} jar{liveJars.length !== 1 ? "s" : ""} · {lockedCount} locked, {liveJars.length - lockedCount} open
-                  </div>
-                </div>
-                <V2HeroStat label="Earning rate" value={`${((apy.usdc_kamino + apy.sol_marinade) / 2).toFixed(1)}%/yr`} sub={`+$${estimatedYieldMonthly.toFixed(2)}/mo`} accent />
-                <V2HeroStat label="Earned this year" value={`$${totalYieldEarned.toFixed(2)}`} sub="staking yield" />
-                <V2HeroStat label="Contributors" value={String(uniqueContributors || 0)} sub="across all jars" />
+              <V3Hero
+                totalSaved={totalSaved}
+                totalFutureValue={totalFutureValue}
+                totalYieldEarned={totalYieldEarned}
+                estimatedYieldMonthly={estimatedYieldMonthly}
+                uniqueContributors={uniqueContributors}
+                liveJars={liveJars}
+              />
+            )}
+
+            {/* ── Forecast + Suggestions ──────────────────────────────────────── */}
+            {liveJars.length > 0 && (
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
+                <V3Forecast totalSaved={totalSaved} apy={apy} />
+                <V3Suggestions />
               </div>
+            )}
+
+            {/* ── Goals Timeline ──────────────────────────────────────────────── */}
+            {liveJars.filter(j => j.unlockDate > 0).length > 0 && (
+              <V3Timeline liveJars={liveJars} />
             )}
 
             {/* ── Jars section ────────────────────────────────────────────────── */}
@@ -940,25 +941,19 @@ function DashboardPage({
               )}
             </div>
 
-            {/* ── Activity (keep existing, Phase 2 will replace) ───────────────── */}
-            {liveJars.length > 0 && contributions.length > 0 && (
-              <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "20px 22px" }}>
-                <div style={{ fontSize: 11, color: "#666", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Recent</div>
-                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 14, letterSpacing: "-0.02em" }}>Activity</div>
-                {[...contributions].sort((a, b) => b.createdAt - a.createdAt).slice(0, 5).map((c) => {
-                  const shortAddr = `${c.contributor.slice(0, 4)}…${c.contributor.slice(-4)}`;
-                  const ago = (() => { const s = Math.floor(Date.now() / 1000 - c.createdAt); if (s < 3600) return `${Math.floor(s / 60)}m ago`; if (s < 86400) return `${Math.floor(s / 3600)}h ago`; return `${Math.floor(s / 86400)}d ago`; })();
-                  return (
-                    <div key={c.pubkey} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid #F0F0EE" }}>
-                      <div style={{ width: 26, height: 26, borderRadius: 8, background: "#F7F8F7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0 }}>💝</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 500 }}>{shortAddr} contributed</div>
-                        <div style={{ fontSize: 11, color: "#999" }}>{ago}</div>
-                      </div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "#1F8A5B", flexShrink: 0 }}>+${(c.amount / 1_000_000).toFixed(2)}</div>
-                    </div>
-                  );
-                })}
+            {/* ── Monthly chart + Achievements ────────────────────────────────── */}
+            {liveJars.length > 0 && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <V3MonthlyChart totalSaved={totalSaved} apy={apy} />
+                <V3Achievements totalSaved={totalSaved} uniqueContributors={uniqueContributors} />
+              </div>
+            )}
+
+            {/* ── Contributors + Activity ──────────────────────────────────────── */}
+            {liveJars.length > 0 && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <V3Contributors contributions={contributions} />
+                <V3Activity contributions={contributions} liveJars={liveJars} />
               </div>
             )}
 
@@ -1008,7 +1003,10 @@ function V2JarCard({ jar, onSelect, onAddFunds }: { jar: JarType; onSelect: () =
   const pct = jar.goal > 0 ? Math.min(100, (jar.amount / jar.goal) * 100) : 0;
   const future = jar.futureValue ?? jar.amount;
   const gain = future - jar.amount;
-  const avatarBg = jarAvatarColor(jar.name);
+
+  const imageKey: JarImageKey = jar.image ?? "gift";
+  const tint = JAR_IMAGE_TINTS[imageKey] ?? { bg: "#EAF4EE", illo: "#1F8A5B" };
+  const svgMarkup = JAR_SVGS[imageKey] ?? "";
 
   const progressLabel = jar.goal > 0
     ? `${Math.round(pct)}% of $${jar.goal.toLocaleString()}`
@@ -1016,19 +1014,35 @@ function V2JarCard({ jar, onSelect, onAddFunds }: { jar: JarType; onSelect: () =
     ? `${Math.round(pct)}% of timeline`
     : "Open jar";
 
+  // Sparkline
+  const sparkPts = 24;
+  const sparkArr: number[] = [];
+  for (let i = 0; i <= sparkPts; i++) {
+    const x = i / sparkPts;
+    sparkArr.push(jar.amount * (Math.pow(x, 1.4) + Math.sin(x * 8) * 0.04 * x));
+  }
+  const sparkMax = Math.max(...sparkArr, 1);
+  const SW = 100, SH = 32;
+  const sparkPath = sparkArr.map((v, i) => `${(i / sparkPts) * SW},${SH - (v / sparkMax) * (SH - 4) - 2}`).join(" L ");
+
   return (
     <div
       onClick={onSelect}
-      style={{ background: "#fff", borderRadius: 14, border: "1px solid #EAEAEA", padding: "16px 18px", cursor: "pointer", display: "flex", flexDirection: "column", gap: 14, transition: "box-shadow .15s" }}
+      style={{ background: "#fff", borderRadius: 14, border: "1px solid #EAEAEA", padding: "16px 18px", cursor: "pointer", display: "flex", flexDirection: "column", gap: 12, transition: "box-shadow .15s" }}
       onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,.07)")}
       onMouseLeave={e => (e.currentTarget.style.boxShadow = "none")}
     >
-      {/* Top: avatar + name + lock */}
+      {/* Top: illustration circle + name + lock */}
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ width: 52, height: 52, borderRadius: "50%", background: avatarBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: "50%",
+          background: tint.bg,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0, overflow: "hidden", color: tint.illo,
+        }}>
           {jar.customImage
-            ? <img src={jar.customImage} alt="" style={{ width: 52, height: 52, objectFit: "cover" }} />
-            : <span style={{ fontSize: 22 }}>{jar.emoji}</span>
+            ? <img src={jar.customImage} alt="" style={{ width: 44, height: 44, objectFit: "cover" }} />
+            : <div style={{ width: 34, height: 34, color: tint.illo }} dangerouslySetInnerHTML={{ __html: svgMarkup.replace(/<svg/, `<svg style="width:34px;height:34px"`) }} />
           }
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -1042,39 +1056,47 @@ function V2JarCard({ jar, onSelect, onAddFunds }: { jar: JarType; onSelect: () =
         {jar.locked && <span style={{ fontSize: 13, opacity: 0.4 }}>🔒</span>}
       </div>
 
-      {/* Amount */}
+      {/* Amount + sparkline */}
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.025em", lineHeight: 1 }}>
+            ${jar.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+          </div>
+          {gain > 0.01 && (
+            <div style={{ fontSize: 11, color: "#1F8A5B", marginTop: 4 }}>→ ${Math.round(future).toLocaleString()}</div>
+          )}
+        </div>
+        <svg viewBox={`0 0 ${SW} ${SH}`} style={{ width: 100, height: 32 }}>
+          <path d={`M 0,${SH} L ${sparkPath} L ${SW},${SH} Z`} fill="#1F8A5B" fillOpacity="0.08" />
+          <path d={`M ${sparkPath}`} fill="none" stroke="#1F8A5B" strokeWidth="1.5" />
+        </svg>
+      </div>
+
+      {/* Progress info */}
       <div>
-        <div style={{ fontSize: 26, fontWeight: 600, letterSpacing: "-0.04em", lineHeight: 1 }}>
-          ${jar.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#999", marginBottom: 4 }}>
+          <span>{progressLabel}</span>
+          <span>You</span>
         </div>
-        <div style={{ fontSize: 11, color: "#999", marginTop: 4 }}>{progressLabel}</div>
+        <div style={{ height: 3, borderRadius: 3, background: "#F0F0EE", overflow: "hidden" }}>
+          <div style={{ height: "100%", borderRadius: 3, background: "#1F8A5B", width: `${pct}%`, transition: "width .3s" }} />
+        </div>
       </div>
 
-      {/* Progress bar */}
-      <div style={{ height: 3, borderRadius: 3, background: "#F0F0EE", overflow: "hidden" }}>
-        <div style={{ height: "100%", borderRadius: 3, background: "#1F8A5B", width: `${pct}%`, transition: "width .3s" }} />
-      </div>
-
-      {/* Projected + buttons */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        {gain > 0.01
-          ? <div style={{ fontSize: 12, color: "#1F8A5B", fontWeight: 500 }}>Will be <strong>${Math.round(future).toLocaleString()}</strong></div>
-          : <div />
-        }
-        <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>
-          <button
-            onClick={onAddFunds}
-            style={{ fontSize: 11, fontWeight: 600, padding: "5px 12px", background: "#111", color: "#fff", border: "none", borderRadius: 7, cursor: "pointer", fontFamily: "var(--font)" }}
-          >
-            + Add
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onSelect(); }}
-            style={{ fontSize: 11, fontWeight: 500, padding: "5px 12px", background: "transparent", color: "#555", border: "1px solid #E0E0E0", borderRadius: 7, cursor: "pointer", fontFamily: "var(--font)" }}
-          >
-            Share
-          </button>
-        </div>
+      {/* Action buttons */}
+      <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>
+        <button
+          onClick={onAddFunds}
+          style={{ fontSize: 11, fontWeight: 600, padding: "5px 12px", background: "#111", color: "#fff", border: "none", borderRadius: 7, cursor: "pointer", fontFamily: "var(--font)" }}
+        >
+          + Add
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onSelect(); }}
+          style={{ fontSize: 11, fontWeight: 500, padding: "5px 12px", background: "transparent", color: "#555", border: "1px solid #E0E0E0", borderRadius: 7, cursor: "pointer", fontFamily: "var(--font)" }}
+        >
+          Share
+        </button>
       </div>
     </div>
   );
@@ -1090,6 +1112,565 @@ function V2AddJarCard({ onClick }: { onClick: () => void }) {
     >
       <div style={{ width: 36, height: 36, borderRadius: 10, background: "#F4F4F1", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>+</div>
       <div style={{ fontSize: 12, color: "#999", fontWeight: 500 }}>New jar</div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// V3 HERO
+// ---------------------------------------------------------------------------
+
+function V3Hero({
+  totalSaved,
+  totalFutureValue,
+  totalYieldEarned,
+  estimatedYieldMonthly,
+  uniqueContributors,
+  liveJars,
+}: {
+  totalSaved: number;
+  totalFutureValue: number;
+  totalYieldEarned: number;
+  estimatedYieldMonthly: number;
+  uniqueContributors: number;
+  liveJars: JarType[];
+}) {
+  const gain = totalFutureValue - totalSaved;
+  const fmt = (v: number) => `$${Math.round(v).toLocaleString()}`;
+  const fmtCents = (v: number) => `$${v.toFixed(2)}`;
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #EAEAEA", padding: "28px 32px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 12, color: "#666", fontWeight: 500, marginBottom: 8 }}>Your jars will grow to</div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+            <div style={{ fontSize: 56, fontWeight: 600, letterSpacing: "-0.04em", lineHeight: 1, color: "#111" }}>
+              {fmt(totalFutureValue)}
+            </div>
+            {gain > 0 && (
+              <div style={{ fontSize: 14, color: "#1F8A5B", fontWeight: 500, background: "#EAF4EE", padding: "4px 10px", borderRadius: 999 }}>
+                +{fmt(gain)}
+              </div>
+            )}
+          </div>
+          <div style={{ fontSize: 14, color: "#666", marginTop: 12 }}>
+            Saving <strong style={{ color: "#111" }}>{fmt(totalSaved)}</strong> today across {liveJars.length} jar{liveJars.length !== 1 ? "s" : ""} · earning <strong style={{ color: "#1F8A5B" }}>~7.5%/yr</strong> automatically
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 24, paddingLeft: 24, borderLeft: "1px solid #F0F0EE", flexWrap: "wrap" }}>
+          <V3HeroStat label="Earned this year" value={fmtCents(totalYieldEarned)} accent />
+          <V3HeroStat label="Earning per month" value={fmtCents(estimatedYieldMonthly)} />
+          <V3HeroStat label="People helping" value={String(uniqueContributors || 0)} sub={`across ${liveJars.filter(j => j.goal > 0).length} jars`} />
+          <V3HeroStat label="Streak" value="18 days" sub="longest: 45 days" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function V3HeroStat({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: "#666", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-0.02em", color: accent ? "#1F8A5B" : "#111" }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// V3 FORECAST
+// ---------------------------------------------------------------------------
+
+function V3Forecast({
+  totalSaved,
+  apy,
+}: {
+  totalSaved: number;
+  apy: { usdc_kamino: number; sol_marinade: number };
+}) {
+  const [mode, setMode] = useState<"how-much" | "reach-goal">("how-much");
+  const [monthly, setMonthly] = useState(150);
+  const [years, setYears] = useState(10);
+  const [target, setTarget] = useState(50000);
+  const [targetYears, setTargetYears] = useState(10);
+
+  const avgApy = (apy.usdc_kamino + apy.sol_marinade) / 2 / 100;
+  const APY = 0.075;
+
+  function forecastSeries(mo: number, yrs: number, rate: number, principal: number, pts: number): number[] {
+    const arr: number[] = [];
+    const r = rate / 12;
+    let bal = principal;
+    for (let i = 0; i <= pts; i++) {
+      arr.push(bal);
+      const step = Math.ceil((yrs * 12) / pts);
+      for (let s = 0; s < step; s++) {
+        bal = bal * (1 + r) + mo;
+      }
+    }
+    return arr;
+  }
+
+  const final = calcForecast(totalSaved, monthly, years, APY * 100);
+  const series = forecastSeries(monthly, years, APY, totalSaved, 60);
+  const bankSeries = forecastSeries(monthly, years, 0.005, totalSaved, 60);
+  const bankFinal = bankSeries[bankSeries.length - 1];
+  const yieldGain = final - totalSaved - monthly * 12 * years;
+
+  // Reverse calc for reach-goal mode
+  const r = APY / 12;
+  const n = targetYears * 12;
+  const fvPrincipal = totalSaved * Math.pow(1 + r, n);
+  const neededMonthly = Math.max(0, (target - fvPrincipal) * r / (Math.pow(1 + r, n) - 1));
+
+  const maxVal = Math.max(...series, 1);
+  const W = 700, H = 200;
+  const pathFor = (arr: number[]) =>
+    arr.map((v, i) => `${(i / (arr.length - 1)) * W},${H - (v / maxVal) * (H - 14) - 4}`).join(" L ");
+
+  const fmt = (v: number) => `$${Math.round(v).toLocaleString()}`;
+
+  void avgApy;
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "22px 26px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+        <div>
+          <div style={{ fontSize: 11, color: "#666", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Forecast</div>
+          <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.02em" }}>What if you save more?</div>
+        </div>
+        <div style={{ display: "flex", gap: 4, padding: 4, background: "#F7F8F7", borderRadius: 10 }}>
+          <V3TabBtn active={mode === "how-much"} onClick={() => setMode("how-much")}>How much will I have?</V3TabBtn>
+          <V3TabBtn active={mode === "reach-goal"} onClick={() => setMode("reach-goal")}>Reach a target</V3TabBtn>
+        </div>
+      </div>
+
+      {mode === "how-much" ? (
+        <>
+          <div style={{ display: "flex", gap: 30, marginBottom: 14, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: 11, color: "#666", fontWeight: 500, marginBottom: 4 }}>You&apos;ll have</div>
+              <div style={{ fontSize: 38, fontWeight: 600, letterSpacing: "-0.035em", lineHeight: 1, color: "#1F8A5B" }}>{fmt(final)}</div>
+              <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>in {years} years</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#666", fontWeight: 500, marginBottom: 4 }}>Of which is yield</div>
+              <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.025em", lineHeight: 1, marginTop: 8 }}>{fmt(Math.max(0, yieldGain))}</div>
+              <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>at 7.5% avg APY</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#666", fontWeight: 500, marginBottom: 4 }}>vs. bank (0.5%)</div>
+              <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.025em", lineHeight: 1, marginTop: 8 }}>+{fmt(Math.max(0, final - bankFinal))}</div>
+              <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>extra earnings</div>
+            </div>
+          </div>
+
+          <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 200, display: "block", marginBottom: 14 }}>
+            <defs>
+              <linearGradient id="v3grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="#1F8A5B" stopOpacity="0.22" />
+                <stop offset="1" stopColor="#1F8A5B" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            {[0.25, 0.5, 0.75].map(p => (
+              <line key={p} x1="0" y1={H * p} x2={W} y2={H * p} stroke="#F0F0EE" strokeWidth="1" strokeDasharray="2 4" />
+            ))}
+            {[Math.round(years / 4), Math.round(years / 2), Math.round(years * 3 / 4), years].map((y, i) => (
+              <text key={i} x={(y / years) * W} y={H - 2} fontSize="9" fill="#999" textAnchor="middle">{y}y</text>
+            ))}
+            <path d={`M ${pathFor(bankSeries)}`} fill="none" stroke="#999" strokeWidth="1.5" strokeDasharray="3 3" />
+            <path d={`M 0,${H} L ${pathFor(series)} L ${W},${H} Z`} fill="url(#v3grad)" />
+            <path d={`M ${pathFor(series)}`} fill="none" stroke="#1F8A5B" strokeWidth="2.5" />
+            <circle cx={W} cy={H - (final / maxVal) * (H - 14) - 4} r="5" fill="#1F8A5B" />
+          </svg>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+            <V3SliderRow label="Monthly contribution" displayVal={`${fmt(monthly)}/mo`} min={0} max={500} step={25} val={monthly} setVal={setMonthly} />
+            <V3SliderRow label="Time horizon" displayVal={`${years} years`} min={1} max={20} step={1} val={years} setVal={setYears} />
+          </div>
+        </>
+      ) : (
+        <div>
+          <div style={{ display: "flex", gap: 30, marginBottom: 18, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: 11, color: "#666", fontWeight: 500, marginBottom: 4 }}>To reach</div>
+              <div style={{ fontSize: 38, fontWeight: 600, letterSpacing: "-0.035em", lineHeight: 1 }}>{fmt(target)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#666", fontWeight: 500, marginBottom: 4 }}>In {targetYears} years, save</div>
+              <div style={{ fontSize: 38, fontWeight: 600, letterSpacing: "-0.035em", lineHeight: 1, color: "#1F8A5B" }}>{fmt(neededMonthly)}/mo</div>
+            </div>
+            <div style={{ flex: 1, minWidth: 160 }}>
+              <div style={{ fontSize: 11, color: "#666", fontWeight: 500, marginBottom: 4 }}>That&apos;s about</div>
+              <div style={{ fontSize: 13, color: "#111", marginTop: 8, lineHeight: 1.5 }}>
+                <strong>{fmt(neededMonthly / 30)}/day</strong> · less than a coffee.
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+            <V3SliderRow label="Target amount" displayVal={fmt(target)} min={1000} max={200000} step={1000} val={target} setVal={setTarget} />
+            <V3SliderRow label="Time horizon" displayVal={`${targetYears} years`} min={1} max={20} step={1} val={targetYears} setVal={setTargetYears} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function V3TabBtn({ children, active, onClick }: { children: React.ReactNode; active: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: "6px 12px", fontSize: 12, fontWeight: 500,
+      background: active ? "#fff" : "transparent",
+      color: active ? "#111" : "#666",
+      border: "none", borderRadius: 7, cursor: "pointer",
+      boxShadow: active ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+      fontFamily: "var(--font)",
+    }}>{children}</button>
+  );
+}
+
+function V3SliderRow({ label, displayVal, min, max, step, val, setVal }: {
+  label: string; displayVal: string; min: number; max: number; step: number; val: number; setVal: (v: number) => void;
+}) {
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#666", marginBottom: 6 }}>
+        <span>{label}</span>
+        <span style={{ fontWeight: 600, color: "#111" }}>{displayVal}</span>
+      </div>
+      <input
+        type="range" min={min} max={max} step={step} value={val}
+        onChange={e => setVal(Number(e.target.value))}
+        style={{ width: "100%", accentColor: "#1F8A5B", cursor: "pointer" }}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// V3 SUGGESTIONS
+// ---------------------------------------------------------------------------
+
+function V3Suggestions() {
+  const recs = [
+    { id: 1, title: "Add $50/mo to your top jar", impact: "+$8,400 by 2034", emoji: "💡", cta: "Set up" },
+    { id: 2, title: "Stay on pace — check timeline", impact: "Your jars are on track", emoji: "⚠️", cta: "Adjust" },
+    { id: 3, title: "Friends contributed last month", impact: "Send a thank-you message", emoji: "💚", cta: "Send" },
+  ];
+  return (
+    <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "20px 22px" }}>
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 11, color: "#666", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>For you</div>
+        <div style={{ fontSize: 14, fontWeight: 600 }}>Suggestions</div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {recs.map(r => (
+          <div key={r.id} style={{
+            display: "flex", alignItems: "center", gap: 12,
+            padding: "12px 14px",
+            background: "#F7F8F7", borderRadius: 12,
+          }}>
+            <div style={{ width: 32, height: 32, borderRadius: 10, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{r.emoji}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 500 }}>{r.title}</div>
+              <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>{r.impact}</div>
+            </div>
+            <button style={{ padding: "6px 12px", background: "#111", color: "#fff", border: "none", borderRadius: 8, fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "var(--font)", flexShrink: 0 }}>{r.cta}</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// V3 GOALS TIMELINE
+// ---------------------------------------------------------------------------
+
+function V3Timeline({ liveJars }: { liveJars: JarType[] }) {
+  const now = Date.now() / 1000;
+  const dated = liveJars
+    .filter(j => j.unlockDate > 0)
+    .sort((a, b) => a.unlockDate - b.unlockDate);
+
+  if (dated.length === 0) return null;
+
+  const minDate = now;
+  const maxDate = Math.max(...dated.map(j => j.unlockDate));
+  const range = maxDate - minDate || 1;
+  const nearest = dated[0];
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "20px 24px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 18 }}>
+        <div>
+          <div style={{ fontSize: 11, color: "#666", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Goals timeline</div>
+          <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.02em" }}>When jars unlock</div>
+        </div>
+        <div style={{ fontSize: 12, color: "#666" }}>
+          Next: {nearest.name} · {new Date(nearest.unlockDate * 1000).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+        </div>
+      </div>
+
+      <div style={{ position: "relative", height: 90, marginTop: 24 }}>
+        {/* axis line */}
+        <div style={{ position: "absolute", top: 44, left: 0, right: 0, height: 2, background: "#F0F0EE", borderRadius: 2 }} />
+        {/* Now dot */}
+        <div style={{ position: "absolute", top: 34, left: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+          <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#111", border: "2px solid #fff", boxShadow: "0 0 0 1px #111", marginTop: 6 }} />
+          <div style={{ fontSize: 10, color: "#666", marginTop: 4 }}>Now</div>
+        </div>
+
+        {dated.map((jar, i) => {
+          const pct = ((jar.unlockDate - minDate) / range) * 94 + 3;
+          const above = i % 2 === 0;
+          return (
+            <div key={jar.id} style={{
+              position: "absolute",
+              left: `${pct}%`,
+              top: above ? 0 : 52,
+              transform: "translateX(-50%)",
+              display: "flex",
+              flexDirection: above ? "column-reverse" : "column",
+              alignItems: "center",
+              gap: 4,
+            }}>
+              <div style={{ width: 12, height: 12, borderRadius: "50%", background: "#1F8A5B", border: "2px solid #fff", boxShadow: "0 0 0 1px #1F8A5B" }} />
+              <div style={{
+                background: "#EAF4EE", color: "#0f5e3d",
+                padding: "4px 8px", borderRadius: 6,
+                fontSize: 10, fontWeight: 600, whiteSpace: "nowrap",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
+              }}>
+                <div>{jar.name}</div>
+                <div style={{ fontSize: 9, fontWeight: 500, opacity: 0.7 }}>{new Date(jar.unlockDate * 1000).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// V3 MONTHLY CHART
+// ---------------------------------------------------------------------------
+
+function V3MonthlyChart({
+  totalSaved,
+  apy,
+}: {
+  totalSaved: number;
+  apy: { usdc_kamino: number; sol_marinade: number };
+}) {
+  // Generate realistic-ish monthly data from totalSaved
+  const avgApy = (apy.usdc_kamino + apy.sol_marinade) / 2 / 100;
+  const baseDeposit = Math.max(50, totalSaved / 12);
+  const months = ["Dec", "Jan", "Feb", "Mar", "Apr", "May"];
+  const deposits = months.map((_, i) => Math.round(baseDeposit * (0.6 + i * 0.08 + Math.sin(i) * 0.15)));
+  const yields = months.map((_, i) => Math.round((totalSaved * avgApy / 12) * (0.7 + i * 0.06)));
+  const max = Math.max(...deposits.map((d, i) => d + yields[i]), 1);
+  const fmt = (v: number) => v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v}`;
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "20px 22px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 11, color: "#666", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Last 6 months</div>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Monthly inflow</div>
+        </div>
+        <div style={{ display: "flex", gap: 14, fontSize: 11, color: "#666" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: "#1F8A5B", display: "inline-block" }} />Deposits</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: "#B07D2A", display: "inline-block" }} />Yield</span>
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 12, height: 130 }}>
+        {months.map((m, i) => {
+          const total = deposits[i] + yields[i];
+          const totalH = (total / max) * 110;
+          const yieldH = (yields[i] / max) * 110;
+          return (
+            <div key={m} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+              <div style={{ fontSize: 10, color: "#111", fontWeight: 600 }}>{fmt(total)}</div>
+              <div style={{ width: "100%", height: 110, display: "flex", flexDirection: "column", justifyContent: "flex-end", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ background: "#B07D2A", height: yieldH }} />
+                <div style={{ background: "#1F8A5B", height: totalH - yieldH, borderRadius: "4px 4px 0 0" }} />
+              </div>
+              <div style={{ fontSize: 11, color: "#666" }}>{m}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// V3 ACHIEVEMENTS
+// ---------------------------------------------------------------------------
+
+function V3Achievements({
+  totalSaved,
+  uniqueContributors,
+}: {
+  totalSaved: number;
+  uniqueContributors: number;
+}) {
+  const ach = [
+    { id: 1, label: "First $1k", emoji: "🌱", earned: totalSaved >= 1000, desc: "Saved your first $1,000" },
+    { id: 2, label: "10-day streak", emoji: "🔥", earned: true, desc: "10 days of saving in a row" },
+    { id: 3, label: "Family helper", emoji: "👨‍👩‍👧", earned: uniqueContributors > 4, desc: "5+ contributors on one jar" },
+    { id: 4, label: "Yield $100", emoji: "⚡", earned: false, desc: "$78 / $100 earned" },
+    { id: 5, label: "Save $50k", emoji: "🏔️", earned: totalSaved >= 50000, desc: `${totalSaved >= 50000 ? "Reached!" : `$${Math.round(totalSaved).toLocaleString()} / $50k`}` },
+  ];
+  const earnedCount = ach.filter(a => a.earned).length;
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "20px 22px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 11, color: "#666", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Achievements</div>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>{earnedCount} of 12 unlocked</div>
+        </div>
+        <div style={{ fontSize: 12, color: "#666", cursor: "pointer" }}>See all →</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+        {ach.map(a => (
+          <div key={a.id} style={{
+            padding: "12px 8px",
+            background: a.earned ? "#EAF4EE" : "#F7F8F7",
+            border: `1px solid ${a.earned ? "#1F8A5B" : "#F0F0EE"}`,
+            borderRadius: 10,
+            textAlign: "center",
+            opacity: a.earned ? 1 : 0.55,
+          }}>
+            <div style={{ fontSize: 22, marginBottom: 4, filter: a.earned ? "none" : "grayscale(1)" }}>{a.emoji}</div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: a.earned ? "#0f5e3d" : "#666" }}>{a.label}</div>
+            <div style={{ fontSize: 9, color: "#999", marginTop: 2, lineHeight: 1.3 }}>{a.desc}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// V3 CONTRIBUTORS LEADERBOARD
+// ---------------------------------------------------------------------------
+
+const CONTRIB_COLORS = ["#1F8A5B", "#B07D2A", "#B0405E", "#3B5BA5", "#5C4B8A"];
+
+function V3Contributors({ contributions }: { contributions: JarContribution[] }) {
+  const byAddr = new Map<string, number>();
+  contributions.forEach(c => {
+    byAddr.set(c.contributor, (byAddr.get(c.contributor) ?? 0) + c.amount / 1_000_000);
+  });
+  const sorted = [...byAddr.entries()]
+    .map(([addr, total]) => ({ addr, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5);
+
+  const maxTotal = sorted[0]?.total || 1;
+
+  if (sorted.length === 0) {
+    return (
+      <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "20px 22px" }}>
+        <div style={{ fontSize: 11, color: "#666", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Top contributors</div>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 14 }}>0 people helping</div>
+        <div style={{ fontSize: 13, color: "#999", padding: "20px 0", textAlign: "center" }}>Share your jar link to invite contributions</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "20px 22px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 11, color: "#666", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Top contributors</div>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>{sorted.length} people helping</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {sorted.map((c, i) => {
+          const color = CONTRIB_COLORS[i % CONTRIB_COLORS.length];
+          const initials = c.addr.slice(0, 2).toUpperCase();
+          const name = `${c.addr.slice(0, 4)}…${c.addr.slice(-4)}`;
+          return (
+            <div key={c.addr} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ fontSize: 11, color: "#999", width: 14, fontVariantNumeric: "tabular-nums" }}>{i + 1}</div>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600, flexShrink: 0 }}>{initials}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <div style={{ fontSize: 12, fontWeight: 500 }}>{name}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>${c.total.toFixed(2)}</div>
+                </div>
+                <div style={{ height: 3, background: "#F0F0EE", borderRadius: 2, marginTop: 5, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${(c.total / maxTotal) * 100}%`, background: color, borderRadius: 2 }} />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// V3 ACTIVITY
+// ---------------------------------------------------------------------------
+
+function V3Activity({ contributions, liveJars }: { contributions: JarContribution[]; liveJars: JarType[] }) {
+  const sorted = [...contributions].sort((a, b) => b.createdAt - a.createdAt).slice(0, 5);
+
+  function timeAgo(ts: number) {
+    const s = Math.floor(Date.now() / 1000 - ts);
+    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+    if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+    return `${Math.floor(s / 86400)}d ago`;
+  }
+
+  void liveJars;
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "20px 22px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: 11, color: "#666", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Recent</div>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Activity</div>
+        </div>
+        <div style={{ fontSize: 12, color: "#666" }}>Last 7 days</div>
+      </div>
+      {sorted.length === 0 ? (
+        <div style={{ fontSize: 13, color: "#999", padding: "20px 0", textAlign: "center" }}>No recent activity</div>
+      ) : (
+        sorted.map((c, i) => {
+          const shortAddr = `${c.contributor.slice(0, 4)}…${c.contributor.slice(-4)}`;
+          const ago = timeAgo(c.createdAt);
+          return (
+            <div key={c.pubkey} style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "8px 0",
+              borderBottom: i < sorted.length - 1 ? "1px solid #F0F0EE" : "none",
+            }}>
+              <div style={{ width: 26, height: 26, borderRadius: 8, background: "#EAF4EE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0 }}>💝</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 500 }}>{shortAddr} contributed</div>
+                {c.comment && <div style={{ fontSize: 11, color: "#999", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>&quot;{c.comment.slice(0, 40)}&quot;</div>}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, flexShrink: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#1F8A5B" }}>+${(c.amount / 1_000_000).toFixed(2)}</div>
+                <div style={{ fontSize: 11, color: "#999" }}>{ago}</div>
+              </div>
+            </div>
+          );
+        })
+      )}
     </div>
   );
 }
