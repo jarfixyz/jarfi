@@ -2091,7 +2091,8 @@ function JarDetailPanel({
 
   const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://jarfi.up.railway.app";
   const [slug, setSlug] = useState<string | null>(() => getJarSlug(jar.id));
-  const giftPath = slug ?? jar.id;
+  // Always use pubkey in gift URL — slug lookup depends on Railway SQLite which resets on deploy
+  const giftPath = jar.id;
   const giftUrl = `jarfi.xyz/gift/${giftPath}`;
   const giftFullUrl = `https://jarfi.xyz/gift/${giftPath}`;
 
