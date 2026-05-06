@@ -20,10 +20,9 @@ import {
 } from "lucide-react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletButton } from "@/components/wallet-button";
-import { JupiterSwapButton } from "@/components/jupiter-swap";
 import { useJars } from "@/lib/use-jars";
-import { createJarOnChain, createUsdcJarOnChain } from "@/lib/create-jar";
-import { breakSolJarOnChain, breakUsdcJarOnChain } from "@/lib/break-jar";
+import { createUsdcJarOnChain } from "@/lib/create-jar";
+import { breakUsdcJarOnChain } from "@/lib/break-jar";
 import { CURRENCY_USDC, fetchJarByPubkey } from "@/lib/program";
 import { PublicKey } from "@solana/web3.js";
 import {
@@ -406,7 +405,7 @@ export default function Dashboard() {
           <TransakWidget
             vaultAddress={addFundsJar.pubkey}
             contributorMessage={`Top up ${addFundsJar.name}`}
-            currency={addFundsJar.currency}
+
             onSuccess={() => {
               setAddFundsJar(null);
               showToast("Deposit confirmed ✅");
@@ -515,19 +514,11 @@ export default function Dashboard() {
               }
               const childWallet = publicKey.toBase58();
               let jarPubkey: string;
-              if (params.currency === "usdc") {
-                ({ jarPubkey } = await createUsdcJarOnChain(
-                  wallet.adapter as never,
-                  connection,
-                  { ...params, childWallet }
-                ));
-              } else {
-                ({ jarPubkey } = await createJarOnChain(
-                  wallet.adapter as never,
-                  connection,
-                  { ...params, childWallet }
-                ));
-              }
+              ({ jarPubkey } = await createUsdcJarOnChain(
+                wallet.adapter as never,
+                connection,
+                { ...params, childWallet }
+              ));
               if (params.jarName) saveJarName(jarPubkey, params.jarName);
               if (params.jarEmoji) saveJarEmoji(jarPubkey, params.jarEmoji);
               fetchJarByPubkey(connection, new PublicKey(jarPubkey))
@@ -759,9 +750,6 @@ function DashboardPage({
         subtitle={greeting ? `Good morning ☀️` : "Good morning ☀️"}
         onMenuToggle={onMenuToggle}
       >
-        {hasWallet && (
-          <JupiterSwapButton className="inline-flex items-center gap-1.5 rounded-lg border border-[#E2E2DC] bg-[#F0F0EC] px-3.5 py-1.5 text-xs font-semibold text-[#555555] hover:border-[#999]" />
-        )}
         <WalletButton compact />
         {hasWallet && (
           <button
@@ -2078,11 +2066,9 @@ function JarDetailPanel({
       if (liveAmount <= 0) {
         // Empty jar — no on-chain withdrawal needed, just clean up
         txSignature = null;
-      } else if (isUsdc) {
+      } else {
         const microUnits = Math.round(liveAmount * 1_000_000);
         txSignature = await breakUsdcJarOnChain(wallet.adapter as never, connection, jar.id, microUnits);
-      } else {
-        txSignature = await breakSolJarOnChain(wallet.adapter as never, connection, jar.id);
       }
 
       fetch(`${BACKEND}/jar/meta/${jar.id}`, { method: "DELETE" }).catch(() => {});
