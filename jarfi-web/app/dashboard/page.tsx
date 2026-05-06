@@ -357,40 +357,57 @@ export default function Dashboard() {
         <div className="fixed inset-0 z-30 bg-black/40 md:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* ── V2 Sidebar ───────────────────────────────────────────────────────── */}
+      {/* ── V3 Sidebar ───────────────────────────────────────────────────────── */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 flex flex-shrink-0 flex-col md:relative md:translate-x-0 transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
-        style={{ width: 64, background: "#0a0a0a", padding: "20px 0", minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}
+        style={{ width: 200, background: "#fff", borderRight: "1px solid #EBEBEB", padding: "20px 12px 20px", minHeight: "100vh", display: "flex", flexDirection: "column" }}
       >
         {/* Logo */}
-        <Link href="/" onClick={() => setSidebarOpen(false)} style={{ textDecoration: "none", marginBottom: 14 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: "#1F8A5B", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700 }}>j</div>
+        <Link href="/" onClick={() => setSidebarOpen(false)} style={{ textDecoration: "none", padding: "0 8px", marginBottom: 20, display: "block" }}>
+          <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.5px", color: "#111" }}>jar<span style={{ color: "#1F8A5B" }}>fi</span></span>
         </Link>
 
-        {/* Nav icons */}
-        {[
-          { key: "dashboard", icon: "home", label: "Home" },
-          { key: "analytics", icon: "activity", label: "Analytics" },
-          { key: "contributors", icon: "people", label: "Contributors" },
-          { key: "demo", icon: "star", label: "Demo" },
-        ].map(({ key, icon, label }) => {
-          const active = activePage === key || (key === "dashboard" && activePage === "dashboard");
-          return (
-            <button key={key} title={label} onClick={() => navigate(key as typeof activePage)}
-              style={{ width: 44, height: 44, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", opacity: active ? 1 : 0.45, background: active ? "#1a1a1a" : "transparent", border: "none", transition: "opacity .15s, background .15s" }}>
-              <SidebarIcon name={icon} />
-            </button>
-          );
-        })}
+        {/* New jar button */}
+        <button
+          onClick={() => { setSidebarOpen(false); setModal("new-jar"); }}
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", padding: "9px 0", background: "#111", color: "#fff", border: "none", borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)", marginBottom: 20 }}
+        >
+          + New jar
+        </button>
 
-        {/* Bottom */}
-        <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 8, alignItems: "center" }}>
-          <button title="New jar" onClick={() => { setSidebarOpen(false); setModal("new-jar"); }}
-            style={{ width: 44, height: 44, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", opacity: 0.45, background: "transparent", border: "none" }}>
-            <SidebarIcon name="plus" />
-          </button>
-          <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#1F8A5B", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600 }}>
-            {avatarInitials}
+        {/* Nav items */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {[
+            { key: "dashboard",    icon: "jar",      label: "My jars" },
+            { key: "analytics",    icon: "activity", label: "Activity" },
+            { key: "contributors", icon: "people",   label: "People" },
+            { key: "demo",         icon: "star",     label: "Demo" },
+          ].map(({ key, icon, label }) => {
+            const active = activePage === key;
+            return (
+              <button key={key} onClick={() => navigate(key as typeof activePage)}
+                style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 10px", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "var(--font)", background: active ? "#ECFDF5" : "transparent", transition: "background .12s" }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.background = "#F5F5F3"; }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
+              >
+                <div style={{ width: 28, height: 28, borderRadius: "50%", background: active ? "#1F8A5B" : "#F0F0EE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: active ? "#fff" : "#666", transition: "background .12s" }}>
+                  <SidebarIcon name={icon} />
+                </div>
+                <span style={{ fontSize: 13, fontWeight: active ? 600 : 500, color: active ? "#1F8A5B" : "#444", letterSpacing: "-0.01em" }}>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Wallet at bottom */}
+        <div style={{ marginTop: "auto", padding: "12px 10px 0", borderTop: "1px solid #F0F0EE" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+            <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#1F8A5B", flexShrink: 0 }}>
+              {avatarInitials}
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 500, color: "#333", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {greeting ?? "Not connected"}
+            </div>
           </div>
         </div>
       </aside>
@@ -899,10 +916,9 @@ function DashboardPage({
       </div>
 
       <style>{`
-        .jar-cards-grid { grid-template-columns: repeat(4, 1fr); }
-        @media (max-width: 1200px) { .jar-cards-grid { grid-template-columns: repeat(3, 1fr); } }
-        @media (max-width: 800px)  { .jar-cards-grid { grid-template-columns: repeat(2, 1fr); } }
-        @media (max-width: 480px)  { .jar-cards-grid { grid-template-columns: 1fr; } }
+        .jar-cards-grid { grid-template-columns: repeat(3, 1fr); }
+        @media (max-width: 1100px) { .jar-cards-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 640px)  { .jar-cards-grid { grid-template-columns: 1fr; } }
       `}</style>
     </div>
   );
@@ -933,66 +949,81 @@ function makeSparkline(w: number, h: number): string {
   return `M ${coords.join(" L ")}`;
 }
 
+// Stable pastel colours for jar avatars derived from name
+const AVATAR_COLORS = ["#D4EAE0","#D8E8F5","#F5E8D4","#EAD4EA","#F5D4D4","#D4EAF5","#EAF5D4","#F5F0D4"];
+function jarAvatarColor(name: string) { let h = 0; for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff; return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length]; }
+
 function V2JarCard({ jar, onSelect, onAddFunds }: { jar: JarType; onSelect: () => void; onAddFunds: (e: React.MouseEvent) => void }) {
-  const imageKey: JarImageKey = jar.image ?? "baby";
-  const tint = JAR_IMAGE_TINTS[imageKey];
   const pct = jar.goal > 0 ? Math.min(100, (jar.amount / jar.goal) * 100) : 0;
   const future = jar.futureValue ?? jar.amount;
-  const sparkPath = makeSparkline(100, 32);
+  const gain = future - jar.amount;
+  const avatarBg = jarAvatarColor(jar.name);
+
+  const progressLabel = jar.goal > 0
+    ? `${Math.round(pct)}% of $${jar.goal.toLocaleString()}`
+    : jar.unlockDate > 0
+    ? `${Math.round(pct)}% of timeline`
+    : "Open jar";
 
   return (
     <div
       onClick={onSelect}
-      style={{ background: "#fff", borderRadius: 14, border: "1px solid #EAEAEA", padding: 16, cursor: "pointer", display: "flex", flexDirection: "column", gap: 12, transition: "box-shadow .15s", position: "relative" }}
+      style={{ background: "#fff", borderRadius: 14, border: "1px solid #EAEAEA", padding: "16px 18px", cursor: "pointer", display: "flex", flexDirection: "column", gap: 14, transition: "box-shadow .15s" }}
       onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,.07)")}
       onMouseLeave={e => (e.currentTarget.style.boxShadow = "none")}
     >
-      {/* Top row: illustration + name + lock */}
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-        <div style={{ width: 44, height: 44, borderRadius: 12, background: jar.customImage ? "transparent" : tint.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+      {/* Top: avatar + name + lock */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ width: 52, height: 52, borderRadius: "50%", background: avatarBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
           {jar.customImage
-            ? <img src={jar.customImage} alt="" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 12 }} />
-            : <div style={{ width: 28, height: 28, color: tint.illo }} dangerouslySetInnerHTML={{ __html: JAR_SVGS[imageKey] }} />
+            ? <img src={jar.customImage} alt="" style={{ width: 52, height: 52, objectFit: "cover" }} />
+            : <span style={{ fontSize: 22 }}>{jar.emoji}</span>
           }
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: "-0.01em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{jar.name}</div>
-          <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>{jar.currency?.toUpperCase() ?? "USDC"}</div>
+          <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.02em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{jar.name}</div>
+          <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>
+            {jar.unlockDate > 0
+              ? `Unlocks ${new Date(jar.unlockDate * 1000).toLocaleDateString("en-US", { month: "short", year: "numeric" })}`
+              : jar.goal > 0 ? `Goal $${jar.goal.toLocaleString()}` : "Open"}
+          </div>
         </div>
-        {jar.locked && (
-          <div style={{ fontSize: 10, color: "#666", background: "#F4F4F1", borderRadius: 6, padding: "2px 6px", flexShrink: 0, marginTop: 2 }}>🔒</div>
-        )}
+        {jar.locked && <span style={{ fontSize: 13, opacity: 0.4 }}>🔒</span>}
       </div>
 
-      {/* Middle: amount + sparkline */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8 }}>
-        <div>
-          <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.03em", lineHeight: 1 }}>${jar.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-          {future > jar.amount && (
-            <div style={{ fontSize: 11, color: "#1F8A5B", marginTop: 3 }}>→ ${Math.round(future).toLocaleString()} at unlock</div>
-          )}
+      {/* Amount */}
+      <div>
+        <div style={{ fontSize: 26, fontWeight: 600, letterSpacing: "-0.04em", lineHeight: 1 }}>
+          ${jar.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
         </div>
-        <svg width="100" height="32" viewBox="0 0 100 32" fill="none" style={{ flexShrink: 0 }}>
-          <path d={sparkPath} stroke={tint.illo} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.6" />
-        </svg>
+        <div style={{ fontSize: 11, color: "#999", marginTop: 4 }}>{progressLabel}</div>
       </div>
 
       {/* Progress bar */}
-      <div style={{ height: 4, borderRadius: 4, background: "#EFEFEC", overflow: "hidden" }}>
-        <div style={{ height: "100%", borderRadius: 4, background: "#1F8A5B", width: `${pct}%`, transition: "width .3s" }} />
+      <div style={{ height: 3, borderRadius: 3, background: "#F0F0EE", overflow: "hidden" }}>
+        <div style={{ height: "100%", borderRadius: 3, background: "#1F8A5B", width: `${pct}%`, transition: "width .3s" }} />
       </div>
 
-      {/* Footer */}
+      {/* Projected + buttons */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ fontSize: 11, color: "#999" }}>
-          {jar.goal > 0 ? `${Math.round(pct)}% of $${jar.goal.toLocaleString()}` : "No goal set"}
+        {gain > 0.01
+          ? <div style={{ fontSize: 12, color: "#1F8A5B", fontWeight: 500 }}>Will be <strong>${Math.round(future).toLocaleString()}</strong></div>
+          : <div />
+        }
+        <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>
+          <button
+            onClick={onAddFunds}
+            style={{ fontSize: 11, fontWeight: 600, padding: "5px 12px", background: "#111", color: "#fff", border: "none", borderRadius: 7, cursor: "pointer", fontFamily: "var(--font)" }}
+          >
+            + Add
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onSelect(); }}
+            style={{ fontSize: 11, fontWeight: 500, padding: "5px 12px", background: "transparent", color: "#555", border: "1px solid #E0E0E0", borderRadius: 7, cursor: "pointer", fontFamily: "var(--font)" }}
+          >
+            Share
+          </button>
         </div>
-        <button
-          onClick={onAddFunds}
-          style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", background: "#111", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "var(--font)" }}
-        >
-          + Add
-        </button>
       </div>
     </div>
   );
@@ -2141,14 +2172,14 @@ function FlowNav({ onBack, onNext, nextDisabled, nextLabel }: { onBack?: () => v
 
 // ── V2 sidebar icon component ──────────────────────────────────────────────
 function SidebarIcon({ name }: { name: string }) {
-  const s = { width: 18, height: 18 };
-  if (name === "home") return <svg style={s} viewBox="0 0 18 18" fill="none"><path d="M3 8l6-5 6 5v7a1 1 0 0 1-1 1h-3v-5H7v5H4a1 1 0 0 1-1-1V8z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/></svg>;
-  if (name === "jars") return <svg style={s} viewBox="0 0 18 18" fill="none"><path d="M5 3h8l-.5 1.5h-7L5 3zM4 5h10v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5z" stroke="currentColor" strokeWidth="1.4"/></svg>;
-  if (name === "activity") return <svg style={s} viewBox="0 0 18 18" fill="none"><path d="M2 9h3l2-5 2 10 2-5h5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>;
-  if (name === "people") return <svg style={s} viewBox="0 0 18 18" fill="none"><circle cx="7" cy="7" r="3" stroke="currentColor" strokeWidth="1.4"/><path d="M2 15c.5-2.5 2.5-4 5-4s4.5 1.5 5 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/><circle cx="13" cy="6" r="2" stroke="currentColor" strokeWidth="1.4"/></svg>;
-  if (name === "plus") return <svg style={s} viewBox="0 0 18 18" fill="none"><path d="M9 3v12M3 9h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>;
-  if (name === "star") return <svg style={s} viewBox="0 0 18 18" fill="none"><path d="M9 2l1.8 4h4.2l-3.4 2.5 1.3 4L9 10.2l-3.9 2.3 1.3-4L3 6h4.2L9 2z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/></svg>;
-  if (name === "gear") return <svg style={s} viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.4"/><path d="M9 1.5v2.5M9 14v2.5M16.5 9H14M4 9H1.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>;
+  const s = { width: 14, height: 14 };
+  if (name === "jar")      return <svg style={s} viewBox="0 0 14 14" fill="none"><path d="M4 2h6l-.4 1.2H4.4L4 2zM3 4h8v6.5A.5.5 0 0 1 10.5 11h-7A.5.5 0 0 1 3 10.5V4z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>;
+  if (name === "home")     return <svg style={s} viewBox="0 0 14 14" fill="none"><path d="M2 6l5-4 5 4v6H9V9H5v3H2V6z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>;
+  if (name === "activity") return <svg style={s} viewBox="0 0 14 14" fill="none"><path d="M1 7h2.5l1.5-4 2 8 1.5-4h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+  if (name === "people")   return <svg style={s} viewBox="0 0 14 14" fill="none"><circle cx="5.5" cy="5" r="2.2" stroke="currentColor" strokeWidth="1.2"/><path d="M1.5 12c.4-2 2-3 4-3s3.6 1 4 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/><circle cx="10.5" cy="4.5" r="1.6" stroke="currentColor" strokeWidth="1.2"/></svg>;
+  if (name === "plus")     return <svg style={s} viewBox="0 0 14 14" fill="none"><path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>;
+  if (name === "star")     return <svg style={s} viewBox="0 0 14 14" fill="none"><path d="M7 1.5l1.4 3h3.1l-2.5 1.8 1 3L7 7.7 4 9.3l1-3L2.5 4.5h3.1L7 1.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>;
+  if (name === "gear")     return <svg style={s} viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/><path d="M7 1v2M7 11v2M13 7h-2M3 7H1" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/></svg>;
   return null;
 }
 
