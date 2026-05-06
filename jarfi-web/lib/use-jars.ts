@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
-import { fetchJarsByOwner, fetchJarByPubkey, fetchContributions } from "./program";
+import { fetchJarByPubkey, fetchContributions } from "./program";
 import type { JarAccount, ContributionAccount } from "./program";
 
 export type { JarAccount, ContributionAccount };
@@ -55,35 +55,25 @@ export function useJars() {
 
     setLoading(true);
 
-    // Step 1: show known jars from localStorage immediately (no RPC wait)
+    // Load jars from localStorage-known pubkeys via individual getAccountInfo calls.
+    // We intentionally avoid getProgramAccounts — Helius devnet blocks it consistently.
     const known = loadKnownPubkeys(owner);
-    if (known.length > 0) {
-      Promise.all(
-        known.map(pk => fetchJarByPubkey(connection, new PublicKey(pk)).catch(() => null))
-      ).then(fetched => {
-        if (abortCtrl.signal.aborted) return;
-        const valid = fetched.filter(Boolean) as JarAccount[];
-        if (valid.length > 0) setExtraJars(valid);
-      }).catch(() => {/* localStorage fetch silently fails — RPC will cover it */});
+    if (known.length === 0) {
+      setLoading(false);
+      return;
     }
 
-    // Step 2: bulk-discover via getProgramAccounts (read-only, no wallet needed)
-    fetchJarsByOwner(connection, publicKey)
-      .then((jars) => {
-        if (abortCtrl.signal.aborted) return;
-        if (jars.length > 0) {
-          jars.forEach(j => saveKnownPubkey(owner, j.pubkey));
-          setChainJars(jars);
-        }
-      })
-      .catch((err) => {
-        if (abortCtrl.signal.aborted) return;
-        console.warn("[useJars] fetchJarsByOwner failed:", err?.message ?? err);
-        // Keep extraJars visible — user still sees their jars from localStorage
-      })
-      .finally(() => {
-        if (!abortCtrl.signal.aborted) setLoading(false);
-      });
+    Promise.all(
+      known.map(pk => fetchJarByPubkey(connection, new PublicKey(pk)).catch(() => null))
+    ).then(fetched => {
+      if (abortCtrl.signal.aborted) return;
+      const valid = fetched.filter(Boolean) as JarAccount[];
+      setChainJars(valid);
+    }).catch((err) => {
+      if (!abortCtrl.signal.aborted) console.warn("[useJars] fetch failed:", err?.message ?? err);
+    }).finally(() => {
+      if (!abortCtrl.signal.aborted) setLoading(false);
+    });
 
     return () => { abortCtrl.abort(); };
   }, [publicKey, connection, tick]);
