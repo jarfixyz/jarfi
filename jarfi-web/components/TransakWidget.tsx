@@ -21,6 +21,27 @@ export default function TransakWidget({
 }: TransakWidgetProps) {
   useEffect(() => {
     let partnerOrderId = `${vaultAddress}__${Date.now()}__${contributorMessage}`;
+    let transakInstance: { close?: () => void } | null = null;
+    let closed = false;
+
+    const safeClose = () => {
+      if (closed) return;
+      closed = true;
+      onClose();
+    };
+
+    // Primary close mechanism: postMessage from Transak iframe
+    const handleMessage = (e: MessageEvent) => {
+      const id = e.data?.event_id ?? e.data?.eventName;
+      if (id === "TRANSAK_WIDGET_CLOSE" || id === "transak_widget_close") {
+        safeClose();
+      }
+      if (id === "TRANSAK_ORDER_SUCCESSFUL" || id === "transak_order_successful") {
+        onSuccess(e.data?.data?.id ?? partnerOrderId);
+        try { transakInstance?.close?.(); } catch { /* ignore */ }
+      }
+    };
+    window.addEventListener("message", handleMessage);
 
     const openWithUrl = (widgetUrl: string) => {
       import("@transak/transak-sdk").then(({ Transak }) => {
@@ -29,24 +50,26 @@ export default function TransakWidget({
             widgetUrl,
             referrer: window.location.origin,
           });
+          transakInstance = transak;
           transak.init();
+
+          // SDK events as secondary fallback
           Transak.on(Transak.EVENTS.TRANSAK_ORDER_SUCCESSFUL, (raw) => {
             const data = raw as { id?: string };
             onSuccess(data?.id ?? partnerOrderId);
             try { transak.close(); } catch { /* ignore */ }
           });
-          Transak.on(Transak.EVENTS.TRANSAK_WIDGET_CLOSE, () => onClose());
+          Transak.on(Transak.EVENTS.TRANSAK_WIDGET_CLOSE, () => safeClose());
         } catch {
           window.open(widgetUrl, "_blank", "noopener noreferrer");
-          onClose();
+          safeClose();
         }
       }).catch(() => {
         window.open(widgetUrl, "_blank", "noopener noreferrer");
-        onClose();
+        safeClose();
       });
     };
 
-    // Get secure widgetUrl from backend (Transak requires server-side session creation)
     fetch(`${BACKEND}/transak/session`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -63,7 +86,6 @@ export default function TransakWidget({
       })
       .catch(err => {
         console.error("[TransakWidget]", err);
-        // Fallback: open Transak directly (will show error on staging but at least opens)
         const params = new URLSearchParams({
           apiKey: process.env.NEXT_PUBLIC_TRANSAK_API_KEY ?? "",
           network: "solana",
@@ -78,9 +100,13 @@ export default function TransakWidget({
           ? "https://global.transak.com"
           : "https://global-stg.transak.com";
         window.open(`${base}?${params}`, "_blank", "noopener noreferrer");
-        onClose();
+        safeClose();
       });
 
+    return () => {
+      window.removeEventListener("message", handleMessage);
+      try { transakInstance?.close?.(); } catch { /* ignore */ }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
