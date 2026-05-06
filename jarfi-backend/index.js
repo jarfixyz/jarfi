@@ -127,6 +127,7 @@ const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
   : ['https://jarfi.xyz', 'https://www.jarfi.xyz', 'http://localhost:3000']
 
 const app = express()
+app.set('trust proxy', 1) // Railway sits behind a proxy — needed for express-rate-limit
 app.use(helmet())
 app.use(cors({ origin: ALLOWED_ORIGINS, optionsSuccessStatus: 200 }))
 
