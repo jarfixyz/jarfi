@@ -24,6 +24,12 @@ function saveKnownPubkey(owner: string, pubkey: string) {
   }
 }
 
+function removeKnownPubkey(owner: string, pubkey: string) {
+  if (typeof window === "undefined") return;
+  const existing = loadKnownPubkeys(owner);
+  localStorage.setItem(knownPubkeysKey(owner), JSON.stringify(existing.filter(p => p !== pubkey)));
+}
+
 export function useJars() {
   const { publicKey, wallet } = useWallet();
   const { connection } = useConnection();
@@ -77,11 +83,17 @@ export function useJars() {
   const addJar = useCallback((jar: JarAccount) => {
     if (publicKey) saveKnownPubkey(publicKey.toBase58(), jar.pubkey);
     setExtraJars(prev => prev.some(j => j.pubkey === jar.pubkey) ? prev : [...prev, jar]);
-    // Also kick off a background refresh
     setTick(t => t + 1);
   }, [publicKey]);
 
-  return { jars, loading, error, refresh, addJar };
+  // Remove a broken/closed jar from local state + localStorage
+  const removeJar = useCallback((pubkey: string) => {
+    if (publicKey) removeKnownPubkey(publicKey.toBase58(), pubkey);
+    setChainJars(prev => prev.filter(j => j.pubkey !== pubkey));
+    setExtraJars(prev => prev.filter(j => j.pubkey !== pubkey));
+  }, [publicKey]);
+
+  return { jars, loading, error, refresh, addJar, removeJar };
 }
 
 export function useContributions(jarPubkey: string | null) {
