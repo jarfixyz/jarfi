@@ -15,9 +15,8 @@ export const metadata: Metadata = {
     "Create a savings jar, share a link, and let anyone contribute — even without crypto. Your funds grow onchain while you focus on what matters.",
   metadataBase: new URL("https://jarfi.xyz"),
   icons: {
-    icon: "/favicon.svg",
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
     shortcut: "/favicon.svg",
-    apple: "/favicon.svg",
   },
   openGraph: {
     title: "Jarfi — Save together. Grow automatically.",
@@ -36,6 +35,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={inter.variable}>
+      <head>
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+      </head>
       <body>
         <Providers>{children}</Providers>
       </body>
