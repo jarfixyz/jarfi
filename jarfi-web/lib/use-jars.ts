@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 import { fetchJarsByOwner, fetchJarByPubkey, fetchContributions } from "./program";
@@ -8,7 +8,6 @@ import type { JarAccount, ContributionAccount } from "./program";
 
 export type { JarAccount, ContributionAccount };
 
-// localStorage key for known jar pubkeys per owner
 function knownPubkeysKey(owner: string) { return `jar_pubkeys_${owner}`; }
 
 function loadKnownPubkeys(owner: string): string[] {
@@ -33,49 +32,55 @@ function removeKnownPubkey(owner: string, pubkey: string) {
 export function useJars() {
   const { publicKey, wallet } = useWallet();
   const { connection } = useConnection();
-  const [chainJars, setChainJars]   = useState<JarAccount[]>([]);
-  const [extraJars, setExtraJars]   = useState<JarAccount[]>([]);
-  const [loading, setLoading]       = useState(false);
-  const [error, setError]           = useState<string | null>(null);
-  const [tick, setTick]             = useState(0);
+  const [chainJars, setChainJars] = useState<JarAccount[]>([]);
+  const [extraJars, setExtraJars] = useState<JarAccount[]>([]);
+  const [loading, setLoading]     = useState(false);
+  const [tick, setTick]           = useState(0);
+  const lastOwnerRef              = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!publicKey || !wallet?.adapter) {
-      setChainJars([]);
-      setExtraJars([]);
-      return;
-    }
+    // Do NOT clear jars when wallet is temporarily null (autoConnect in progress).
+    // Only act when we have a real wallet connection.
+    if (!publicKey || !wallet?.adapter) return;
 
     const owner = publicKey.toBase58();
-    setLoading(true);
-    setError(null);
 
-    // Step 1: immediately show localStorage jars so they never disappear on refresh
+    // Clear jars ONLY when switching to a different wallet address.
+    if (lastOwnerRef.current !== null && lastOwnerRef.current !== owner) {
+      setChainJars([]);
+      setExtraJars([]);
+    }
+    lastOwnerRef.current = owner;
+
+    setLoading(true);
+
+    // Step 1: show known jars from localStorage immediately (no RPC wait)
     const known = loadKnownPubkeys(owner);
     if (known.length > 0) {
-      Promise.all(known.map(pk => fetchJarByPubkey(connection, new PublicKey(pk)).catch(() => null)))
-        .then(fetched => {
-          const valid = fetched.filter(Boolean) as JarAccount[];
-          // Only update if at least one jar loaded — if ALL fail (RPC down), keep previous state
-          if (valid.length > 0) setExtraJars(valid);
-        });
+      Promise.all(
+        known.map(pk => fetchJarByPubkey(connection, new PublicKey(pk)).catch(() => null))
+      ).then(fetched => {
+        const valid = fetched.filter(Boolean) as JarAccount[];
+        // Only update if at least one jar fetched — keeps jars visible when RPC is slow
+        if (valid.length > 0) setExtraJars(valid);
+      });
     }
 
-    // Step 2: try getProgramAccounts to discover any jars not in localStorage
+    // Step 2: bulk-discover via getProgramAccounts (may be blocked by Helius on devnet)
     fetchJarsByOwner(connection, publicKey, wallet.adapter as never)
       .then((jars) => {
         if (jars.length > 0) {
           jars.forEach(j => saveKnownPubkey(owner, j.pubkey));
           setChainJars(jars);
-          setExtraJars([]); // chain is authoritative when it works
+          // Do NOT clear extraJars — useMemo deduplication handles overlap.
+          // extraJars buffers newly created jars that the indexer hasn't caught yet.
         }
-        // if empty, localStorage jars remain visible
       })
-      .catch(() => { /* localStorage already loaded above */ })
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [publicKey, connection, wallet, tick]);
 
-  // Merged list: chain jars are authoritative; extras fill in newly created ones
+  // Chain jars are authoritative; extras fill in what the indexer missed
   const jars = useMemo(() => {
     const chainPks = new Set(chainJars.map(j => j.pubkey));
     return [...chainJars, ...extraJars.filter(j => !chainPks.has(j.pubkey))];
@@ -83,21 +88,19 @@ export function useJars() {
 
   const refresh = useCallback(() => setTick(t => t + 1), []);
 
-  // Immediately show a newly created jar before chain re-fetch completes
   const addJar = useCallback((jar: JarAccount) => {
     if (publicKey) saveKnownPubkey(publicKey.toBase58(), jar.pubkey);
     setExtraJars(prev => prev.some(j => j.pubkey === jar.pubkey) ? prev : [...prev, jar]);
     setTick(t => t + 1);
   }, [publicKey]);
 
-  // Remove a broken/closed jar from local state + localStorage
   const removeJar = useCallback((pubkey: string) => {
     if (publicKey) removeKnownPubkey(publicKey.toBase58(), pubkey);
     setChainJars(prev => prev.filter(j => j.pubkey !== pubkey));
     setExtraJars(prev => prev.filter(j => j.pubkey !== pubkey));
   }, [publicKey]);
 
-  return { jars, loading, error, refresh, addJar, removeJar };
+  return { jars, loading, addJar, removeJar, refresh };
 }
 
 export function useContributions(jarPubkey: string | null) {
@@ -107,13 +110,8 @@ export function useContributions(jarPubkey: string | null) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!jarPubkey || !wallet?.adapter) {
-      setContributions([]);
-      return;
-    }
-
+    if (!jarPubkey || !wallet?.adapter) { setContributions([]); return; }
     setLoading(true);
-
     fetchContributions(connection, new PublicKey(jarPubkey), wallet.adapter as never)
       .then(setContributions)
       .catch(console.error)

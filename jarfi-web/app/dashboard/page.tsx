@@ -575,11 +575,13 @@ export default function Dashboard() {
               const friendly = msg.includes("rejected") || msg.includes("User rejected")
                 ? "Transaction cancelled"
                 : msg.includes("blockhash")
-                ? "Devnet congestion — try again in a few seconds"
+                ? "Devnet congestion — please try again"
                 : msg.includes("insufficient") || msg.includes("lamports")
-                ? "Not enough SOL for fees — airdrop devnet SOL first"
-                : msg.slice(0, 80);
-              showToast("Failed: " + friendly);
+                ? "Not enough SOL for fees"
+                : msg.includes("timed out")
+                ? "Network timeout — please try again"
+                : msg.slice(0, 120);
+              showToast("❌ " + friendly);
             }
           }}
         />

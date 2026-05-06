@@ -23,9 +23,13 @@ async function sendAndConfirmRobust(
   const tx = await buildTx();
   tx.recentBlockhash = blockhash;
   tx.feePayer = wallet.publicKey;
-  for (const signer of extraSigners) tx.partialSign(signer);
 
+  // Wallet (Phantom) signs FIRST — this compiles the message canonically.
+  // Then extra signers (jarKeypair) sign the same compiled message bytes.
+  // Reversed order causes Phantom to recompile, invalidating jarKeypair's sig.
   const signedTx = await wallet.signTransaction(tx);
+  for (const signer of extraSigners) signedTx.partialSign(signer);
+
   const rawTx = signedTx.serialize();
 
   const signature = await connection.sendRawTransaction(rawTx, {
