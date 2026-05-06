@@ -174,8 +174,8 @@ export default function Dashboard() {
     manual?: boolean;
   } | null>(null);
   const [showDepositTransak, setShowDepositTransak] = useState(false);
-  const [addFundsJar, setAddFundsJar] = useState<{ pubkey: string; name: string } | null>(null);
-  const [initialDepositPrompt, setInitialDepositPrompt] = useState<{ pubkey: string; name: string } | null>(null);
+  const [addFundsJar, setAddFundsJar] = useState<{ pubkey: string; name: string; currency: "usdc" | "sol" } | null>(null);
+  const [initialDepositPrompt, setInitialDepositPrompt] = useState<{ pubkey: string; name: string; currency: "usdc" | "sol" } | null>(null);
   const [cosignerInvite, setCosignerInvite] = useState<{ jar_pubkey: string; token: string; name: string } | null>(null);
 
   useEffect(() => {
@@ -406,6 +406,7 @@ export default function Dashboard() {
           <TransakWidget
             vaultAddress={addFundsJar.pubkey}
             contributorMessage={`Top up ${addFundsJar.name}`}
+            currency={addFundsJar.currency}
             onSuccess={() => {
               setAddFundsJar(null);
               showToast("Deposit confirmed ✅");
@@ -423,7 +424,7 @@ export default function Dashboard() {
             </span>
             <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
               <button
-                onClick={() => { setAddFundsJar({ pubkey: initialDepositPrompt.pubkey, name: initialDepositPrompt.name }); setInitialDepositPrompt(null); }}
+                onClick={() => { setAddFundsJar({ pubkey: initialDepositPrompt.pubkey, name: initialDepositPrompt.name, currency: initialDepositPrompt.currency }); setInitialDepositPrompt(null); }}
                 style={{ fontSize: 12, fontWeight: 600, padding: "6px 14px", background: "#059669", color: "#fff", border: "none", borderRadius: 7, cursor: "pointer", fontFamily: "var(--font)" }}
               >
                 + Add funds
@@ -471,7 +472,7 @@ export default function Dashboard() {
             groups={groups}
             contributions={contributions}
             onMenuToggle={() => setSidebarOpen((v) => !v)}
-            onAddFunds={(pubkey, name) => setAddFundsJar({ pubkey, name })}
+            onAddFunds={(pubkey, name, currency) => setAddFundsJar({ pubkey, name, currency })}
             onJarBroken={removeJar}
           />
         )}
@@ -566,7 +567,7 @@ export default function Dashboard() {
               setModal(null);
               refreshJars();
               if (!params.approvalMode || params.approvalMode === "NONE") {
-                setInitialDepositPrompt({ pubkey: jarPubkey, name: params.jarName });
+                setInitialDepositPrompt({ pubkey: jarPubkey, name: params.jarName, currency: params.currency === 'usdc' ? 'usdc' : 'sol' });
               }
               showToast(params.groupTrip ? "Group trip created ✈️" : "Jar created 🏺");
             } catch (e: unknown) {
@@ -678,7 +679,7 @@ function DashboardPage({
   groups: GroupInfo[];
   contributions: JarContribution[];
   onMenuToggle: () => void;
-  onAddFunds: (pubkey: string, name: string) => void;
+  onAddFunds: (pubkey: string, name: string, currency: "usdc" | "sol") => void;
   onJarBroken: (pubkey: string) => void;
 }) {
   const hasWallet = !!greeting;
@@ -904,7 +905,7 @@ function DashboardPage({
                     }}
                     onAddFunds={(e) => {
                       e.stopPropagation();
-                      onAddFunds(j.id, j.name);
+                      onAddFunds(j.id, j.name, j.currency as "usdc" | "sol");
                     }}
                   />
                 ))}
@@ -2039,7 +2040,7 @@ function JarDetailPanel({
   schedules: Schedule[];
   onBack: () => void;
   onMenuToggle: () => void;
-  onAddFunds: (pubkey: string, name: string) => void;
+  onAddFunds: (pubkey: string, name: string, currency: "usdc" | "sol") => void;
   onScheduleUpdate: (schedules: Schedule[]) => void;
   onJarBroken: (pubkey: string) => void;
 }) {
@@ -2274,7 +2275,7 @@ function JarDetailPanel({
             <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 16, padding: 28, marginBottom: 16 }}>
               {/* Add funds */}
               <button
-                onClick={() => onAddFunds(jar.id, jar.name)}
+                onClick={() => onAddFunds(jar.id, jar.name, jar.currency as "usdc" | "sol")}
                 style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", padding: "11px 0", background: "#111111", color: "#fff", borderRadius: 9, fontSize: 14, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: "var(--font)", marginBottom: 20 }}
               >
                 + Add funds

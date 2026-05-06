@@ -6,6 +6,7 @@ interface TransakWidgetProps {
   vaultAddress: string;
   fiatAmount?: number;
   contributorMessage: string;
+  currency?: "usdc" | "sol";
   onSuccess: (orderId: string) => void;
   onClose: () => void;
 }
@@ -14,6 +15,7 @@ export default function TransakWidget({
   vaultAddress,
   fiatAmount,
   contributorMessage,
+  currency = "usdc",
   onSuccess,
   onClose,
 }: TransakWidgetProps) {
@@ -21,11 +23,12 @@ export default function TransakWidget({
     const partnerOrderId = `${vaultAddress}__${Date.now()}__${contributorMessage}`;
     const isProduction = process.env.NEXT_PUBLIC_ENV === "production";
     const baseUrl = isProduction ? "https://global.transak.com" : "https://global-stg.transak.com";
+    const cryptoCurrencyCode = currency === "sol" ? "SOL" : "USDC";
 
     const params = new URLSearchParams({
       apiKey: process.env.NEXT_PUBLIC_TRANSAK_API_KEY ?? "",
       network: "solana",
-      cryptoCurrencyCode: "USDC",
+      cryptoCurrencyCode,
       walletAddress: vaultAddress,
       disableWalletAddressForm: "true",
       hideMenu: "true",
