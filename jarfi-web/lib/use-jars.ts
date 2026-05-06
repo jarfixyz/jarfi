@@ -30,7 +30,8 @@ function removeKnownPubkey(owner: string, pubkey: string) {
 }
 
 export function useJars() {
-  const { publicKey, wallet } = useWallet();
+  // Use only publicKey (stable) — NOT wallet object (recreated every render)
+  const { publicKey } = useWallet();
   const { connection } = useConnection();
   const [chainJars, setChainJars] = useState<JarAccount[]>([]);
   const [extraJars, setExtraJars] = useState<JarAccount[]>([]);
@@ -39,11 +40,11 @@ export function useJars() {
   const lastOwnerRef              = useRef<string | null>(null);
 
   useEffect(() => {
-    // Do NOT clear jars when wallet is temporarily null (autoConnect in progress).
-    // Only act when we have a real wallet connection.
-    if (!publicKey || !wallet?.adapter) return;
+    // Do NOT clear jars when publicKey is temporarily null (autoConnect in progress).
+    if (!publicKey) return;
 
     const owner = publicKey.toBase58();
+    const abortCtrl = new AbortController();
 
     // Clear jars ONLY when switching to a different wallet address.
     if (lastOwnerRef.current !== null && lastOwnerRef.current !== owner) {
@@ -60,25 +61,32 @@ export function useJars() {
       Promise.all(
         known.map(pk => fetchJarByPubkey(connection, new PublicKey(pk)).catch(() => null))
       ).then(fetched => {
+        if (abortCtrl.signal.aborted) return;
         const valid = fetched.filter(Boolean) as JarAccount[];
-        // Only update if at least one jar fetched — keeps jars visible when RPC is slow
         if (valid.length > 0) setExtraJars(valid);
-      });
+      }).catch(() => {/* localStorage fetch silently fails — RPC will cover it */});
     }
 
-    // Step 2: bulk-discover via getProgramAccounts (may be blocked by Helius on devnet)
-    fetchJarsByOwner(connection, publicKey, wallet.adapter as never)
+    // Step 2: bulk-discover via getProgramAccounts (read-only, no wallet needed)
+    fetchJarsByOwner(connection, publicKey)
       .then((jars) => {
+        if (abortCtrl.signal.aborted) return;
         if (jars.length > 0) {
           jars.forEach(j => saveKnownPubkey(owner, j.pubkey));
           setChainJars(jars);
-          // Do NOT clear extraJars — useMemo deduplication handles overlap.
-          // extraJars buffers newly created jars that the indexer hasn't caught yet.
         }
       })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [publicKey, connection, wallet, tick]);
+      .catch((err) => {
+        if (abortCtrl.signal.aborted) return;
+        console.warn("[useJars] fetchJarsByOwner failed:", err?.message ?? err);
+        // Keep extraJars visible — user still sees their jars from localStorage
+      })
+      .finally(() => {
+        if (!abortCtrl.signal.aborted) setLoading(false);
+      });
+
+    return () => { abortCtrl.abort(); };
+  }, [publicKey, connection, tick]);
 
   // Chain jars are authoritative; extras fill in what the indexer missed
   const jars = useMemo(() => {
@@ -104,19 +112,20 @@ export function useJars() {
 }
 
 export function useContributions(jarPubkey: string | null) {
-  const { wallet } = useWallet();
   const { connection } = useConnection();
   const [contributions, setContributions] = useState<ContributionAccount[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!jarPubkey || !wallet?.adapter) { setContributions([]); return; }
+    if (!jarPubkey) { setContributions([]); return; }
+    const abortCtrl = new AbortController();
     setLoading(true);
-    fetchContributions(connection, new PublicKey(jarPubkey), wallet.adapter as never)
-      .then(setContributions)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [jarPubkey, connection, wallet]);
+    fetchContributions(connection, new PublicKey(jarPubkey))
+      .then(data => { if (!abortCtrl.signal.aborted) setContributions(data); })
+      .catch(err => { if (!abortCtrl.signal.aborted) console.warn("[useContributions]", err?.message); })
+      .finally(() => { if (!abortCtrl.signal.aborted) setLoading(false); });
+    return () => { abortCtrl.abort(); };
+  }, [jarPubkey, connection]);
 
   return { contributions, loading };
 }

@@ -13,8 +13,8 @@ export const RPC_URL =
 
 export function getProgram(wallet: AnchorWallet, connection: Connection) {
   const provider = new AnchorProvider(connection, wallet, {
-    commitment: "processed",
-    preflightCommitment: "processed",
+    commitment: "confirmed",
+    preflightCommitment: "confirmed",
   });
   return new Program<JarfiContract>(IDL, provider);
 }
@@ -66,7 +66,7 @@ const DUMMY_WALLET: AnchorWallet = {
 export function getReadonlyProgram(connection: Connection) {
   const provider = new AnchorProvider(connection, DUMMY_WALLET, {
     commitment: "confirmed",
-    preflightCommitment: "processed",
+    preflightCommitment: "confirmed",
   });
   return new Program<JarfiContract>(IDL, provider);
 }
@@ -106,15 +106,14 @@ export async function fetchJarByPubkey(
 }
 
 // ---------------------------------------------------------------------------
-// Fetch all jars owned by a wallet
+// Fetch all jars owned by a wallet (read-only — no wallet signing needed)
 // ---------------------------------------------------------------------------
 
 export async function fetchJarsByOwner(
   connection: Connection,
   ownerPubkey: PublicKey,
-  wallet: AnchorWallet
 ): Promise<JarAccount[]> {
-  const program = getProgram(wallet, connection);
+  const program = getReadonlyProgram(connection);
 
   const accounts = await program.account.jar.all([
     {
@@ -146,15 +145,14 @@ export async function fetchJarsByOwner(
 }
 
 // ---------------------------------------------------------------------------
-// Fetch contributions for a specific jar
+// Fetch contributions for a specific jar (read-only — no wallet needed)
 // ---------------------------------------------------------------------------
 
 export async function fetchContributions(
   connection: Connection,
   jarPubkey: PublicKey,
-  wallet: AnchorWallet
 ): Promise<ContributionAccount[]> {
-  const program = getProgram(wallet, connection);
+  const program = getReadonlyProgram(connection);
 
   const accounts = await program.account.contribution.all([
     {
