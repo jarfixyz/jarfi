@@ -13,14 +13,25 @@ import {
   getAssociatedTokenAddress,
 } from "@solana/spl-token";
 
-// Priority fee helps skip the devnet congestion queue.
-// 200_000 microlamports ≈ $0.00003 on mainnet — negligible but effective on devnet.
-const PRIORITY_FEE_MICROLAMPORTS = 200_000;
+// Fetch current network priority fee and use 2× the 75th percentile.
+// Falls back to 1_000_000 microlamports (proven sufficient on devnet congestion).
+async function getOptimalPriorityFee(connection: Connection): Promise<number> {
+  try {
+    const fees = await connection.getRecentPrioritizationFees();
+    if (fees.length === 0) return 1_000_000;
+    const sorted = fees.map(f => f.prioritizationFee).sort((a, b) => b - a);
+    const p75 = sorted[Math.floor(sorted.length * 0.25)] ?? 0;
+    return Math.max(p75 * 2, 1_000_000);
+  } catch {
+    return 1_000_000;
+  }
+}
 
-function addPriorityFee(tx: Transaction): Transaction {
+async function addPriorityFee(connection: Connection, tx: Transaction): Promise<Transaction> {
+  const microLamports = await getOptimalPriorityFee(connection);
   tx.instructions.unshift(
-    ComputeBudgetProgram.setComputeUnitPrice({ microLamports: PRIORITY_FEE_MICROLAMPORTS }),
-    ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }),
+    ComputeBudgetProgram.setComputeUnitPrice({ microLamports }),
+    ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 }),
   );
   return tx;
 }
@@ -39,7 +50,7 @@ async function sendAndConfirmRobust(
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
 
     const tx = await buildTx();
-    addPriorityFee(tx);
+    await addPriorityFee(connection, tx);
     tx.recentBlockhash = blockhash;
     tx.feePayer = wallet.publicKey;
 

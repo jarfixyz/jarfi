@@ -26,9 +26,13 @@ async function sendAndConfirmRobust(
   const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
 
   const tx = await buildTx();
+  const fees = await connection.getRecentPrioritizationFees().catch(() => []);
+  const sorted = fees.map((f: { prioritizationFee: number }) => f.prioritizationFee).sort((a: number, b: number) => b - a);
+  const p75 = sorted[Math.floor(sorted.length * 0.25)] ?? 0;
+  const microLamports = Math.max(p75 * 2, 1_000_000);
   tx.instructions.unshift(
-    ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 200_000 }),
-    ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }),
+    ComputeBudgetProgram.setComputeUnitPrice({ microLamports }),
+    ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 }),
   );
   tx.recentBlockhash = blockhash;
   tx.feePayer = wallet.publicKey;
