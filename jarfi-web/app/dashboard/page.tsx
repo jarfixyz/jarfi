@@ -603,26 +603,41 @@ function TopBar({
   title,
   subtitle,
   onMenuToggle,
+  onBack,
   children,
 }: {
   title: string;
   subtitle?: string;
   onMenuToggle: () => void;
+  onBack?: () => void;
   children?: React.ReactNode;
 }) {
   return (
-    <div style={{ background: "#FFFFFF", borderBottom: "1px solid #E2E2DC", padding: "0 28px", height: 52, display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 10 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+    <div style={{ background: "#FFFFFF", borderBottom: "1px solid #E2E2DC", padding: "0 20px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <button
           onClick={onMenuToggle}
           className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-black/5 md:hidden"
         >
           <Menu className="h-5 w-5" />
         </button>
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: "#111111" }}>{title}</div>
-          {subtitle && <div style={{ fontSize: 13, color: "#999999" }}>{subtitle}</div>}
-        </div>
+        {onBack && (
+          <button
+            onClick={onBack}
+            style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 600, color: "#111", background: "#F4F4F0", border: "none", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontFamily: "var(--font)", whiteSpace: "nowrap" }}
+          >
+            ← My jars
+          </button>
+        )}
+        {!onBack && (
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: "#111111" }}>{title}</div>
+            {subtitle && <div style={{ fontSize: 13, color: "#999999" }}>{subtitle}</div>}
+          </div>
+        )}
+        {onBack && (
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#111111" }}>{title}</div>
+        )}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>{children}</div>
     </div>
@@ -2033,6 +2048,7 @@ function JarDetailPanel({
   const [showBreakModal, setShowBreakModal] = useState(false);
   const [breaking, setBreaking] = useState(false);
   const [breakToast, setBreakToast] = useState<string | null>(null);
+  const [breakResult, setBreakResult] = useState<{ txSignature: string; amount: number; currency: "usdc" | "sol"; walletAddr: string } | null>(null);
 
   const showLocalToast = (msg: string) => {
     setBreakToast(msg);
@@ -2043,15 +2059,17 @@ function JarDetailPanel({
     if (!wallet?.adapter || !publicKey) return;
     setBreaking(true);
     try {
+      let txSignature: string;
       if (jar.currency === "usdc") {
         const microUnits = Math.round(jar.amount * 1_000_000);
-        await breakUsdcJarOnChain(wallet.adapter as never, connection, jar.id, microUnits);
+        txSignature = await breakUsdcJarOnChain(wallet.adapter as never, connection, jar.id, microUnits);
       } else {
-        await breakSolJarOnChain(wallet.adapter as never, connection, jar.id);
+        txSignature = await breakSolJarOnChain(wallet.adapter as never, connection, jar.id);
       }
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://jarfi.up.railway.app";
       fetch(`${BACKEND}/jar/meta/${jar.id}`, { method: "DELETE" }).catch(() => {});
-      onJarBroken(jar.id);
+      setShowBreakModal(false);
+      setBreakResult({ txSignature, amount: jar.amount, currency: jar.currency, walletAddr: publicKey.toBase58() });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       showLocalToast("Failed: " + msg.slice(0, 80));
@@ -2063,7 +2081,7 @@ function JarDetailPanel({
   const jarSchedule = schedules.find(s => s.jar_pubkey === jar.id) ?? null;
 
   const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://jarfi.up.railway.app";
-  const slug = getJarSlug(jar.id);
+  const [slug, setSlug] = useState<string | null>(() => getJarSlug(jar.id));
   const giftPath = slug ?? jar.id;
   const giftUrl = `jarfi.xyz/gift/${giftPath}`;
   const giftFullUrl = `https://jarfi.xyz/gift/${giftPath}`;
@@ -2072,6 +2090,17 @@ function JarDetailPanel({
     if (!wallet?.adapter) return;
     fetchContributionsForJar(jar.id).then(setContribs).catch(() => {});
     fetchCosigners(jar.id).then(setCosigners).catch(() => {});
+    // Ensure slug is stored — fetch from backend if not in localStorage
+    if (!getJarSlug(jar.id)) {
+      fetch(`${BACKEND}/jar/meta`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pubkey: jar.id, name: jar.name, emoji: jar.emoji }),
+      })
+        .then(r => r.json())
+        .then(d => { if (d.share_slug) { saveJarSlug(jar.id, d.share_slug); setSlug(d.share_slug); } })
+        .catch(() => {});
+    }
   }, [jar.id, wallet?.adapter, BACKEND]);
 
   const isUsdc   = jar.currency === "usdc";
@@ -2093,11 +2122,7 @@ function JarDetailPanel({
 
   return (
     <>
-      <TopBar title={`${jar.emoji} ${jar.name}`} onMenuToggle={onMenuToggle}>
-        <button onClick={onBack} style={{ fontSize: 13, color: "var(--text-secondary)", background: "none", border: "1px solid var(--border)", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontFamily: "var(--font)" }}>
-          ← My jars
-        </button>
-      </TopBar>
+      <TopBar title={`${jar.emoji} ${jar.name}`} onMenuToggle={onMenuToggle} onBack={onBack} />
 
       <div style={{ padding: "40px 48px", maxWidth: 1100, margin: "0 auto" }} className="jar-detail-wrap">
         <div className="jar-detail-grid" style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 48, alignItems: "start" }}>
@@ -2429,6 +2454,66 @@ function JarDetailPanel({
           {breakToast && (
             <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 300, borderRadius: 9999, background: "#111", color: "#fff", padding: "12px 20px", fontSize: 14, fontWeight: 500, boxShadow: "0 8px 24px rgba(0,0,0,.2)" }}>
               {breakToast}
+            </div>
+          )}
+
+          {/* Break jar success screen */}
+          {breakResult && (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+              <div style={{ background: "#fff", borderRadius: 24, padding: 36, maxWidth: 420, width: "100%", boxShadow: "0 24px 80px rgba(0,0,0,.18)", textAlign: "center" }}>
+                {/* Icon */}
+                <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, margin: "0 auto 20px" }}>
+                  ✅
+                </div>
+
+                <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>Funds on the way!</div>
+                <div style={{ fontSize: 14, color: "#6B7280", marginBottom: 28, lineHeight: 1.5 }}>
+                  Your jar has been broken. Funds were sent to your wallet.
+                </div>
+
+                {/* Amount block */}
+                <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 16, padding: 20, marginBottom: 16, textAlign: "left" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.6px", color: "#059669", marginBottom: 6 }}>Amount received</div>
+                  <div style={{ fontSize: 36, fontWeight: 700, letterSpacing: "-1.5px", color: "#111" }}>
+                    {breakResult.currency === "usdc"
+                      ? `$${breakResult.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : `◎${breakResult.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })}`}
+                    <span style={{ fontSize: 16, fontWeight: 500, color: "#6B7280", marginLeft: 6 }}>
+                      {breakResult.currency.toUpperCase()}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 10 }}>
+                    Wallet: <span style={{ fontWeight: 600, color: "#111", fontFamily: "monospace" }}>
+                      {breakResult.walletAddr.slice(0, 6)}…{breakResult.walletAddr.slice(-4)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Transaction */}
+                <div style={{ background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 12, padding: 14, marginBottom: 24, textAlign: "left" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.6px", color: "#9CA3AF", marginBottom: 6 }}>Transaction</div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    <span style={{ fontSize: 12, color: "#374151", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {breakResult.txSignature.slice(0, 20)}…{breakResult.txSignature.slice(-8)}
+                    </span>
+                    <a
+                      href={`https://explorer.solana.com/tx/${breakResult.txSignature}?cluster=devnet`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ fontSize: 12, fontWeight: 600, color: "#6D28D9", whiteSpace: "nowrap", textDecoration: "none" }}
+                    >
+                      View ↗
+                    </a>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => { setBreakResult(null); onJarBroken(jar.id); }}
+                  style={{ width: "100%", padding: "14px 0", background: "#111", border: "none", borderRadius: 12, fontSize: 15, fontWeight: 700, color: "#fff", cursor: "pointer", fontFamily: "var(--font)" }}
+                >
+                  Done
+                </button>
+              </div>
             </div>
           )}
 
