@@ -731,35 +731,39 @@ function DashboardPage({
   const hasWallet = !!greeting;
   const [selectedJar, setSelectedJar] = useState<JarType | null>(null);
 
-  const totalSaved = liveJars.reduce((s, j) => s + j.amount, 0);
-  const lockedCount = liveJars.filter((j) => j.locked).length;
-  const estimatedYieldMonthly = liveJars.reduce((s, j) => {
+  // When no wallet — display demo data so the page is useful immediately
+  const effectiveJars = hasWallet ? liveJars : DEMO_JARS;
+  const effectiveContribs = hasWallet ? contributions : DEMO_CONTRIBUTIONS;
+
+  const totalSaved = effectiveJars.reduce((s, j) => s + j.amount, 0);
+  const lockedCount = effectiveJars.filter((j) => j.locked).length;
+  const estimatedYieldMonthly = effectiveJars.reduce((s, j) => {
     const rate =
       j.currency === "usdc" ? apy.usdc_kamino / 100 : apy.sol_marinade / 100;
     return s + (j.amount * rate) / 12;
   }, 0);
   const monthlyPlan = schedules.reduce((s, sc) => s + sc.amount_usdc / 100, 0);
-  const uniqueContributors = new Set(contributions.map((c) => c.contributor))
+  const uniqueContributors = new Set(effectiveContribs.map((c) => c.contributor))
     .size;
-  const totalContributed = contributions.reduce(
+  const totalContributed = effectiveContribs.reduce(
     (s, c) => s + c.amount / 1_000_000,
     0
   );
 
   // Forecast: primary jar APY, 18 years remaining
   const primaryApr =
-    liveJars[0]?.currency === "sol"
+    effectiveJars[0]?.currency === "sol"
       ? apy.sol_marinade
       : apy.usdc_kamino;
   const yearsRemaining = useMemo(() => {
-    const jar = liveJars[0];
+    const jar = effectiveJars[0];
     if (!jar || jar.unlockDate <= 0) return 18;
     const remaining = Math.max(
       1,
       Math.ceil((jar.unlockDate - Date.now() / 1000) / (365.25 * 86400))
     );
     return Math.min(remaining, 25);
-  }, [liveJars]);
+  }, [effectiveJars]);
 
   const forecastScenarios = useMemo(
     () => [
@@ -776,8 +780,8 @@ function DashboardPage({
   const [chartJar, setChartJar] = useState<JarType | null>(null);
 
   // Computed portfolio stats
-  const totalFutureValue = liveJars.reduce((s, j) => s + (j.futureValue ?? j.amount), 0);
-  const totalYieldEarned = liveJars.reduce((s, j) => {
+  const totalFutureValue = effectiveJars.reduce((s, j) => s + (j.futureValue ?? j.amount), 0);
+  const totalYieldEarned = effectiveJars.reduce((s, j) => {
     const rate = j.currency === "usdc" ? apy.usdc_kamino / 100 : apy.sol_marinade / 100;
     return s + j.amount * rate;
   }, 0);
@@ -828,32 +832,38 @@ function DashboardPage({
           </div>
         </div>
 
-        {/* ── No wallet ───────────────────────────────────────────────────────── */}
+        {/* ── No wallet — show demo with connect-wallet banner ──────────────── */}
         {!hasWallet && (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", borderRadius: 18, border: "1px solid #EAEAEA", background: "#fff", padding: "64px 24px", textAlign: "center" }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>🏺</div>
-            <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 8, letterSpacing: "-0.02em" }}>Connect your wallet to start</div>
-            <div style={{ fontSize: 14, color: "#666", marginBottom: 28 }}>See your jars, track yield, share gift links</div>
-            <WalletButton />
-          </div>
+          <>
+            {/* Connect banner */}
+            <div style={{ background: "#fff", border: "1px solid #EAEAEA", borderRadius: 14, padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: "#EAF4EE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🏺</div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 1 }}>This is a live demo — connect a wallet to create your own jars</div>
+                  <div style={{ fontSize: 12, color: "#888" }}>Real jars on Solana devnet · 5.5% APY</div>
+                </div>
+              </div>
+              <WalletButton compact />
+            </div>
+          </>
         )}
 
-        {hasWallet && (
-          <>
+        <>
             {/* ── V3 Hero ─────────────────────────────────────────────────────── */}
-            {liveJars.length > 0 && (
+            {effectiveJars.length > 0 && (
               <V3Hero
                 totalSaved={totalSaved}
                 totalFutureValue={totalFutureValue}
                 totalYieldEarned={totalYieldEarned}
                 estimatedYieldMonthly={estimatedYieldMonthly}
                 uniqueContributors={uniqueContributors}
-                liveJars={liveJars}
+                liveJars={effectiveJars}
               />
             )}
 
             {/* ── Forecast + Suggestions ──────────────────────────────────────── */}
-            {liveJars.length > 0 && (
+            {effectiveJars.length > 0 && (
               <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
                 <V3Forecast totalSaved={totalSaved} apy={apy} />
                 <V3Suggestions />
@@ -861,14 +871,14 @@ function DashboardPage({
             )}
 
             {/* ── Goals Timeline ──────────────────────────────────────────────── */}
-            {liveJars.filter(j => j.unlockDate > 0).length > 0 && (
-              <V3Timeline liveJars={liveJars} />
+            {effectiveJars.filter(j => j.unlockDate > 0).length > 0 && (
+              <V3Timeline liveJars={effectiveJars} />
             )}
 
             {/* ── Jars section ────────────────────────────────────────────────── */}
             <div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.02em" }}>Your jars · {liveJars.length}</div>
+                <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.02em" }}>Your jars · {effectiveJars.length}</div>
                 <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                   <span style={{ fontSize: 12, color: "#666", cursor: "pointer" }}>All</span>
                   <span style={{ fontSize: 12, color: "#666", cursor: "pointer" }}>Active</span>
@@ -877,7 +887,7 @@ function DashboardPage({
                 </div>
               </div>
 
-              {liveJars.length === 0 ? (
+              {effectiveJars.length === 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   {/* Main CTA */}
                   <div style={{ background: "#ECFAF3", borderRadius: 18, padding: "48px 24px", textAlign: "center" }}>
@@ -928,7 +938,7 @@ function DashboardPage({
                 </div>
               ) : (
                 <div className="jar-cards-grid" style={{ display: "grid", gap: 12 }}>
-                  {liveJars.map((j) => (
+                  {effectiveJars.map((j) => (
                     <V2JarCard
                       key={j.id}
                       jar={j}
@@ -942,7 +952,7 @@ function DashboardPage({
             </div>
 
             {/* ── Monthly chart + Achievements ────────────────────────────────── */}
-            {liveJars.length > 0 && (
+            {effectiveJars.length > 0 && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <V3MonthlyChart totalSaved={totalSaved} apy={apy} />
                 <V3Achievements totalSaved={totalSaved} uniqueContributors={uniqueContributors} />
@@ -950,15 +960,14 @@ function DashboardPage({
             )}
 
             {/* ── Contributors + Activity ──────────────────────────────────────── */}
-            {liveJars.length > 0 && (
+            {effectiveJars.length > 0 && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <V3Contributors contributions={contributions} />
-                <V3Activity contributions={contributions} liveJars={liveJars} />
+                <V3Contributors contributions={effectiveContribs} />
+                <V3Activity contributions={effectiveContribs} liveJars={effectiveJars} />
               </div>
             )}
 
-          </>
-        )}
+        </>
       </div>
 
       <style>{`

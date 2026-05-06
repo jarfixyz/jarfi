@@ -14,6 +14,11 @@ export const metadata: Metadata = {
   description:
     "Create a savings jar, share a link, and let anyone contribute — even without crypto. Your funds grow onchain while you focus on what matters.",
   metadataBase: new URL("https://jarfi.xyz"),
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
   openGraph: {
     title: "Jarfi — Save together. Grow automatically.",
     description:

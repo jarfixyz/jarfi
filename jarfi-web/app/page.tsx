@@ -304,7 +304,7 @@ export default function Landing() {
               </div>
             </div>
             {/* recurring demo card */}
-            <div style={{ background:T.bg, border:`1px solid ${T.border}`, borderRadius:14, padding:22 }}>
+            <div style={{ background:T.bg, border:`1px solid ${T.border}`, borderRadius:22, padding:22, boxShadow:"0 8px 36px rgba(0,0,0,.1)", maxWidth:340, margin:"0 auto", width:"100%" }}>
               <div style={{ fontSize:13, fontWeight:600, marginBottom:14 }}>Eva&apos;s 18th Birthday · Recurring deposits</div>
               {[
                 { name:"May deposit",  date:"May 1, 2026 · auto",      status:"Done", done:true },
