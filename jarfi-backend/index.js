@@ -426,6 +426,77 @@ async function onrampDepositUsdc(jarPubkey, cryptoAmount, comment) {
 }
 
 // ---------------------------------------------------------------------------
+// POST /transak/session
+// Two-step flow per Transak docs:
+//   1. Refresh partner access token (x-api-secret header)
+//   2. Create widget session (access-token header) → returns widgetUrl with sessionId
+// ---------------------------------------------------------------------------
+
+const TRANSAK_API_KEY    = process.env.TRANSAK_API_KEY
+const TRANSAK_API_SECRET = process.env.TRANSAK_API_SECRET
+const IS_PROD_TRANSAK    = process.env.SOLANA_NETWORK === 'mainnet'
+const TRANSAK_REFRESH_URL = IS_PROD_TRANSAK
+  ? 'https://api.transak.com/partners/api/v2/refresh-token'
+  : 'https://api-stg.transak.com/partners/api/v2/refresh-token'
+const TRANSAK_SESSION_URL = IS_PROD_TRANSAK
+  ? 'https://api-gateway.transak.com/api/v2/auth/session'
+  : 'https://api-gateway-stg.transak.com/api/v2/auth/session'
+
+app.post('/transak/session', async (req, res) => {
+  try {
+    const { vaultAddress, fiatAmount, message } = req.body
+    if (!vaultAddress) return res.status(400).json({ error: 'vaultAddress required' })
+    if (!TRANSAK_API_KEY || !TRANSAK_API_SECRET) {
+      return res.status(500).json({ error: 'Transak not configured' })
+    }
+
+    // Step 1: get partner access token
+    const tokenResp = await fetch(TRANSAK_REFRESH_URL, {
+      method: 'POST',
+      headers: { 'x-api-secret': TRANSAK_API_SECRET, 'content-type': 'application/json' },
+      body: JSON.stringify({ apiKey: TRANSAK_API_KEY }),
+    })
+    if (!tokenResp.ok) {
+      const err = await tokenResp.text()
+      console.error('[transak/session] token error:', err)
+      return res.status(502).json({ error: 'Failed to get Transak access token', detail: err })
+    }
+    const { accessToken } = await tokenResp.json()
+
+    // Step 2: create widget session
+    const partnerOrderId = `${vaultAddress}__${Date.now()}__${message || ''}`
+    const widgetParams = {
+      apiKey:             TRANSAK_API_KEY,
+      referrerDomain:     'jarfi.xyz',
+      network:            'solana',
+      cryptoCurrencyCode: 'USDC',
+      walletAddress:      vaultAddress,
+      disableWalletAddressForm: true,
+      hideMenu:           true,
+      partnerOrderId,
+      themeColor:         '059669',
+    }
+    if (fiatAmount && Number(fiatAmount) > 0) widgetParams.fiatAmount = Number(fiatAmount)
+
+    const sessionResp = await fetch(TRANSAK_SESSION_URL, {
+      method: 'POST',
+      headers: { 'access-token': accessToken, 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ widgetParams }),
+    })
+    if (!sessionResp.ok) {
+      const err = await sessionResp.text()
+      console.error('[transak/session] session error:', err)
+      return res.status(502).json({ error: 'Failed to create Transak session', detail: err })
+    }
+    const { data } = await sessionResp.json()
+    res.json({ widgetUrl: data.widgetUrl, partnerOrderId })
+  } catch (err) {
+    console.error('[transak/session]', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ---------------------------------------------------------------------------
 // POST /transak-webhook
 // ---------------------------------------------------------------------------
 
