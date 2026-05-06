@@ -1,15 +1,17 @@
 "use client";
 
-import { Connection, PublicKey, Transaction, ComputeBudgetProgram } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
 import type { AnchorWallet } from "@solana/wallet-adapter-react";
-import { getProgram, PROGRAM_ID } from "./program";
+import { getProgram, getReadonlyProgram, PROGRAM_ID } from "./program";
 import {
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
   getAssociatedTokenAddress,
+  createAssociatedTokenAccountIdempotentInstruction,
 } from "@solana/spl-token";
 import { USDC_MINT_DEVNET, USDC_MINT_MAINNET } from "./create-jar";
+import { sendAndConfirmRobust } from "./send-tx";
 
 function usdcMint(): PublicKey {
   return process.env.NEXT_PUBLIC_SOLANA_NETWORK === "mainnet"
@@ -17,72 +19,95 @@ function usdcMint(): PublicKey {
     : USDC_MINT_DEVNET;
 }
 
-// Sign once → resend same bytes every 5s until confirmed or blockhash expires.
-async function sendAndConfirmRobust(
-  connection: Connection,
+// ---------------------------------------------------------------------------
+// USDC jar — full break flow:
+//   1. unlock_jar  (if jar.unlocked === false)
+//   2. withdraw_usdc(amount)  (if usdcBalanceMicroUnits > 0)
+//
+// Contract requires jar.unlocked === true before withdraw_usdc can succeed.
+// ---------------------------------------------------------------------------
+
+export async function breakUsdcJarOnChain(
   wallet: AnchorWallet,
-  buildTx: () => Promise<Transaction>
+  connection: Connection,
+  jarPubkey: string,
+  usdcBalanceMicroUnits: number
 ): Promise<string> {
-  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+  const program = getProgram(wallet, connection);
+  const jar = new PublicKey(jarPubkey);
+  const mint = usdcMint();
 
-  const tx = await buildTx();
-  const fees = await connection.getRecentPrioritizationFees().catch(() => []);
-  const sorted = fees.map((f: { prioritizationFee: number }) => f.prioritizationFee).sort((a: number, b: number) => b - a);
-  const p75 = sorted[Math.floor(sorted.length * 0.25)] ?? 0;
-  const microLamports = Math.max(p75 * 2, 1_000_000);
-  tx.instructions.unshift(
-    ComputeBudgetProgram.setComputeUnitPrice({ microLamports }),
-    ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 }),
-  );
-  tx.recentBlockhash = blockhash;
-  tx.feePayer = wallet.publicKey;
+  // Fetch live jar state to check whether it's already unlocked
+  const readProgram = getReadonlyProgram(connection);
+  const jarAccount = await readProgram.account.jar.fetch(jar);
+  const isAlreadyUnlocked = jarAccount.unlocked as boolean;
 
-  const signedTx = await wallet.signTransaction(tx);
-  const rawTx = signedTx.serialize();
+  let lastSignature = "";
 
-  const signature = await connection.sendRawTransaction(rawTx, {
-    skipPreflight: true,
-    maxRetries: 0,
-  });
-
-  const deadline = Date.now() + 90_000;
-  let lastResend = Date.now();
-
-  while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, 2000));
-
-    try {
-      const { value: status } = await connection.getSignatureStatus(signature);
-      if (status) {
-        if (status.err) throw new Error(`Transaction failed: ${JSON.stringify(status.err)}`);
-        if (
-          status.confirmationStatus === "processed" ||
-          status.confirmationStatus === "confirmed" ||
-          status.confirmationStatus === "finalized"
-        ) {
-          return signature;
-        }
-      }
-    } catch (e) {
-      if ((e as Error).message?.startsWith("Transaction failed:")) throw e;
-    }
-
-    if (Date.now() - lastResend > 5000) {
-      connection.sendRawTransaction(rawTx, { skipPreflight: true, maxRetries: 0 }).catch(() => {});
-      lastResend = Date.now();
-    }
-
-    try {
-      const blockHeight = await connection.getBlockHeight();
-      if (blockHeight > lastValidBlockHeight) {
-        throw new Error("blockhash expired — please try again");
-      }
-    } catch (e) {
-      if ((e as Error).message?.includes("blockhash expired")) throw e;
-    }
+  // Step 1: unlock_jar (only if not already unlocked)
+  if (!isAlreadyUnlocked) {
+    lastSignature = await sendAndConfirmRobust(
+      connection,
+      wallet,
+      () => program.methods
+        .unlockJar()
+        .accounts({
+          jar,
+          owner: wallet.publicKey,
+        } as never)
+        .transaction(),
+      [],
+      "unlock-jar"
+    );
+    console.log("[break-jar] unlockJar tx:", lastSignature);
   }
 
-  throw new Error("Transaction timed out after 90s");
+  // Step 2: withdraw_usdc (only if there's a balance to withdraw)
+  if (usdcBalanceMicroUnits <= 0) {
+    return lastSignature;
+  }
+
+  const [vaultAuthority] = PublicKey.findProgramAddressSync(
+    [Buffer.from("vault"), jar.toBuffer()],
+    PROGRAM_ID
+  );
+  const jarUsdcVault = await getAssociatedTokenAddress(mint, vaultAuthority, true);
+  const ownerUsdcAccount = await getAssociatedTokenAddress(mint, wallet.publicKey, false);
+
+  lastSignature = await sendAndConfirmRobust(
+    connection,
+    wallet,
+    async () => {
+      const tx = await program.methods
+        .withdrawUsdc(new BN(usdcBalanceMicroUnits))
+        .accounts({
+          jar,
+          jarUsdcVault,
+          vaultAuthority,
+          ownerUsdcAccount,
+          usdcMint: mint,
+          owner: wallet.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        } as never)
+        .transaction();
+      // Prepend idempotent ATA creation — safe if ATA already exists, required if not
+      tx.instructions.unshift(
+        createAssociatedTokenAccountIdempotentInstruction(
+          wallet.publicKey,
+          ownerUsdcAccount,
+          wallet.publicKey,
+          mint,
+        )
+      );
+      return tx;
+    },
+    [],
+    "withdraw-usdc"
+  );
+
+  console.log("[break-jar] withdrawUsdc tx:", lastSignature);
+  return lastSignature;
 }
 
 // ---------------------------------------------------------------------------
@@ -97,51 +122,17 @@ export async function breakSolJarOnChain(
   const program = getProgram(wallet, connection);
   const jar = new PublicKey(jarPubkey);
 
-  return sendAndConfirmRobust(connection, wallet, () =>
-    program.methods
+  return sendAndConfirmRobust(
+    connection,
+    wallet,
+    () => program.methods
       .emergencyWithdraw()
       .accounts({
         jar,
         owner: wallet.publicKey,
       } as never)
-      .transaction()
-  );
-}
-
-// ---------------------------------------------------------------------------
-// USDC jar — withdraw_usdc(amount) (returns all USDC to owner ATA)
-// ---------------------------------------------------------------------------
-
-export async function breakUsdcJarOnChain(
-  wallet: AnchorWallet,
-  connection: Connection,
-  jarPubkey: string,
-  usdcBalanceMicroUnits: number
-): Promise<string> {
-  const program = getProgram(wallet, connection);
-  const jar = new PublicKey(jarPubkey);
-  const mint = usdcMint();
-
-  const [vaultAuthority] = PublicKey.findProgramAddressSync(
-    [Buffer.from("vault"), jar.toBuffer()],
-    PROGRAM_ID
-  );
-  const jarUsdcVault = await getAssociatedTokenAddress(mint, vaultAuthority, true);
-  const ownerUsdcAccount = await getAssociatedTokenAddress(mint, wallet.publicKey, false);
-
-  return sendAndConfirmRobust(connection, wallet, () =>
-    program.methods
-      .withdrawUsdc(new BN(usdcBalanceMicroUnits))
-      .accounts({
-        jar,
-        jarUsdcVault,
-        vaultAuthority,
-        ownerUsdcAccount,
-        usdcMint: mint,
-        owner: wallet.publicKey,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-      } as never)
-      .transaction()
+      .transaction(),
+    [],
+    "emergency-withdraw"
   );
 }

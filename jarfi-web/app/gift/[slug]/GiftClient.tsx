@@ -67,7 +67,7 @@ export default function GiftClient({ slug }: { slug: string }) {
         ok: boolean;
         jar?: {
           mode: number; unlockDate: number; goalAmount: number; balance: number;
-          usdcBalance?: number | null; name?: string | null; emoji?: string | null;
+          usdcBalance?: number | null; jarCurrency?: number | null; name?: string | null; emoji?: string | null;
         };
         contributions?: unknown[];
       }) => {
@@ -77,7 +77,7 @@ export default function GiftClient({ slug }: { slug: string }) {
         const date = j.unlockDate
           ? new Date(j.unlockDate * 1000).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
           : null;
-        const isUsdc = j.usdcBalance != null;
+        const isUsdc = j.jarCurrency === 0;
         const goalUsd = (j.goalAmount / (isUsdc ? 1_000_000 : 1_000_000_000)).toLocaleString();
         let unlockLabel = "";
         if (j.mode === 0) unlockLabel = date ? `Opens ${date}` : "Locked";
@@ -85,7 +85,7 @@ export default function GiftClient({ slug }: { slug: string }) {
         else unlockLabel = `Opens at $${goalUsd}${date ? ` or on ${date}` : ""}`;
 
         const slugMeta = SLUG_META[slug];
-        const rawBalance = j.usdcBalance ?? j.balance ?? 0;
+        const rawBalance = isUsdc ? (j.usdcBalance ?? 0) : (j.balance ?? 0);
         const divisor = isUsdc ? 10_000 : 10_000_000;
         const jarType = contractToJarType(j.mode, j.unlockDate);
 

@@ -225,7 +225,7 @@ export default function Landing() {
       {/* ── HOW IT WORKS — ONRAMP ── */}
       <section id="how" style={sec}>
         <div style={wrap}>
-          <div className="onramp-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:64, alignItems:"center" }}>
+          <div className="onramp-grid" style={{ display:"grid", gridTemplateColumns:"1fr 440px", gap:64, alignItems:"center" }}>
             {/* left */}
             <div>
               <SecLabel>No crypto required</SecLabel>
@@ -282,7 +282,7 @@ export default function Landing() {
       {/* ── RECURRING ── */}
       <section style={secAlt}>
         <div style={wrap}>
-          <div className="recurring-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:64, alignItems:"center" }}>
+          <div className="recurring-grid" style={{ display:"grid", gridTemplateColumns:"1fr 440px", gap:64, alignItems:"center" }}>
             <div>
               <SecLabel>Set it and forget it</SecLabel>
               <SecTitle>Monthly reminders<br />to keep saving</SecTitle>

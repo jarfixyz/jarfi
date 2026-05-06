@@ -12,11 +12,18 @@ export type JarApiResponse = {
     unlockDate: number;
     goalAmount: number;
     balance: number;
+    usdcBalance: number;
+    jarCurrency: number;
     stakingShares: number;
     createdAt: number;
     unlocked: boolean;
     childWallet: string;
     childSpendableBalance: number;
+    name: string | null;
+    emoji: string | null;
+    jarType: string | null;
+    image: string | null;
+    vaultTokenBalance: { amount: string; decimals: number; uiAmount: number } | null;
   };
   contributions: {
     pubkey: string;
