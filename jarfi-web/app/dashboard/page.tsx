@@ -23,6 +23,7 @@ import { WalletButton } from "@/components/wallet-button";
 import { JupiterSwapButton } from "@/components/jupiter-swap";
 import { useJars } from "@/lib/use-jars";
 import { createJarOnChain, createUsdcJarOnChain } from "@/lib/create-jar";
+import { breakSolJarOnChain, breakUsdcJarOnChain } from "@/lib/break-jar";
 import { CURRENCY_USDC, fetchJarByPubkey } from "@/lib/program";
 import { PublicKey } from "@solana/web3.js";
 import {
@@ -162,7 +163,7 @@ export default function Dashboard() {
 
   const { publicKey, wallet } = useWallet();
   const { connection } = useConnection();
-  const { jars: liveJars, loading: jarsLoading, refresh: refreshJars, addJar } = useJars();
+  const { jars: liveJars, loading: jarsLoading, refresh: refreshJars, addJar, removeJar } = useJars();
   const [apy, setApy] = useState({ usdc_kamino: 8.2, sol_marinade: 6.85 });
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [groups, setGroups] = useState<GroupInfo[]>([]);
@@ -471,6 +472,7 @@ export default function Dashboard() {
             contributions={contributions}
             onMenuToggle={() => setSidebarOpen((v) => !v)}
             onAddFunds={(pubkey, name) => setAddFundsJar({ pubkey, name })}
+            onJarBroken={removeJar}
           />
         )}
         {activePage === "jars" && (
@@ -486,6 +488,7 @@ export default function Dashboard() {
             contributions={contributions}
             apy={apy}
             onMenuToggle={() => setSidebarOpen((v) => !v)}
+            onBack={() => navigate("dashboard")}
           />
         )}
         {activePage === "contributors" && (
@@ -493,6 +496,7 @@ export default function Dashboard() {
             contributions={contributions}
             liveJars={normalizedLive}
             onMenuToggle={() => setSidebarOpen((v) => !v)}
+            onBack={() => navigate("dashboard")}
           />
         )}
       </main>
@@ -643,6 +647,7 @@ function DashboardPage({
   contributions,
   onMenuToggle,
   onAddFunds,
+  onJarBroken,
 }: {
   onNewJar: () => void;
   scenario: number;
@@ -657,6 +662,7 @@ function DashboardPage({
   contributions: JarContribution[];
   onMenuToggle: () => void;
   onAddFunds: (pubkey: string, name: string) => void;
+  onJarBroken: (pubkey: string) => void;
 }) {
   const hasWallet = !!greeting;
   const [selectedJar, setSelectedJar] = useState<JarType | null>(null);
@@ -722,6 +728,7 @@ function DashboardPage({
         onMenuToggle={onMenuToggle}
         onAddFunds={onAddFunds}
         onScheduleUpdate={onScheduleUpdate}
+        onJarBroken={(pubkey) => { onJarBroken(pubkey); setSelectedJar(null); }}
       />
     );
   }
@@ -1078,11 +1085,13 @@ function AnalyticsPage({
   contributions,
   apy,
   onMenuToggle,
+  onBack,
 }: {
   liveJars: JarType[];
   contributions: JarContribution[];
   apy: { usdc_kamino: number; sol_marinade: number };
   onMenuToggle: () => void;
+  onBack: () => void;
 }) {
   const totalDeposited = liveJars.reduce((s, j) => s + j.amount, 0);
   const estimatedStaking = liveJars.reduce((s, j) => {
@@ -1107,6 +1116,9 @@ function AnalyticsPage({
         subtitle="Full history across all jars"
         onMenuToggle={onMenuToggle}
       >
+        <button onClick={onBack} style={{ fontSize: 13, color: "var(--text-secondary)", background: "none", border: "1px solid var(--border)", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontFamily: "var(--font)" }}>
+          ← Dashboard
+        </button>
         <WalletButton compact />
       </TopBar>
       <div className="px-4 py-6 md:px-8 md:py-7">
@@ -1177,10 +1189,12 @@ function ContributorsPage({
   contributions,
   liveJars,
   onMenuToggle,
+  onBack,
 }: {
   contributions: JarContribution[];
   liveJars: JarType[];
   onMenuToggle: () => void;
+  onBack: () => void;
 }) {
   const gradients = [
     "from-sol-purple to-sol-blue",
@@ -1215,6 +1229,9 @@ function ContributorsPage({
         }
         onMenuToggle={onMenuToggle}
       >
+        <button onClick={onBack} style={{ fontSize: 13, color: "var(--text-secondary)", background: "none", border: "1px solid var(--border)", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontFamily: "var(--font)" }}>
+          ← Dashboard
+        </button>
         <WalletButton compact />
       </TopBar>
       <div className="px-4 py-6 md:px-8 md:py-7">
@@ -1996,6 +2013,7 @@ function JarDetailPanel({
   onMenuToggle,
   onAddFunds,
   onScheduleUpdate,
+  onJarBroken,
 }: {
   jar: JarType;
   apy: { usdc_kamino: number; sol_marinade: number };
@@ -2004,6 +2022,7 @@ function JarDetailPanel({
   onMenuToggle: () => void;
   onAddFunds: (pubkey: string, name: string) => void;
   onScheduleUpdate: (schedules: Schedule[]) => void;
+  onJarBroken: (pubkey: string) => void;
 }) {
   const { connection } = useConnection();
   const { wallet, publicKey } = useWallet();
@@ -2011,6 +2030,35 @@ function JarDetailPanel({
   const [copied, setCopied] = useState(false);
   const [cosigners, setCosigners] = useState<Cosigner[]>([]);
   const [editSchedule, setEditSchedule] = useState<Schedule | null>(null);
+  const [showBreakModal, setShowBreakModal] = useState(false);
+  const [breaking, setBreaking] = useState(false);
+  const [breakToast, setBreakToast] = useState<string | null>(null);
+
+  const showLocalToast = (msg: string) => {
+    setBreakToast(msg);
+    setTimeout(() => setBreakToast(null), 3500);
+  };
+
+  const handleBreakJar = async () => {
+    if (!wallet?.adapter || !publicKey) return;
+    setBreaking(true);
+    try {
+      if (jar.currency === "usdc") {
+        const microUnits = Math.round(jar.amount * 1_000_000);
+        await breakUsdcJarOnChain(wallet.adapter as never, connection, jar.id, microUnits);
+      } else {
+        await breakSolJarOnChain(wallet.adapter as never, connection, jar.id);
+      }
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://jarfi.up.railway.app";
+      fetch(`${BACKEND}/jar/meta/${jar.id}`, { method: "DELETE" }).catch(() => {});
+      onJarBroken(jar.id);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      showLocalToast("Failed: " + msg.slice(0, 80));
+      setBreaking(false);
+      setShowBreakModal(false);
+    }
+  };
 
   const jarSchedule = schedules.find(s => s.jar_pubkey === jar.id) ?? null;
 
@@ -2056,6 +2104,13 @@ function JarDetailPanel({
 
           {/* ── LEFT ── */}
           <div>
+            {/* Multisig badge */}
+            {cosigners.some(c => c.status === "active") && (
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#EDE9FE", color: "#6D28D9", borderRadius: 20, padding: "4px 12px", fontSize: 12, fontWeight: 600, marginBottom: 20 }}>
+                🔐 Multisig · 2-of-2
+              </div>
+            )}
+
             {/* Balance / Future value */}
             <div style={{ marginBottom: 32 }}>
               <div style={{ fontSize: 60, fontWeight: 600, letterSpacing: "-2.5px", lineHeight: 1, color: jar.unlockDate > 0 ? "var(--green)" : "var(--text-primary)" }}>
@@ -2276,7 +2331,12 @@ function JarDetailPanel({
               {cosigners.length > 0 && (
                 <>
                   <div style={{ height: 1, background: "var(--border)", margin: "20px 0" }} />
-                  <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10 }}>Family approval</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <span style={{ fontSize: 13, fontWeight: 500 }}>Multisig approval</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20, background: cosigners.some(c => c.status === "active") ? "#EDE9FE" : "#FEF3C7", color: cosigners.some(c => c.status === "active") ? "#6D28D9" : "#92400E" }}>
+                      {cosigners.some(c => c.status === "active") ? "🔐 Active" : "⏳ Pending"}
+                    </span>
+                  </div>
                   {cosigners.map(c => (
                     <div key={c.invite_token} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                       <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
@@ -2294,6 +2354,83 @@ function JarDetailPanel({
               )}
             </div>
           </div>
+
+          {/* Break jar */}
+          <div style={{ marginTop: 16 }}>
+            <button
+              onClick={() => setShowBreakModal(true)}
+              style={{ width: "100%", padding: "10px 0", background: "none", border: "1px solid #FCA5A5", borderRadius: 9, color: "#DC2626", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)" }}
+            >
+              🔨 Break jar & withdraw funds
+            </button>
+          </div>
+
+          {/* Break jar modal */}
+          {showBreakModal && (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+              <div style={{ background: "#fff", borderRadius: 20, padding: 32, maxWidth: 440, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,.15)" }}>
+                <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>🔨 Break this jar?</div>
+                <div style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 24, lineHeight: 1.5 }}>
+                  This will withdraw all funds back to your wallet. This action cannot be undone.
+                </div>
+
+                <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 12, padding: 16, marginBottom: 20 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#DC2626", marginBottom: 8 }}>Funds to be withdrawn</div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: "#111", letterSpacing: "-1px" }}>
+                    {jar.currency === "usdc"
+                      ? `$${jar.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC`
+                      : `◎${jar.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} SOL`}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#999", marginTop: 4 }}>
+                    → {publicKey ? `${publicKey.toBase58().slice(0, 6)}…${publicKey.toBase58().slice(-4)}` : "your wallet"}
+                  </div>
+                </div>
+
+                {cosigners.some(c => c.status === "active") && (
+                  <div style={{ background: "#F5F3FF", border: "1px solid #C4B5FD", borderRadius: 12, padding: 16, marginBottom: 20 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#6D28D9", marginBottom: 8 }}>🔐 Multisig jar — equal split (informational)</div>
+                    {[publicKey?.toBase58(), ...cosigners.filter(c => c.status === "active").map(c => c.invitee_pubkey)].filter(Boolean).map((addr, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>
+                        <span>{addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : "—"}</span>
+                        <span style={{ fontWeight: 600 }}>
+                          {jar.currency === "usdc"
+                            ? `$${(jar.amount / ([publicKey, ...cosigners.filter(c => c.status === "active")].length)).toFixed(2)}`
+                            : `◎${(jar.amount / ([publicKey, ...cosigners.filter(c => c.status === "active")].length)).toFixed(4)}`}
+                        </span>
+                      </div>
+                    ))}
+                    <div style={{ fontSize: 11, color: "#999", marginTop: 6 }}>
+                      Funds go to jar owner on-chain. Transfer to co-signers manually after withdrawal.
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    onClick={() => setShowBreakModal(false)}
+                    disabled={breaking}
+                    style={{ flex: 1, padding: "12px 0", background: "none", border: "1px solid var(--border)", borderRadius: 9, fontSize: 14, fontWeight: 600, color: "var(--text-primary)", cursor: "pointer", fontFamily: "var(--font)" }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleBreakJar}
+                    disabled={breaking}
+                    style={{ flex: 1, padding: "12px 0", background: "#DC2626", border: "none", borderRadius: 9, fontSize: 14, fontWeight: 600, color: "#fff", cursor: breaking ? "not-allowed" : "pointer", fontFamily: "var(--font)", opacity: breaking ? 0.7 : 1 }}
+                  >
+                    {breaking ? "Withdrawing…" : "Break & withdraw"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Local toast for break jar errors */}
+          {breakToast && (
+            <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 300, borderRadius: 9999, background: "#111", color: "#fff", padding: "12px 20px", fontSize: 14, fontWeight: 500, boxShadow: "0 8px 24px rgba(0,0,0,.2)" }}>
+              {breakToast}
+            </div>
+          )}
 
           {/* Edit schedule modal */}
           {editSchedule && (
