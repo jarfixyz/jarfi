@@ -461,7 +461,7 @@ app.post('/transak/session', async (req, res) => {
       console.error('[transak/session] token error:', err)
       return res.status(502).json({ error: 'Failed to get Transak access token', detail: err })
     }
-    const { accessToken } = await tokenResp.json()
+    const { data: { accessToken } } = await tokenResp.json()
 
     // Step 2: create widget session
     const partnerOrderId = `${vaultAddress}__${Date.now()}__${message || ''}`
