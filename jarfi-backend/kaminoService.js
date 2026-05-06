@@ -30,7 +30,7 @@ const KAMINO_PROGRAM_ID  = 'KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD'
 const KAMINO_MARKET      = '7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF'
 
 // Fallback APY used when live rate is unavailable (6 dec precision)
-const FALLBACK_USDC_APY = 0.082  // 8.2%
+const FALLBACK_USDC_APY = 0.055  // 5.5% conservative
 
 // ---------------------------------------------------------------------------
 // Ledger helpers (shared by both paths)
@@ -54,37 +54,32 @@ function writeLedger(data) {
 
 let _apyCache = { value: FALLBACK_USDC_APY, fetchedAt: 0 }
 
+// DeFi Llama pool ID for Kamino USDC lending (mainnet)
+const DEFILLAMA_KAMINO_USDC_POOL = 'd2141a59-c199-4be7-8d4b-c8223954836b'
+
 async function getLiveApy() {
   const now = Date.now()
   if (now - _apyCache.fetchedAt < 3_600_000) return _apyCache.value  // 1h cache
+
+  // Primary: DeFi Llama — aggregates Kamino lend USDC APY reliably
   try {
-    // Kamino USDC supply APY from public API
-    const res = await fetch(
-      `https://api.kamino.finance/strategies?env=mainnet-beta&status=LIVE`
-    )
+    const res = await fetch('https://yields.llama.fi/pools', { signal: AbortSignal.timeout(8000) })
     const data = await res.json()
-    // Find USDC lending strategy
-    const usdc = data.find?.(s =>
-      s?.strategyType === 'NON_PEGGED' &&
-      s?.tokenMintA === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+    const pools = data?.data ?? []
+    const pool = pools.find(p =>
+      p?.pool === DEFILLAMA_KAMINO_USDC_POOL ||
+      (p?.project === 'kamino-lend' && p?.symbol === 'USDC' && p?.chain === 'Solana')
     )
-    if (usdc?.apy24h) {
-      _apyCache = { value: Number(usdc.apy24h), fetchedAt: now }
-      return _apyCache.value
+    if (pool?.apy && pool.apy > 0) {
+      // DeFi Llama returns APY as percentage (e.g. 4.55 = 4.55%)
+      const decimal = pool.apy / 100
+      _apyCache = { value: decimal, fetchedAt: now }
+      console.log(`[kamino] live APY from DeFi Llama: ${pool.apy.toFixed(2)}%`)
+      return decimal
     }
   } catch { /* fall through */ }
 
-  // Fallback: Kamino lending reserve APY endpoint
-  try {
-    const res = await fetch('https://api.kamino.finance/kamino-market/reserves?env=mainnet-beta')
-    const data = await res.json()
-    const usdc = data?.find?.(r => r?.symbol === 'USDC')
-    if (usdc?.supplyAPY) {
-      _apyCache = { value: Number(usdc.supplyAPY), fetchedAt: now }
-      return _apyCache.value
-    }
-  } catch { /* fall through */ }
-
+  console.warn('[kamino] APY fetch failed — using fallback')
   return FALLBACK_USDC_APY
 }
 

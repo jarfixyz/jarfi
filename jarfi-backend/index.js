@@ -373,7 +373,7 @@ app.get('/jar/:pubkey', async (req, res) => {
 // ---------------------------------------------------------------------------
 
 app.get('/apy', async (req, res) => {
-  const FALLBACK = { usdc_kamino: 8.2, sol_marinade: 6.85 }
+  const FALLBACK = { usdc_kamino: 5.5, sol_marinade: 6.85 }
   try {
     const [kaminoApy, marinadeRes] = await Promise.allSettled([
       getLiveApyPublic(),
