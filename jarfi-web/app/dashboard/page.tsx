@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   LayoutGrid,
@@ -91,6 +91,16 @@ function saveJarImage(pubkey: string, image: JarImageKey) {
   localStorage.setItem(`jar_image_${pubkey}`, image);
 }
 
+function getJarCustomImage(pubkey: string): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(`jar_custom_image_${pubkey}`) ?? null;
+}
+
+function saveJarCustomImage(pubkey: string, dataUrl: string) {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem(`jar_custom_image_${pubkey}`, dataUrl); } catch { /* quota exceeded */ }
+}
+
 const DEFAULT_IMAGE_BY_TYPE: Record<JarTypeEnum, JarImageKey> = {
   GOAL: "house",
   DATE: "baby",
@@ -164,6 +174,7 @@ type JarType = {
   jarType: JarTypeEnum;
   mode: number;
   image: JarImageKey | null;
+  customImage?: string | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -322,6 +333,7 @@ export default function Dashboard() {
           jarType,
           mode: j.mode,
           image: getJarImage(j.pubkey) ?? DEFAULT_IMAGE_BY_TYPE[jarType],
+          customImage: getJarCustomImage(j.pubkey),
         };
       }),
     [liveJars]
@@ -546,6 +558,7 @@ export default function Dashboard() {
               if (params.jarName) saveJarName(jarPubkey, params.jarName);
               if (params.jarEmoji) saveJarEmoji(jarPubkey, params.jarEmoji);
               if (params.jarImage) saveJarImage(jarPubkey, params.jarImage);
+              if (params.customImage) saveJarCustomImage(jarPubkey, params.customImage);
               fetchJarByPubkey(connection, new PublicKey(jarPubkey))
                 .then(jar => { if (jar) addJar(jar); })
                 .catch(() => {});
@@ -936,8 +949,11 @@ function V2JarCard({ jar, onSelect, onAddFunds }: { jar: JarType; onSelect: () =
     >
       {/* Top row: illustration + name + lock */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-        <div style={{ width: 44, height: 44, borderRadius: 12, background: tint.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <div style={{ width: 28, height: 28, color: tint.illo }} dangerouslySetInnerHTML={{ __html: JAR_SVGS[imageKey] }} />
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: jar.customImage ? "transparent" : tint.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+          {jar.customImage
+            ? <img src={jar.customImage} alt="" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 12 }} />
+            : <div style={{ width: 28, height: 28, color: tint.illo }} dangerouslySetInnerHTML={{ __html: JAR_SVGS[imageKey] }} />
+          }
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: "-0.01em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{jar.name}</div>
@@ -1436,6 +1452,26 @@ type GroupTripParams = {
   owner_nickname: string;
 };
 
+function resizeImageFile(file: File, maxPx = 640): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if (w > maxPx || h > maxPx) {
+        if (w > h) { h = Math.round(h * maxPx / w); w = maxPx; }
+        else { w = Math.round(w * maxPx / h); h = maxPx; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", 0.78));
+    };
+    img.src = url;
+  });
+}
+
 type RecurringParams = {
   amount_usdc: number;
   frequency: "weekly" | "monthly";
@@ -1454,6 +1490,7 @@ function NewJarModal({
     jarName: string;
     jarEmoji: string;
     jarImage: JarImageKey | null;
+    customImage: string | null;
     mode: number;
     unlockDate: number;
     goalAmount: number;
@@ -1475,6 +1512,9 @@ function NewJarModal({
   const [jarName, setJarName] = useState("");
   const [jarEmoji, setJarEmoji] = useState("🫙");
   const [jarImage, setJarImage] = useState<JarImageKey | null>(null);
+  const [customImageDataUrl, setCustomImageDataUrl] = useState<string | null>(null);
+  const [customImageName, setCustomImageName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Goal
   const [goalInput, setGoalInput] = useState("");
@@ -1585,7 +1625,7 @@ function NewJarModal({
         ? { amount_usdc: Math.round(monthly * 100), frequency: "monthly" as const, day: 1, hour: 9, minute: 0 }
         : null;
 
-      await onCreate({ jarName, jarEmoji, jarImage, mode, unlockDate: contractUnlockDate, goalAmount: contractGoal, currency: "usdc", recurring, groupTrip: null, approvalMode });
+      await onCreate({ jarName, jarEmoji, jarImage, customImage: customImageDataUrl, mode, unlockDate: contractUnlockDate, goalAmount: contractGoal, currency: "usdc", recurring, groupTrip: null, approvalMode });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setTxError(
@@ -1741,42 +1781,68 @@ function NewJarModal({
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>
                 {selectedType && `${JAR_TYPE_ICONS[selectedType]} ${JAR_TYPE_LABELS[selectedType]}`}
               </div>
-              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>Pick an illustration</div>
-              <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>It will appear on your jar card and gift page.</div>
+              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>Add a cover photo</div>
+              <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>Appears on your jar card and gift page.</div>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
-              {JAR_IMAGE_ORDER.map((key) => {
-                const tint = JAR_IMAGE_TINTS[key];
-                const selected = jarImage === key;
-                return (
-                  <button
-                    key={key}
-                    onClick={() => setJarImage(key)}
-                    style={{
-                      border: selected ? `2px solid ${tint.illo}` : "2px solid transparent",
-                      borderRadius: 14,
-                      background: tint.bg,
-                      padding: "14px 8px 10px",
-                      cursor: "pointer",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: 8,
-                      outline: "none",
-                      boxShadow: selected ? `0 0 0 3px ${tint.bg}` : "none",
-                      transition: "border-color 0.15s",
-                    }}
-                  >
-                    <div
-                      style={{ width: "100%", height: 64, color: tint.illo }}
-                      dangerouslySetInnerHTML={{ __html: JAR_SVGS[key] }}
-                    />
-                    <div style={{ fontSize: 11, fontWeight: 600, color: tint.illo }}>{JAR_IMAGE_LABELS[key]}</div>
-                  </button>
-                );
-              })}
+
+            {/* Upload zone */}
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                border: customImageDataUrl ? "2px solid #1F8A5B" : "2px dashed #D0D0CC",
+                borderRadius: 16,
+                background: customImageDataUrl ? "#F0FAF5" : "#FAFAF8",
+                cursor: "pointer",
+                overflow: "hidden",
+                transition: "border-color .15s, background .15s",
+                minHeight: 180,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 10,
+              }}
+              onMouseEnter={e => { if (!customImageDataUrl) e.currentTarget.style.borderColor = "#999"; }}
+              onMouseLeave={e => { if (!customImageDataUrl) e.currentTarget.style.borderColor = "#D0D0CC"; }}
+            >
+              {customImageDataUrl ? (
+                <>
+                  <img
+                    src={customImageDataUrl}
+                    alt="cover"
+                    style={{ width: "100%", height: 200, objectFit: "cover", display: "block" }}
+                  />
+                  <div style={{ padding: "10px 0 14px", fontSize: 12, color: "#1F8A5B", fontWeight: 600 }}>
+                    ✓ {customImageName} — click to change
+                  </div>
+                </>
+              ) : (
+                <>
+                  <svg width="36" height="36" viewBox="0 0 36 36" fill="none" style={{ opacity: 0.3 }}>
+                    <rect x="3" y="7" width="30" height="22" rx="3" stroke="#111" strokeWidth="2"/>
+                    <circle cx="13" cy="16" r="3" stroke="#111" strokeWidth="2"/>
+                    <path d="M3 24l8-7 6 6 4-4 12 9" stroke="#111" strokeWidth="2" strokeLinejoin="round"/>
+                  </svg>
+                  <div style={{ fontSize: 15, fontWeight: 500, color: "#333" }}>Choose a photo</div>
+                  <div style={{ fontSize: 12, color: "#999" }}>JPG, PNG, WEBP · resized to 640px</div>
+                </>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const dataUrl = await resizeImageFile(file);
+                  setCustomImageDataUrl(dataUrl);
+                  setCustomImageName(file.name);
+                }}
+              />
             </div>
-            <FlowNav onBack={goBack} onNext={advanceStep} nextDisabled={false} nextLabel={jarImage ? "Continue" : "Skip"} />
+
+            <FlowNav onBack={goBack} onNext={advanceStep} nextDisabled={false} nextLabel={customImageDataUrl ? "Continue" : "Skip"} />
           </div>
         )}
 
