@@ -962,6 +962,19 @@ app.listen(PORT, () => {
   console.log(`Server wallet: ${serverKeypair.publicKey.toBase58()}`)
   console.log(`RPC: ${RPC_URL}`)
 
+  // Auto-seed demo jars on every startup (SQLite has no persistent volume on Railway)
+  const DEMO_JARS = [
+    { pubkey: 'FeAzYeZuvo6eaPcsVp1Yguegcp2AhwwPWTfPV5Z4B9hC', name: "Anya's Future",   emoji: '🎁', jarType: 'goal' },
+    { pubkey: 'ExvN6nxRbWpqQJrpG6shY9tbcWTtHKEaJDmFVebxFqu4', name: 'Japan Trip',      emoji: '✈️', jarType: 'date' },
+    { pubkey: '28teBgT2U1y25ARUkgGfHjeyBHhnJXorVtLs6Qk93ppc', name: 'Motorcycle Fund', emoji: '🏍️', jarType: 'goal' },
+  ]
+  for (const jar of DEMO_JARS) {
+    if (!dbMod.getJarMeta(jar.pubkey)) {
+      dbMod.saveJarMeta(jar.pubkey, jar.name, jar.emoji, jar.jarType)
+      console.log(`[seed] demo jar: ${jar.name}`)
+    }
+  }
+
   startCronRunner(async (schedule, subscription) => {
     const shortJar = `${schedule.jar_pubkey.slice(0, 4)}…${schedule.jar_pubkey.slice(-4)}`
     const amountUsd = (schedule.amount_usdc / 100).toFixed(2)
