@@ -9,7 +9,7 @@ interface WalletButtonProps {
 }
 
 export function WalletButton({ compact = false }: WalletButtonProps) {
-  const { publicKey, connect, disconnect, connecting, wallets, select } = useWallet();
+  const { publicKey, connect, disconnect, connecting, connected, wallets, select } = useWallet();
   const [showMenu, setShowMenu] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -26,7 +26,7 @@ export function WalletButton({ compact = false }: WalletButtonProps) {
 
   const installedWallets = wallets.filter((w) => w.readyState === "Installed");
 
-  if (!publicKey) {
+  if (!publicKey || !connected) {
     return (
       <div className="relative">
         <button

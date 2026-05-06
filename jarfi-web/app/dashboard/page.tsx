@@ -81,6 +81,23 @@ function saveJarEmoji(pubkey: string, emoji: string) {
   if (emoji) localStorage.setItem(`jar_emoji_${pubkey}`, emoji);
 }
 
+function getJarImage(pubkey: string): JarImageKey | null {
+  if (typeof window === "undefined") return null;
+  return (localStorage.getItem(`jar_image_${pubkey}`) as JarImageKey) ?? null;
+}
+
+function saveJarImage(pubkey: string, image: JarImageKey) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(`jar_image_${pubkey}`, image);
+}
+
+const DEFAULT_IMAGE_BY_TYPE: Record<JarTypeEnum, JarImageKey> = {
+  GOAL: "house",
+  DATE: "baby",
+  GOAL_BY_DATE: "graduation",
+  SHARED: "gift",
+};
+
 function shortPubkey(pubkey: string) {
   return `Jar ${pubkey.slice(0, 4)}…${pubkey.slice(-4)}`;
 }
@@ -146,6 +163,7 @@ type JarType = {
   futureValue?: number;
   jarType: JarTypeEnum;
   mode: number;
+  image: JarImageKey | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -154,7 +172,7 @@ type JarType = {
 
 export default function Dashboard() {
   const [activePage, setActivePage] = useState<
-    "dashboard" | "jars" | "analytics" | "contributors"
+    "dashboard" | "analytics" | "contributors"
   >("dashboard");
   const [modal, setModal] = useState<"new-jar" | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -277,6 +295,7 @@ export default function Dashboard() {
           futureValue,
           jarType,
           mode: j.mode,
+          image: getJarImage(j.pubkey) ?? DEFAULT_IMAGE_BY_TYPE[jarType],
         };
       }),
     [liveJars]
@@ -291,71 +310,48 @@ export default function Dashboard() {
     setTimeout(() => setToast(null), 2800);
   };
 
+  const avatarInitials = greeting ? greeting.slice(0, 2).toUpperCase() : "—";
+
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#F5F5F2", fontFamily: "var(--font)" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: "#F4F4F1", fontFamily: "var(--font)" }}>
       {/* Mobile overlay */}
       {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-black/40 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
+        <div className="fixed inset-0 z-30 bg-black/40 md:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Sidebar */}
+      {/* ── V2 Sidebar ───────────────────────────────────────────────────────── */}
       <aside
-        className={`
-          fixed inset-y-0 left-0 z-40 flex flex-shrink-0 flex-col
-          md:relative md:translate-x-0
-          transition-transform duration-200
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-        `}
-        style={{ width: 192, background: "#FFFFFF", borderRight: "1px solid #E2E2DC", padding: "20px 0", minHeight: "100vh" }}
+        className={`fixed inset-y-0 left-0 z-40 flex flex-shrink-0 flex-col md:relative md:translate-x-0 transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+        style={{ width: 64, background: "#0a0a0a", padding: "20px 0", minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}
       >
         {/* Logo */}
-        <Link
-          href="/"
-          onClick={() => setSidebarOpen(false)}
-          style={{ display: "block", padding: "0 18px 22px", fontSize: 16, fontWeight: 700, textDecoration: "none", color: "#111111", letterSpacing: "-0.4px" }}
-        >
-          jar<span style={{ color: "#059669" }}>fi</span>
+        <Link href="/" onClick={() => setSidebarOpen(false)} style={{ textDecoration: "none", marginBottom: 14 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: "#1F8A5B", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700 }}>j</div>
         </Link>
 
-        {/* SAVINGS section */}
-        <div style={{ padding: "0 10px", display: "flex", flexDirection: "column", gap: 1 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#999999", letterSpacing: "0.8px", textTransform: "uppercase", padding: "12px 8px 6px" }}>Savings</div>
-          <NavItem label="My jars" icon="🫙" active={activePage === "dashboard" || activePage === "jars"} onClick={() => navigate("dashboard")} />
-          <NavItem label="New jar" icon="＋" active={false} onClick={() => { setSidebarOpen(false); setModal("new-jar"); }} />
-        </div>
+        {/* Nav icons */}
+        {[
+          { key: "dashboard", icon: "home", label: "Home" },
+          { key: "analytics", icon: "activity", label: "Analytics" },
+          { key: "contributors", icon: "people", label: "Contributors" },
+        ].map(({ key, icon, label }) => {
+          const active = activePage === key || (key === "dashboard" && activePage === "dashboard");
+          return (
+            <button key={key} title={label} onClick={() => navigate(key as typeof activePage)}
+              style={{ width: 44, height: 44, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", opacity: active ? 1 : 0.45, background: active ? "#1a1a1a" : "transparent", border: "none", transition: "opacity .15s, background .15s" }}>
+              <SidebarIcon name={icon} />
+            </button>
+          );
+        })}
 
-        {/* INSIGHTS section */}
-        <div style={{ padding: "0 10px", display: "flex", flexDirection: "column", gap: 1, marginTop: 8 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#999999", letterSpacing: "0.8px", textTransform: "uppercase", padding: "12px 8px 6px" }}>Insights</div>
-          <NavItem label="Analytics" icon="📊" active={activePage === "analytics"} onClick={() => navigate("analytics")} />
-          <NavItem label="Contributors" icon="👥" active={activePage === "contributors"} onClick={() => navigate("contributors")} />
-        </div>
-
-        {/* APY pill */}
-        <div style={{ margin: "12px 10px 0", padding: "8px 10px", background: "#ECFDF5", borderRadius: 9 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 10, color: "#059669", fontWeight: 600 }}>USDC (Kamino)</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "#059669" }}>{apy.usdc_kamino}%</span>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
-            <span style={{ fontSize: 10, color: "#059669", fontWeight: 600 }}>SOL (Marinade)</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "#059669" }}>{apy.sol_marinade}%</span>
-          </div>
-        </div>
-
-        {/* User footer */}
-        <div style={{ marginTop: "auto", padding: "14px 10px 0", borderTop: "1px solid #E2E2DC" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 8px", borderRadius: 9, cursor: "pointer" }}>
-            <div style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(5,150,105,.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#059669", flexShrink: 0 }}>
-              {greeting ? greeting.slice(0, 2).toUpperCase() : "—"}
-            </div>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#111111" }}>{greeting ? `${greeting.slice(0, 4)}…` : "Not connected"}</div>
-              {jarsLoading && <div style={{ fontSize: 10, color: "#999999" }}>Loading…</div>}
-            </div>
+        {/* Bottom */}
+        <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 8, alignItems: "center" }}>
+          <button title="New jar" onClick={() => { setSidebarOpen(false); setModal("new-jar"); }}
+            style={{ width: 44, height: 44, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", opacity: 0.45, background: "transparent", border: "none" }}>
+            <SidebarIcon name="plus" />
+          </button>
+          <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#1F8A5B", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600 }}>
+            {avatarInitials}
           </div>
         </div>
       </aside>
@@ -476,13 +472,6 @@ export default function Dashboard() {
             onJarBroken={removeJar}
           />
         )}
-        {activePage === "jars" && (
-          <JarsPage
-            onNewJar={() => setModal("new-jar")}
-            liveJars={normalizedLive}
-            onMenuToggle={() => setSidebarOpen((v) => !v)}
-          />
-        )}
         {activePage === "analytics" && (
           <AnalyticsPage
             liveJars={normalizedLive}
@@ -522,6 +511,7 @@ export default function Dashboard() {
               ));
               if (params.jarName) saveJarName(jarPubkey, params.jarName);
               if (params.jarEmoji) saveJarEmoji(jarPubkey, params.jarEmoji);
+              if (params.jarImage) saveJarImage(jarPubkey, params.jarImage);
               fetchJarByPubkey(connection, new PublicKey(jarPubkey))
                 .then(jar => { if (jar) addJar(jar); })
                 .catch(() => {});
@@ -744,294 +734,233 @@ function DashboardPage({
   }
 
   return (
-    <>
-      {/* TopBar */}
-      <TopBar
-        title="Dashboard"
-        subtitle={greeting ? `Good morning ☀️` : "Good morning ☀️"}
-        onMenuToggle={onMenuToggle}
-      >
+    <div style={{ background: "#F4F4F1", flex: 1, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      {/* Mobile hamburger bar */}
+      <div className="flex items-center justify-between border-b border-black/5 bg-[#F4F4F1] px-4 py-3 md:hidden">
+        <button onClick={onMenuToggle} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 5h14M3 10h14M3 15h14" stroke="#111" strokeWidth="1.6" strokeLinecap="round"/></svg>
+        </button>
+        <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.3px" }}>jarfi</div>
         <WalletButton compact />
-        {hasWallet && (
-          <button
-            onClick={onNewJar}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: "#111111", color: "#fff", border: "none", cursor: "pointer", fontFamily: "var(--font)" }}
-          >
-            + New jar
-          </button>
-        )}
-      </TopBar>
+      </div>
 
-      <div style={{ padding: "24px 28px", flex: 1 }}>
+      <div style={{ padding: "20px 24px 40px", display: "flex", flexDirection: "column", gap: 16, flex: 1 }}>
 
-        {/* No wallet — empty state */}
+        {/* ── Header ──────────────────────────────────────────────────────────── */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: 12, color: "#666", marginBottom: 3 }}>Dashboard</div>
+            <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.025em" }}>
+              Good morning{greeting ? `, ${greeting}` : ""} 👋
+            </div>
+          </div>
+          <div className="hidden md:flex" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <WalletButton compact />
+            {hasWallet && (
+              <button onClick={onNewJar} style={{ padding: "9px 16px", background: "#111", color: "#fff", borderRadius: 10, fontSize: 13, fontWeight: 500, border: "none", cursor: "pointer", fontFamily: "var(--font)", letterSpacing: "-0.01em" }}>
+                + New jar
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ── No wallet ───────────────────────────────────────────────────────── */}
         {!hasWallet && (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", borderRadius: 14, border: "2px dashed #E2E2DC", background: "#FFFFFF", padding: "64px 24px", textAlign: "center", marginBottom: 24 }}>
-            <div style={{ fontSize: 56, marginBottom: 12 }}>🏺</div>
-            <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 6 }}>Connect your wallet to start</div>
-            <div style={{ fontSize: 14, color: "#999999", marginBottom: 24 }}>See your jars, track yield, share gift links</div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", borderRadius: 18, border: "1px solid #EAEAEA", background: "#fff", padding: "64px 24px", textAlign: "center" }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>🏺</div>
+            <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 8, letterSpacing: "-0.02em" }}>Connect your wallet to start</div>
+            <div style={{ fontSize: 14, color: "#666", marginBottom: 28 }}>See your jars, track yield, share gift links</div>
             <WalletButton />
           </div>
         )}
 
         {hasWallet && (
           <>
-            {/* Portfolio card */}
+            {/* ── Hero strip ─────────────────────────────────────────────────── */}
             {liveJars.length > 0 && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #E2E2DC", borderRadius: 14, padding: "24px 28px", marginBottom: 16, display: "flex", alignItems: "center", gap: 0 }}>
-                {/* Total saved */}
-                <div style={{ flexShrink: 0, marginRight: 36 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#999999", letterSpacing: "0.7px", textTransform: "uppercase", marginBottom: 4 }}>Total saved</div>
-                  <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: "-1.5px", color: "#111111", lineHeight: 1 }}>${totalSaved.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                  <div style={{ fontSize: 12, color: "#999999", marginTop: 3 }}>across {liveJars.length} jar{liveJars.length !== 1 ? "s" : ""}</div>
-                </div>
-                {/* Divider */}
-                <div style={{ width: 1, height: 52, background: "#E2E2DC", margin: "0 28px", flexShrink: 0 }} />
-                {/* Future value */}
-                <div style={{ flexShrink: 0 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#999999", letterSpacing: "0.7px", textTransform: "uppercase", marginBottom: 4 }}>Future value</div>
-                  <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.6px", color: "#059669" }}>${Math.round(totalFutureValue).toLocaleString()}</div>
-                  <div style={{ fontSize: 11, color: "#999999", marginTop: 2 }}>est. at unlock</div>
-                </div>
-                {/* Divider */}
-                <div style={{ width: 1, height: 52, background: "#E2E2DC", margin: "0 28px", flexShrink: 0 }} />
-                {/* Yield earned */}
-                <div style={{ flexShrink: 0 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#999999", letterSpacing: "0.7px", textTransform: "uppercase", marginBottom: 4 }}>Yield earned</div>
-                  <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.6px", color: "#059669" }}>${totalYieldEarned.toFixed(2)}</div>
-                  <div style={{ fontSize: 11, color: "#999999", marginTop: 2 }}>this year · staking</div>
-                </div>
-                {/* Divider */}
-                <div style={{ width: 1, height: 52, background: "#E2E2DC", margin: "0 28px", flexShrink: 0 }} />
-                {/* Monthly yield */}
-                <div style={{ flexShrink: 0 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#999999", letterSpacing: "0.7px", textTransform: "uppercase", marginBottom: 4 }}>Monthly yield</div>
-                  <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.6px", color: "#111111" }}>${estimatedYieldMonthly.toFixed(2)}</div>
-                  <div style={{ fontSize: 11, color: "#999999", marginTop: 2 }}>Kamino + Marinade</div>
-                </div>
-                {/* Divider */}
-                <div style={{ width: 1, height: 52, background: "#E2E2DC", margin: "0 28px", flexShrink: 0 }} />
-                {/* Contributors */}
-                <div style={{ flexShrink: 0 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#999999", letterSpacing: "0.7px", textTransform: "uppercase", marginBottom: 4 }}>Contributors</div>
-                  <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.6px", color: "#111111" }}>{uniqueContributors || contributions.length}</div>
-                  <div style={{ fontSize: 11, color: "#999999", marginTop: 2 }}>across all jars</div>
-                </div>
-                {monthlyPlan > 0 && <>
-                  {/* Divider */}
-                  <div style={{ width: 1, height: 52, background: "#E2E2DC", margin: "0 28px", flexShrink: 0 }} />
-                  {/* Monthly plan */}
-                  <div style={{ flexShrink: 0 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "#999999", letterSpacing: "0.7px", textTransform: "uppercase", marginBottom: 4 }}>Monthly plan</div>
-                    <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.6px", color: "#111111" }}>${monthlyPlan.toFixed(0)}</div>
-                    <div style={{ fontSize: 11, color: "#999999", marginTop: 2 }}>{schedules.length} reminder{schedules.length !== 1 ? "s" : ""} active</div>
+              <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "22px 26px", display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 32, alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 11, color: "#666", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Total balance · projected at unlock</div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+                    <div style={{ fontSize: 36, fontWeight: 600, letterSpacing: "-0.035em", lineHeight: 1 }}>
+                      ${totalSaved.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    </div>
+                    <div style={{ fontSize: 14, color: "#999" }}>→</div>
+                    <div style={{ fontSize: 36, fontWeight: 600, letterSpacing: "-0.035em", lineHeight: 1, color: "#1F8A5B" }}>
+                      ${Math.round(totalFutureValue).toLocaleString()}
+                    </div>
                   </div>
-                </>}
-                {/* Actions */}
-                <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-                  <button
-                    onClick={onNewJar}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: "#111111", color: "#fff", border: "none", cursor: "pointer", fontFamily: "var(--font)" }}
-                  >
-                    + New jar
-                  </button>
+                  <div style={{ fontSize: 12, color: "#666", marginTop: 8 }}>
+                    Across {liveJars.length} jar{liveJars.length !== 1 ? "s" : ""} · {lockedCount} locked, {liveJars.length - lockedCount} open
+                  </div>
                 </div>
+                <V2HeroStat label="Earning rate" value={`${((apy.usdc_kamino + apy.sol_marinade) / 2).toFixed(1)}%/yr`} sub={`+$${estimatedYieldMonthly.toFixed(2)}/mo`} accent />
+                <V2HeroStat label="Earned this year" value={`$${totalYieldEarned.toFixed(2)}`} sub="staking yield" />
+                <V2HeroStat label="Contributors" value={String(uniqueContributors || 0)} sub="across all jars" />
               </div>
             )}
 
-            {/* Yield strip */}
-            {liveJars.length > 0 && (
-              <div style={{ background: "#ECFDF5", border: "1px solid rgba(5,150,105,.2)", borderRadius: 10, padding: "10px 16px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "#059669" }}>
-                  <span style={{ fontSize: 15 }}>⚡</span>
-                  <span>Your jars are earning <strong>${estimatedYieldMonthly.toFixed(2)} this month</strong> via automatic staking on Kamino and Marinade — no action needed.</span>
+            {/* ── Jars section ────────────────────────────────────────────────── */}
+            <div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.02em" }}>Your jars · {liveJars.length}</div>
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  <span style={{ fontSize: 12, color: "#666", cursor: "pointer" }}>All</span>
+                  <span style={{ fontSize: 12, color: "#666", cursor: "pointer" }}>Active</span>
+                  <span style={{ fontSize: 12, color: "#666", cursor: "pointer" }}>Locked</span>
+                  <button onClick={onNewJar} style={{ fontSize: 12, color: "#666", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font)" }}>+ New</button>
                 </div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#059669", opacity: 0.8, flexShrink: 0, marginLeft: 16 }}>+{apy.sol_marinade}–{apy.usdc_kamino}% APY →</div>
               </div>
-            )}
 
-            {/* Chart panel — inline, above jar grid */}
-            {chartJar && (
-              <JarChartPanel
-                jar={chartJar}
-                apy={apy}
-                onClose={() => setChartJar(null)}
-              />
-            )}
-
-            {/* Jars section */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, marginTop: 4 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#111111" }}>My jars</div>
-              {liveJars.length > 0 && <span onClick={onNewJar} style={{ fontSize: 12, color: "#999999", cursor: "pointer" }}>+ New jar</span>}
+              {liveJars.length === 0 ? (
+                <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "64px 24px", textAlign: "center" }}>
+                  <div style={{ fontSize: 48, marginBottom: 16 }}>🫙</div>
+                  <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-0.02em", marginBottom: 8 }}>Start your first jar</div>
+                  <div style={{ fontSize: 14, color: "#666", lineHeight: 1.6, marginBottom: 28 }}>Save for something that matters. Alone or with people around you.</div>
+                  <button onClick={onNewJar} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#111", color: "#fff", fontSize: 14, fontWeight: 500, padding: "11px 22px", borderRadius: 10, border: "none", cursor: "pointer", fontFamily: "var(--font)" }}>Create a jar</button>
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+                  {liveJars.map((j) => (
+                    <V2JarCard
+                      key={j.id}
+                      jar={j}
+                      onSelect={() => setSelectedJar(j)}
+                      onAddFunds={(e) => { e.stopPropagation(); onAddFunds(j.id, j.name, j.currency as "usdc" | "sol"); }}
+                    />
+                  ))}
+                  <V2AddJarCard onClick={onNewJar} />
+                </div>
+              )}
             </div>
 
-            {/* Jars grid */}
-            {liveJars.length === 0 ? (
-              <div style={{ maxWidth: 360, margin: "40px auto", textAlign: "center" }}>
-                <div style={{ fontSize: 48, marginBottom: 24 }}>🫙</div>
-                <div style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.5px", marginBottom: 10 }}>Start your first jar</div>
-                <div style={{ fontSize: 15, color: "#555555", lineHeight: 1.6, marginBottom: 28 }}>
-                  Save for something that matters.<br />Alone or with people around you.
-                </div>
-                <button
-                  onClick={onNewJar}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#111111", color: "#fff", fontSize: 14, fontWeight: 500, padding: "11px 22px", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "var(--font)" }}
-                >
-                  Create a jar
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
-                {liveJars.map((j) => (
-                  <NewJarCard
-                    key={j.id}
-                    jar={j}
-                    isChartActive={chartJar?.id === j.id}
-                    onSelect={() => setSelectedJar(j)}
-                    onChart={(e) => {
-                      e.stopPropagation();
-                      setChartJar(chartJar?.id === j.id ? null : j);
-                    }}
-                    onAddFunds={(e) => {
-                      e.stopPropagation();
-                      onAddFunds(j.id, j.name, j.currency as "usdc" | "sol");
-                    }}
-                  />
-                ))}
-                {/* Add jar card */}
-                <AddJarCard onClick={onNewJar} />
-              </div>
-            )}
-
-            {/* Group Trip jars */}
-            {groups.length > 0 && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #E2E2DC", borderRadius: 14, padding: "18px 20px", marginBottom: 12 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Group trips ✈️</div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {groups.map((g) => {
-                    const daysLeft = Math.max(0, Math.ceil((g.trip_date * 1000 - Date.now()) / 86_400_000));
-                    return (
-                      <a key={g.jar_pubkey} href={`/trip/${g.jar_pubkey}`}
-                        className="block rounded-2xl border border-black/5 bg-[#FAFAF8] p-4 transition hover:-translate-y-0.5 hover:border-sol-purple hover:shadow-md">
-                        <div className="flex items-start justify-between">
-                          <div className="text-3xl">{g.destination_emoji}</div>
-                          <span className="rounded-full bg-surface-sky px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                            {daysLeft > 0 ? `${daysLeft} days` : "Soon!"}
-                          </span>
-                        </div>
-                        <div className="mt-2 font-display text-base font-semibold">{g.trip_name}</div>
-                        <div className="text-xs text-ink-muted">{g.members.length} members · ${(g.budget_per_person_cents / 100).toLocaleString()}/person</div>
-                        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-black/5">
-                          <div className="h-full rounded-full bg-gradient-to-r from-sol-purple to-sol-blue" style={{ width: `${g.total_progress_pct}%` }} />
-                        </div>
-                        <div className="mt-1.5 flex justify-between text-[11px] text-ink-faint">
-                          <span>{g.total_progress_pct}% raised</span>
-                          <span>Open →</span>
-                        </div>
-                      </a>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Bottom grid: Activity | Schedules + Forecast */}
-            {liveJars.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
-
-              {/* Recent Activity panel */}
-              <div style={{ background: "#FFFFFF", border: "1px solid #E2E2DC", borderRadius: 14, padding: "18px 20px" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Recent activity</div>
-                {contributions.length === 0 ? (
-                  <div style={{ padding: "32px 0", textAlign: "center", fontSize: 13, color: "#999999" }}>No activity yet — share your gift link 🎁</div>
-                ) : (
-                  <div>
-                    {[...contributions].sort((a, b) => b.createdAt - a.createdAt).slice(0, 5).map((c) => {
-                      const shortAddr = `${c.contributor.slice(0, 4)}…${c.contributor.slice(-4)}`;
-                      const ago = (() => {
-                        const s = Math.floor(Date.now() / 1000 - c.createdAt);
-                        if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-                        if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-                        return `${Math.floor(s / 86400)}d ago`;
-                      })();
-                      return (
-                        <div key={c.pubkey} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #E2E2DC" }}>
-                          <div style={{ width: 30, height: 30, borderRadius: 8, background: "#F0F0EC", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>💝</div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{shortAddr} contributed</div>
-                            <div style={{ fontSize: 11, color: "#999999" }}>{c.comment ? `"${c.comment.slice(0, 30)}" · ` : ""}{ago}</div>
-                          </div>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "#059669", flexShrink: 0 }}>+${(c.amount / 1_000_000).toFixed(2)}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Right column: schedules + forecast */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-
-                {/* Monthly reminders panel */}
-                <div style={{ background: "#FFFFFF", border: "1px solid #E2E2DC", borderRadius: 14, padding: "18px 20px" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Monthly reminders</div>
-                  {schedules.length === 0 ? (
-                    <div style={{ fontSize: 12, color: "#999999", padding: "12px 0" }}>No reminders set up yet.</div>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {schedules.map((s) => {
-                        const nextDate = calcNextRun(s);
-                        const nextLabel = nextDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-                        return (
-                          <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "#F0F0EC", borderRadius: 9 }}>
-                            <div style={{ width: 30, height: 30, borderRadius: 8, background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>🔔</div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 12, fontWeight: 600 }}>{getJarName(s.jar_pubkey)}</div>
-                              <div style={{ fontSize: 11, color: "#999999" }}>Next: {nextLabel}</div>
-                            </div>
-                            <div style={{ fontSize: 14, fontWeight: 700, flexShrink: 0 }}>${(s.amount_usdc / 100).toFixed(0)}/mo</div>
-                            <button
-                              onClick={() => onStopSchedule(s.id)}
-                              style={{ fontSize: 10, color: "#999999", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font)", marginLeft: 4 }}
-                            >
-                              ×
-                            </button>
-                          </div>
-                        );
-                      })}
+            {/* ── Activity (keep existing, Phase 2 will replace) ───────────────── */}
+            {liveJars.length > 0 && contributions.length > 0 && (
+              <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "20px 22px" }}>
+                <div style={{ fontSize: 11, color: "#666", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Recent</div>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 14, letterSpacing: "-0.02em" }}>Activity</div>
+                {[...contributions].sort((a, b) => b.createdAt - a.createdAt).slice(0, 5).map((c) => {
+                  const shortAddr = `${c.contributor.slice(0, 4)}…${c.contributor.slice(-4)}`;
+                  const ago = (() => { const s = Math.floor(Date.now() / 1000 - c.createdAt); if (s < 3600) return `${Math.floor(s / 60)}m ago`; if (s < 86400) return `${Math.floor(s / 3600)}h ago`; return `${Math.floor(s / 86400)}d ago`; })();
+                  return (
+                    <div key={c.pubkey} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid #F0F0EE" }}>
+                      <div style={{ width: 26, height: 26, borderRadius: 8, background: "#F7F8F7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0 }}>💝</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 500 }}>{shortAddr} contributed</div>
+                        <div style={{ fontSize: 11, color: "#999" }}>{ago}</div>
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#1F8A5B", flexShrink: 0 }}>+${(c.amount / 1_000_000).toFixed(2)}</div>
                     </div>
-                  )}
-                </div>
-
-                {/* Portfolio forecast panel */}
-                <div style={{ background: "#FFFFFF", border: "1px solid #E2E2DC", borderRadius: 14, padding: "18px 20px" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Portfolio forecast · 10 years</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                    {forecastScenarios.map((s) => {
-                      const sel = scenario === s.monthly;
-                      return (
-                        <button
-                          key={s.label}
-                          onClick={() => setScenario(s.monthly)}
-                          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderRadius: 9, border: sel ? "1px solid #059669" : "1px solid #E2E2DC", background: sel ? "#ECFDF5" : "#FFFFFF", cursor: "pointer", fontFamily: "var(--font)", transition: "all .15s" }}
-                        >
-                          <span style={{ fontSize: 13, fontWeight: 500 }}>+{s.label} extra</span>
-                          <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.5px", color: sel ? "#059669" : "#111111" }}>${s.value.toLocaleString()}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div style={{ fontSize: 11, color: "#999999", marginTop: 12, lineHeight: 1.5 }}>
-                    Based on combined APY of {((apy.usdc_kamino + apy.sol_marinade) / 2).toFixed(1)}% across all jars. Not a guarantee.
-                  </div>
-                </div>
-
+                  );
+                })}
               </div>
-            </div>}
+            )}
 
           </>
         )}
       </div>
-    </>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// V2 DASHBOARD HELPER COMPONENTS
+// ---------------------------------------------------------------------------
+
+function V2HeroStat({ label, value, sub, accent }: { label: string; value: string; sub: string; accent?: boolean }) {
+  return (
+    <div style={{ borderLeft: "1px solid #F0F0EE", paddingLeft: 24 }}>
+      <div style={{ fontSize: 11, color: "#666", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.02em", color: accent ? "#1F8A5B" : "#111" }}>{value}</div>
+      <div style={{ fontSize: 11, color: "#999", marginTop: 3 }}>{sub}</div>
+    </div>
+  );
+}
+
+function makeSparkline(w: number, h: number): string {
+  const pts = 16;
+  const coords = Array.from({ length: pts }, (_, i) => {
+    const x = (i / (pts - 1)) * w;
+    const t = i / (pts - 1);
+    const y = h - Math.pow(t, 1.3) * h * 0.72 - Math.sin(t * 7) * h * 0.07;
+    return `${x.toFixed(1)},${Math.max(0, Math.min(h, y)).toFixed(1)}`;
+  });
+  return `M ${coords.join(" L ")}`;
+}
+
+function V2JarCard({ jar, onSelect, onAddFunds }: { jar: JarType; onSelect: () => void; onAddFunds: (e: React.MouseEvent) => void }) {
+  const imageKey: JarImageKey = jar.image ?? "baby";
+  const tint = JAR_IMAGE_TINTS[imageKey];
+  const pct = jar.goal > 0 ? Math.min(100, (jar.amount / jar.goal) * 100) : 0;
+  const future = jar.futureValue ?? jar.amount;
+  const sparkPath = makeSparkline(100, 32);
+
+  return (
+    <div
+      onClick={onSelect}
+      style={{ background: "#fff", borderRadius: 14, border: "1px solid #EAEAEA", padding: 16, cursor: "pointer", display: "flex", flexDirection: "column", gap: 12, transition: "box-shadow .15s", position: "relative" }}
+      onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,.07)")}
+      onMouseLeave={e => (e.currentTarget.style.boxShadow = "none")}
+    >
+      {/* Top row: illustration + name + lock */}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: tint.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div style={{ width: 28, height: 28, color: tint.illo }} dangerouslySetInnerHTML={{ __html: JAR_SVGS[imageKey] }} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: "-0.01em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{jar.name}</div>
+          <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>{jar.currency?.toUpperCase() ?? "USDC"}</div>
+        </div>
+        {jar.locked && (
+          <div style={{ fontSize: 10, color: "#666", background: "#F4F4F1", borderRadius: 6, padding: "2px 6px", flexShrink: 0, marginTop: 2 }}>🔒</div>
+        )}
+      </div>
+
+      {/* Middle: amount + sparkline */}
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8 }}>
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.03em", lineHeight: 1 }}>${jar.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+          {future > jar.amount && (
+            <div style={{ fontSize: 11, color: "#1F8A5B", marginTop: 3 }}>→ ${Math.round(future).toLocaleString()} at unlock</div>
+          )}
+        </div>
+        <svg width="100" height="32" viewBox="0 0 100 32" fill="none" style={{ flexShrink: 0 }}>
+          <path d={sparkPath} stroke={tint.illo} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.6" />
+        </svg>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{ height: 4, borderRadius: 4, background: "#EFEFEC", overflow: "hidden" }}>
+        <div style={{ height: "100%", borderRadius: 4, background: "#1F8A5B", width: `${pct}%`, transition: "width .3s" }} />
+      </div>
+
+      {/* Footer */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ fontSize: 11, color: "#999" }}>
+          {jar.goal > 0 ? `${Math.round(pct)}% of $${jar.goal.toLocaleString()}` : "No goal set"}
+        </div>
+        <button
+          onClick={onAddFunds}
+          style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", background: "#111", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "var(--font)" }}
+        >
+          + Add
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function V2AddJarCard({ onClick }: { onClick: () => void }) {
+  return (
+    <div
+      onClick={onClick}
+      style={{ background: "transparent", borderRadius: 14, border: "1.5px dashed #D8D8D4", padding: 16, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 160, transition: "border-color .15s, background .15s" }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = "#111"; e.currentTarget.style.background = "#fff"; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = "#D8D8D4"; e.currentTarget.style.background = "transparent"; }}
+    >
+      <div style={{ width: 36, height: 36, borderRadius: 10, background: "#F4F4F1", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>+</div>
+      <div style={{ fontSize: 12, color: "#999", fontWeight: 500 }}>New jar</div>
+    </div>
   );
 }
 
@@ -1116,75 +1045,77 @@ function AnalyticsPage({
     (a, b) => b.createdAt - a.createdAt
   );
 
+  const uniqueContributors = new Set(contributions.map((c) => c.contributor)).size;
+
   return (
-    <>
-      <TopBar
-        title="Analytics"
-        subtitle="Full history across all jars"
-        onMenuToggle={onMenuToggle}
-      >
-        <button onClick={onBack} style={{ fontSize: 13, color: "#fff", background: "#111", border: "none", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontFamily: "var(--font)", fontWeight: 600 }}>
-          ← Dashboard
+    <div style={{ background: "#F4F4F1", flex: 1, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      {/* Mobile bar */}
+      <div className="flex items-center justify-between border-b border-black/5 bg-[#F4F4F1] px-4 py-3 md:hidden">
+        <button onClick={onMenuToggle} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 5h14M3 10h14M3 15h14" stroke="#111" strokeWidth="1.6" strokeLinecap="round"/></svg>
         </button>
+        <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.3px" }}>jarfi</div>
         <WalletButton compact />
-      </TopBar>
-      <div className="px-4 py-6 md:px-8 md:py-7">
-        <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            label="Total saved"
-            value={`$${totalDeposited.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-            change="across all jars"
-            tint="bg-surface-lavender"
-          />
-          <StatCard
-            label="Staking earned (est.)"
-            value={`~$${estimatedStaking.toFixed(2)}/yr`}
-            change={`Kamino ${apy.usdc_kamino}% + Marinade ${apy.sol_marinade}%`}
-            tint="bg-surface-mint"
-          />
-          <StatCard
-            label="Family contributed"
-            value={`$${familyContributed.toFixed(2)}`}
-            change={`${new Set(contributions.map((c) => c.contributor)).size} contributors`}
-            tint="bg-surface-sky"
-          />
-          <StatCard
-            label="Total deposits"
-            value={String(depositsCount)}
-            change="on-chain transactions"
-            tint="bg-surface-cream"
-          />
+      </div>
+
+      <div style={{ padding: "20px 24px 40px", display: "flex", flexDirection: "column", gap: 16, flex: 1 }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: 12, color: "#666", marginBottom: 3 }}>Insights</div>
+            <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.025em" }}>Analytics</div>
+          </div>
+          <button onClick={onBack} style={{ fontSize: 13, fontWeight: 500, color: "#666", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font)" }}>
+            ← Dashboard
+          </button>
         </div>
-        <Card title="All transactions">
+
+        {/* Stats strip */}
+        <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "22px 26px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24 }}>
+          {[
+            { label: "Total saved", value: `$${totalDeposited.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, sub: "across all jars" },
+            { label: "Staking earned (est.)", value: `~$${estimatedStaking.toFixed(2)}/yr`, sub: `Kamino ${apy.usdc_kamino}%` },
+            { label: "Family contributed", value: `$${familyContributed.toFixed(2)}`, sub: `${uniqueContributors} contributors` },
+            { label: "Total deposits", value: String(depositsCount), sub: "on-chain transactions" },
+          ].map((s, i) => (
+            <div key={s.label} style={{ borderLeft: i > 0 ? "1px solid #F0F0EE" : "none", paddingLeft: i > 0 ? 20 : 0 }}>
+              <div style={{ fontSize: 11, color: "#666", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{s.label}</div>
+              <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.02em" }}>{s.value}</div>
+              <div style={{ fontSize: 11, color: "#999", marginTop: 3 }}>{s.sub}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Transactions */}
+        <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "20px 22px" }}>
+          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16, letterSpacing: "-0.02em" }}>All transactions</div>
           {sortedContribs.length === 0 ? (
-            <div className="py-8 text-center text-sm text-ink-muted">
+            <div style={{ fontSize: 13, color: "#999", padding: "24px 0", textAlign: "center" }}>
               No transactions yet. Share your gift link 🎁
             </div>
           ) : (
-            <div className="space-y-1">
-              {sortedContribs.map((c) => {
-                const ago = (() => {
-                  const s = Math.floor(Date.now() / 1000 - c.createdAt);
-                  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-                  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-                  return `${Math.floor(s / 86400)}d ago`;
-                })();
-                return (
-                  <ActivityRow
-                    key={c.pubkey}
-                    icon="💝"
-                    tone="green"
-                    title={`${c.contributor.slice(0, 4)}…${c.contributor.slice(-4)}`}
-                    sub={`${c.comment ? `"${c.comment.slice(0, 50)}" · ` : ""}${ago}`}
-                    amount={`+$${(c.amount / 1_000_000).toFixed(2)}`}
-                  />
-                );
-              })}
-            </div>
+            sortedContribs.map((c) => {
+              const ago = (() => {
+                const s = Math.floor(Date.now() / 1000 - c.createdAt);
+                if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+                if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+                return `${Math.floor(s / 86400)}d ago`;
+              })();
+              return (
+                <div key={c.pubkey} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid #F0F0EE" }}>
+                  <div style={{ width: 26, height: 26, borderRadius: 8, background: "#F7F8F7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0 }}>💝</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 500 }}>{c.contributor.slice(0, 4)}…{c.contributor.slice(-4)}</div>
+                    <div style={{ fontSize: 11, color: "#999" }}>{c.comment ? `"${c.comment.slice(0, 50)}" · ` : ""}{ago}</div>
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#1F8A5B", flexShrink: 0 }}>+${(c.amount / 1_000_000).toFixed(2)}</div>
+                </div>
+              );
+            })
           )}
-        </Card>
+        </div>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -1203,13 +1134,6 @@ function ContributorsPage({
   onMenuToggle: () => void;
   onBack: () => void;
 }) {
-  const gradients = [
-    "from-sol-purple to-sol-blue",
-    "from-sol-green to-sol-blue",
-    "from-orange-400 to-yellow-400",
-    "from-red-400 to-orange-400",
-  ];
-
   const total = contributions.reduce((s, c) => s + c.amount / 1_000_000, 0);
   const uniqueAddrs = [...new Set(contributions.map((c) => c.contributor))];
   const breakdown = uniqueAddrs.map((addr) => {
@@ -1223,75 +1147,77 @@ function ContributorsPage({
     };
   });
 
-  const jarLabel = liveJars[0]?.name ?? "your jar";
-
   return (
-    <>
-      <TopBar
-        title="Contributors"
-        subtitle={
-          contributions.length > 0
-            ? `${uniqueAddrs.length} contributors · $${total.toFixed(2)} total`
-            : "No contributions yet"
-        }
-        onMenuToggle={onMenuToggle}
-      >
-        <button onClick={onBack} style={{ fontSize: 13, color: "#fff", background: "#111", border: "none", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontFamily: "var(--font)", fontWeight: 600 }}>
-          ← Dashboard
+    <div style={{ background: "#F4F4F1", flex: 1, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      {/* Mobile bar */}
+      <div className="flex items-center justify-between border-b border-black/5 bg-[#F4F4F1] px-4 py-3 md:hidden">
+        <button onClick={onMenuToggle} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 5h14M3 10h14M3 15h14" stroke="#111" strokeWidth="1.6" strokeLinecap="round"/></svg>
         </button>
+        <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.3px" }}>jarfi</div>
         <WalletButton compact />
-      </TopBar>
-      <div className="px-4 py-6 md:px-8 md:py-7">
-        {contributions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-black/10 bg-white py-16 text-center">
-            <div className="mb-3 text-5xl">🎁</div>
-            <div className="mb-1 font-display text-lg font-semibold">
-              No contributions yet
-            </div>
-            <div className="text-sm text-ink-muted">
-              Share your gift link to start collecting
+      </div>
+
+      <div style={{ padding: "20px 24px 40px", display: "flex", flexDirection: "column", gap: 16, flex: 1 }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: 12, color: "#666", marginBottom: 3 }}>Insights</div>
+            <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.025em" }}>
+              Contributors{uniqueAddrs.length > 0 ? ` · ${uniqueAddrs.length}` : ""}
             </div>
           </div>
+          <button onClick={onBack} style={{ fontSize: 13, fontWeight: 500, color: "#666", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font)" }}>
+            ← Dashboard
+          </button>
+        </div>
+
+        {contributions.length === 0 ? (
+          <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "64px 24px", textAlign: "center" }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>🎁</div>
+            <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: "-0.02em", marginBottom: 8 }}>No contributions yet</div>
+            <div style={{ fontSize: 13, color: "#666" }}>Share your gift link to start collecting</div>
+          </div>
         ) : (
-          <div className="grid gap-5 lg:grid-cols-2">
-            <Card title={`All contributors · ${jarLabel}`}>
-              <div className="space-y-4">
-                {contributions.slice(0, 10).map((c, i) => (
-                  <ContributorRow
-                    key={c.pubkey}
-                    name={`${c.contributor.slice(0, 4)}…${c.contributor.slice(-4)}`}
-                    comment={c.comment || "—"}
-                    amount={`+$${(c.amount / 1_000_000).toFixed(2)}`}
-                    gradient={gradients[i % gradients.length]}
-                    large
-                  />
-                ))}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            {/* Contributors list */}
+            <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "20px 22px" }}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16, letterSpacing: "-0.02em" }}>
+                All contributors · ${total.toFixed(2)} total
               </div>
-            </Card>
-            <Card title="Breakdown">
-              <div className="space-y-4 pt-1">
-                {breakdown.map((r, i) => (
-                  <div key={r.addr}>
-                    <div className="mb-1.5 flex justify-between text-sm">
-                      <span className="font-mono">
-                        {r.addr.slice(0, 4)}…{r.addr.slice(-4)}
-                      </span>
-                      <span className="font-semibold">{r.pct}%</span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-black/5">
-                      <div
-                        className={`h-full rounded-full bg-gradient-to-r ${gradients[i % gradients.length]}`}
-                        style={{ width: `${r.pct}%` }}
-                      />
-                    </div>
+              {contributions.slice(0, 10).map((c) => (
+                <div key={c.pubkey} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid #F0F0EE" }}>
+                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#1F8A5B", flexShrink: 0 }}>
+                    {c.contributor.slice(0, 2).toUpperCase()}
                   </div>
-                ))}
-              </div>
-            </Card>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 500 }}>{c.contributor.slice(0, 4)}…{c.contributor.slice(-4)}</div>
+                    {c.comment && <div style={{ fontSize: 11, color: "#999", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>"{c.comment.slice(0, 40)}"</div>}
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#1F8A5B", flexShrink: 0 }}>+${(c.amount / 1_000_000).toFixed(2)}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Breakdown */}
+            <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "20px 22px" }}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16, letterSpacing: "-0.02em" }}>Share breakdown</div>
+              {breakdown.map((r) => (
+                <div key={r.addr} style={{ marginBottom: 14 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}>
+                    <span style={{ fontFamily: "monospace", color: "#444" }}>{r.addr.slice(0, 4)}…{r.addr.slice(-4)}</span>
+                    <span style={{ fontWeight: 600 }}>{r.pct}%</span>
+                  </div>
+                  <div style={{ height: 6, borderRadius: 6, background: "#F0F0EE", overflow: "hidden" }}>
+                    <div style={{ height: "100%", borderRadius: 6, background: "#1F8A5B", width: `${r.pct}%`, transition: "width .3s" }} />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -2004,6 +1930,18 @@ function FlowNav({ onBack, onNext, nextDisabled, nextLabel }: { onBack?: () => v
   );
 }
 
+// ── V2 sidebar icon component ──────────────────────────────────────────────
+function SidebarIcon({ name }: { name: string }) {
+  const s = { width: 18, height: 18 };
+  if (name === "home") return <svg style={s} viewBox="0 0 18 18" fill="none"><path d="M3 8l6-5 6 5v7a1 1 0 0 1-1 1h-3v-5H7v5H4a1 1 0 0 1-1-1V8z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/></svg>;
+  if (name === "jars") return <svg style={s} viewBox="0 0 18 18" fill="none"><path d="M5 3h8l-.5 1.5h-7L5 3zM4 5h10v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5z" stroke="currentColor" strokeWidth="1.4"/></svg>;
+  if (name === "activity") return <svg style={s} viewBox="0 0 18 18" fill="none"><path d="M2 9h3l2-5 2 10 2-5h5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+  if (name === "people") return <svg style={s} viewBox="0 0 18 18" fill="none"><circle cx="7" cy="7" r="3" stroke="currentColor" strokeWidth="1.4"/><path d="M2 15c.5-2.5 2.5-4 5-4s4.5 1.5 5 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/><circle cx="13" cy="6" r="2" stroke="currentColor" strokeWidth="1.4"/></svg>;
+  if (name === "plus") return <svg style={s} viewBox="0 0 18 18" fill="none"><path d="M9 3v12M3 9h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>;
+  if (name === "gear") return <svg style={s} viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.4"/><path d="M9 1.5v2.5M9 14v2.5M16.5 9H14M4 9H1.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>;
+  return null;
+}
+
 function NavItem({ label, icon, active, onClick }: {
   label: string; icon: string; active: boolean; onClick: () => void;
 }) {
@@ -2179,10 +2117,23 @@ function JarDetailPanel({
   };
 
   return (
-    <>
-      <TopBar title={`${jar.emoji} ${jar.name}`} onMenuToggle={onMenuToggle} onBack={onBack} />
+    <div style={{ background: "#F4F4F1", flex: 1, display: "flex", flexDirection: "column" }}>
+      {/* Mobile bar */}
+      <div className="flex items-center justify-between border-b border-black/5 bg-[#F4F4F1] px-4 py-3 md:hidden">
+        <button onClick={onMenuToggle} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 5h14M3 10h14M3 15h14" stroke="#111" strokeWidth="1.6" strokeLinecap="round"/></svg>
+        </button>
+        <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.3px" }}>jarfi</div>
+        <WalletButton compact />
+      </div>
+      {/* Back nav */}
+      <div style={{ padding: "14px 24px 0" }}>
+        <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 500, color: "#666", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font)" }}>
+          ← My jars
+        </button>
+      </div>
 
-      <div style={{ padding: "40px 48px", maxWidth: 1100, margin: "0 auto" }} className="jar-detail-wrap">
+      <div style={{ padding: "20px 48px 40px", maxWidth: 1100, margin: "0 auto", width: "100%" }} className="jar-detail-wrap">
         <div className="jar-detail-grid" style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 48, alignItems: "start" }}>
 
           {/* ── LEFT ── */}
@@ -2610,7 +2561,7 @@ function JarDetailPanel({
           .jar-detail-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
-    </>
+    </div>
   );
 }
 
