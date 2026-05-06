@@ -1525,6 +1525,8 @@ function NewJarModal({
   // ── Create ──
   async function handleCreate() {
     if (!selectedType) return;
+    // GoalAmountRequired (6010): goal-based jars must have a non-zero amount
+    if ((selectedType === "GOAL" || selectedType === "GOAL_BY_DATE") && goalUsd <= 0) return;
     setSubmitting(true);
     try {
       const unlockDate = customDate
@@ -1708,7 +1710,7 @@ function NewJarModal({
             <FlowNav
               onBack={goBack}
               onNext={advanceStep}
-              nextDisabled={selectedType !== "SHARED" && selectedType !== "GOAL" && !goalInput}
+              nextDisabled={selectedType !== "SHARED" && !goalInput}
               nextLabel={selectedType === "SHARED" && !goalInput ? "Skip" : "Continue"}
             />
           </div>
