@@ -35,7 +35,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <CP endpoint={endpoint} config={{ commitment: "processed", confirmTransactionInitialTimeout: 90000 }}>
-      <WP wallets={wallets} autoConnect>
+      <WP wallets={wallets} autoConnect={false}>
         {children}
       </WP>
     </CP>

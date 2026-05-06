@@ -566,7 +566,7 @@ export default function Dashboard() {
               console.error("[create-jar] error:", msg);
               const friendly = msg.includes("rejected") || msg.includes("User rejected")
                 ? "Transaction cancelled"
-                : msg.includes("blockhash")
+                : msg.includes("blockhash") || msg.includes("congested") || msg.includes("congestion")
                 ? "Devnet congestion — please try again"
                 : msg.includes("insufficient") || msg.includes("lamports")
                 ? "Not enough SOL for fees"

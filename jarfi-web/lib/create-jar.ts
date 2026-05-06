@@ -13,17 +13,21 @@ import {
   getAssociatedTokenAddress,
 } from "@solana/spl-token";
 
-// Fetch current network priority fee and use 2× the 75th percentile.
-// Falls back to 1_000_000 microlamports (proven sufficient on devnet congestion).
+// Devnet often returns all-zero fees, so floor is high enough to land even under congestion.
+// Mainnet: p90 * 1.5 is used instead, with a lower floor since SOL has real cost.
 async function getOptimalPriorityFee(connection: Connection): Promise<number> {
+  const isDevnet = process.env.NEXT_PUBLIC_SOLANA_NETWORK !== "mainnet";
+  const floor = isDevnet ? 5_000_000 : 500_000;
   try {
     const fees = await connection.getRecentPrioritizationFees();
-    if (fees.length === 0) return 1_000_000;
+    if (fees.length === 0) return floor;
     const sorted = fees.map(f => f.prioritizationFee).sort((a, b) => b - a);
-    const p75 = sorted[Math.floor(sorted.length * 0.25)] ?? 0;
-    return Math.max(p75 * 2, 1_000_000);
+    // p90 × 1.5 on mainnet; p75 × 2 on devnet (usually all zeros so floor wins)
+    const idx = isDevnet ? Math.floor(sorted.length * 0.25) : Math.floor(sorted.length * 0.10);
+    const multiplier = isDevnet ? 2 : 1.5;
+    return Math.max(Math.ceil((sorted[idx] ?? 0) * multiplier), floor);
   } catch {
-    return 1_000_000;
+    return floor;
   }
 }
 
@@ -31,23 +35,22 @@ async function addPriorityFee(connection: Connection, tx: Transaction): Promise<
   const microLamports = await getOptimalPriorityFee(connection);
   tx.instructions.unshift(
     ComputeBudgetProgram.setComputeUnitPrice({ microLamports }),
-    ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 }),
+    ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
   );
   return tx;
 }
 
-// Sign once → resend same bytes every 5s until confirmed or blockhash expires.
-// Avoids multiple Phantom popups and "already in use" errors on retry.
+// Sign once → resend every 2s until confirmed or blockhash expires, then retry up to 5×.
 async function sendAndConfirmRobust(
   connection: Connection,
   wallet: AnchorWallet,
   buildTx: () => Promise<Transaction>,
   extraSigners: Keypair[]
 ): Promise<string> {
-  const MAX_ATTEMPTS = 3;
+  const MAX_ATTEMPTS = 5;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("processed");
 
     const tx = await buildTx();
     await addPriorityFee(connection, tx);
@@ -62,17 +65,28 @@ async function sendAndConfirmRobust(
 
     const rawTx = signedTx.serialize();
 
-    const signature = await connection.sendRawTransaction(rawTx, {
-      skipPreflight: true,
-      maxRetries: 0,
-    });
+    let signature: string;
+    try {
+      signature = await connection.sendRawTransaction(rawTx, {
+        skipPreflight: true,
+        maxRetries: 0,
+      });
+    } catch (sendErr) {
+      const msg = (sendErr as Error).message ?? "";
+      // "Blockhash not found" means it expired before even landing — retry immediately
+      if (msg.toLowerCase().includes("blockhash") && attempt < MAX_ATTEMPTS) {
+        console.warn(`[create-jar] send failed (blockhash), retrying (${attempt}/${MAX_ATTEMPTS})…`);
+        continue;
+      }
+      throw sendErr;
+    }
 
     const deadline = Date.now() + 90_000;
     let lastResend = Date.now();
     let blockhashExpired = false;
 
     while (Date.now() < deadline) {
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, 1500));
 
       try {
         const { value: status } = await connection.getSignatureStatus(signature);
@@ -88,8 +102,8 @@ async function sendAndConfirmRobust(
         if ((e as Error).message?.startsWith("Transaction failed:")) throw e;
       }
 
-      // Resend same signed bytes every 5s — no new Phantom popup
-      if (Date.now() - lastResend > 5000) {
+      // Resend same signed bytes every 2s — no new Phantom popup
+      if (Date.now() - lastResend > 2000) {
         connection.sendRawTransaction(rawTx, { skipPreflight: true, maxRetries: 0 }).catch(() => {});
         lastResend = Date.now();
       }
@@ -105,8 +119,6 @@ async function sendAndConfirmRobust(
       }
     }
 
-    // Blockhash expired or timed out — retry with a fresh one (no new Phantom popup needed
-    // because Phantom already signed; but we must re-sign with new blockhash)
     if (blockhashExpired && attempt < MAX_ATTEMPTS) {
       console.warn(`[create-jar] blockhash expired, retrying (${attempt}/${MAX_ATTEMPTS})…`);
       continue;
@@ -115,7 +127,7 @@ async function sendAndConfirmRobust(
     if (!blockhashExpired) throw new Error("Transaction timed out after 90s");
   }
 
-  throw new Error("Transaction failed after 3 attempts — devnet may be congested, please retry");
+  throw new Error("Transaction failed after 5 attempts — devnet congested, please retry");
 }
 
 export const USDC_MINT_DEVNET  = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
