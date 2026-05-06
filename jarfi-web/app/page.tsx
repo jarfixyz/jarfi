@@ -454,8 +454,19 @@ export default function Landing() {
 
       {/* ── FOOTER ── */}
       <footer style={{ borderTop:`1px solid ${T.border}`, padding:"28px 0" }}>
-        <div style={{ ...wrap, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div style={{ ...wrap, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
           <div style={{ fontSize:15, fontWeight:700 }}>jar<span style={{ color:T.green }}>fi</span></div>
+          <a
+            href="https://x.com/jarfixyz"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderRadius:999, border:`1px solid ${T.border}`, textDecoration:"none", background:"#fff", transition:"border-color .15s" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "#000"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = T.border; }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.748l7.73-8.835L1.254 2.25H8.08l4.259 5.63L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            <span style={{ fontSize:13, fontWeight:500, color:"#111" }}>Follow for updates</span>
+          </a>
           <div style={{ fontSize:12, color:T.text3 }}>© 2026 Jarfi · Onchain savings for everyone</div>
         </div>
       </footer>

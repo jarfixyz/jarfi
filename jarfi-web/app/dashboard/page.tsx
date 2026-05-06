@@ -494,6 +494,24 @@ export default function Dashboard() {
 
         {/* Spacer */}
         <div style={{ marginTop: "auto" }} />
+
+        {/* Twitter follow */}
+        <a
+          href="https://x.com/jarfixyz"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, textDecoration: "none", marginBottom: 4, transition: "background .12s" }}
+          onMouseEnter={e => { e.currentTarget.style.background = "#F5F5F3"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+        >
+          <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.748l7.73-8.835L1.254 2.25H8.08l4.259 5.63L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#111", letterSpacing: "-0.01em" }}>Follow on X</div>
+            <div style={{ fontSize: 11, color: "#888" }}>Updates &amp; news</div>
+          </div>
+        </a>
       </aside>
 
       {/* ── Main ───────────────────────────────────────────────────────────── */}
