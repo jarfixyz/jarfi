@@ -305,9 +305,8 @@ app.get('/jar/:pubkey', async (req, res) => {
     const jarPubkey = new PublicKey(req.params.pubkey)
     const jar = await program.account.jar.fetch(jarPubkey)
 
-    const contributions = await program.account.contribution.all([
-      { memcmp: { offset: 8, bytes: jarPubkey.toBase58() } },
-    ])
+    // Contributions are stored in SQLite at webhook time (getProgramAccounts blocked by Helius)
+    const contributions = dbMod.getContributions(jarPubkey.toBase58())
 
     // For USDC jars: vault token balance + Kamino yield
     let vaultTokenBalance = null
@@ -354,12 +353,12 @@ app.get('/jar/:pubkey', async (req, res) => {
         vaultTokenBalance,                           // live on-chain token balance
         kaminoYield,                                 // { earned_usd, earned_usdc, apy, ... }
       },
-      contributions: contributions.map(({ publicKey, account }) => ({
-        pubkey:      publicKey.toBase58(),
-        contributor: account.contributor.toBase58(),
-        amount:      account.amount.toNumber(),
-        comment:     account.comment,
-        createdAt:   account.createdAt.toNumber(),
+      contributions: contributions.map((row) => ({
+        pubkey:      row.id,
+        contributor: row.contributor,
+        amount:      row.amount,
+        comment:     row.comment,
+        createdAt:   row.created_at,
       })),
     })
   } catch (err) {
@@ -573,6 +572,20 @@ app.post('/transak-webhook', async (req, res) => {
       const usdcMicroUnits = Math.round(cryptoAmount * 1_000_000)
       txSignature = await onrampDepositUsdc(jarPubkey, usdcMicroUnits, contributorMessage)
       console.log('[transak-webhook] gift_deposit_usdc tx:', txSignature)
+
+      // Persist contribution in SQLite so GET /jar/:pubkey can return it (chain query blocked)
+      try {
+        dbMod.saveContribution({
+          id:          dedupId || `${transakOrderId || partnerOrderId}_${Date.now()}`,
+          jar_pubkey:  jarPubkey.toBase58(),
+          contributor: 'transak',
+          amount:      usdcMicroUnits,
+          comment:     contributorMessage,
+          created_at:  Date.now(),
+        })
+      } catch (e) {
+        console.warn('[transak-webhook] saveContribution failed (non-fatal):', e.message)
+      }
 
       // Auto-stake into Kamino after on-chain deposit
       depositToKamino(connection, serverKeypair, jarPubkey.toBase58(), usdcMicroUnits)
@@ -1036,15 +1049,15 @@ app.listen(PORT, () => {
 
   // Auto-seed demo jars on every startup (SQLite has no persistent volume on Railway)
   const DEMO_JARS = [
-    { pubkey: 'FeAzYeZuvo6eaPcsVp1Yguegcp2AhwwPWTfPV5Z4B9hC', name: "Anya's Future",   emoji: '🎁', jarType: 'goal' },
-    { pubkey: 'ExvN6nxRbWpqQJrpG6shY9tbcWTtHKEaJDmFVebxFqu4', name: 'Japan Trip',      emoji: '✈️', jarType: 'date' },
-    { pubkey: '28teBgT2U1y25ARUkgGfHjeyBHhnJXorVtLs6Qk93ppc', name: 'Motorcycle Fund', emoji: '🏍️', jarType: 'goal' },
+    { pubkey: 'FeAzYeZuvo6eaPcsVp1Yguegcp2AhwwPWTfPV5Z4B9hC', name: "Anya's Birthday",  emoji: '🎂', jarType: 'goal',   slug: 'anya'  },
+    { pubkey: 'ExvN6nxRbWpqQJrpG6shY9tbcWTtHKEaJDmFVebxFqu4', name: 'Japan Trip',       emoji: '✈️', jarType: 'date',   slug: 'japan' },
+    { pubkey: '28teBgT2U1y25ARUkgGfHjeyBHhnJXorVtLs6Qk93ppc', name: 'Motorcycle Fund',  emoji: '🏍️', jarType: 'goal',   slug: 'moto'  },
   ]
   for (const jar of DEMO_JARS) {
-    if (!dbMod.getJarMeta(jar.pubkey)) {
-      dbMod.saveJarMeta(jar.pubkey, jar.name, jar.emoji, jar.jarType)
-      console.log(`[seed] demo jar: ${jar.name}`)
-    }
+    const existing = dbMod.getJarMeta(jar.pubkey)
+    // Always upsert so slug is set even on existing rows that were seeded without slug
+    dbMod.saveJarMeta(jar.pubkey, jar.name, jar.emoji, jar.jarType, existing?.share_slug || jar.slug)
+    if (!existing) console.log(`[seed] demo jar: ${jar.name}`)
   }
 
   startCronRunner(async (schedule, subscription) => {

@@ -71,6 +71,17 @@ db.exec(`
     created_at    INTEGER NOT NULL,
     PRIMARY KEY (jar_pubkey, invite_token)
   );
+
+  CREATE TABLE IF NOT EXISTS contributions (
+    id          TEXT PRIMARY KEY,
+    jar_pubkey  TEXT NOT NULL,
+    contributor TEXT NOT NULL DEFAULT 'onramp',
+    amount      INTEGER NOT NULL,
+    comment     TEXT NOT NULL DEFAULT '',
+    created_at  INTEGER NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_contributions_jar ON contributions(jar_pubkey);
 `)
 
 // ---------------------------------------------------------------------------
@@ -230,6 +241,17 @@ module.exports = {
   getJarMeta(pubkey) { return selectJarMeta.get(pubkey) ?? null },
   getJarMetaBySlug(slug) { return selectJarMetaBySlug.get(slug) ?? null },
   deleteJarMeta(pubkey) { return deleteJarMetaStmt.run(pubkey).changes > 0 },
+
+  // Contributions (stored at webhook time — avoids getProgramAccounts)
+  saveContribution(row) {
+    db.prepare(`
+      INSERT OR IGNORE INTO contributions (id, jar_pubkey, contributor, amount, comment, created_at)
+      VALUES (@id, @jar_pubkey, @contributor, @amount, @comment, @created_at)
+    `).run(row)
+  },
+  getContributions(jar_pubkey) {
+    return db.prepare(`SELECT * FROM contributions WHERE jar_pubkey = ? ORDER BY created_at DESC`).all(jar_pubkey)
+  },
 
   // Trips
   createTripRow(trip) { insertTrip.run(trip) },
