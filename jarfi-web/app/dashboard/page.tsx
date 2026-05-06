@@ -210,16 +210,49 @@ const DEMO_JARS: JarType[] = [
 ];
 
 const NOW = Math.floor(Date.now() / 1000);
+// Human-readable names for demo contributors
+const DEMO_NAMES: Record<string, string> = {
+  "7vK2MtR3mPq9xNsL": "Grandma 👵",
+  "3nR8xWt9kLsPmVqJ": "Uncle Mike 🎩",
+  "5mP4kLs2nQrTbYzX": "Mom 💐",
+  "9xWt3nR8kLsPvCmN": "Dad 🎯",
+  "2kLs5mP4nQrTwEuI": "Best Friend ✈️",
+  "8pQr7nKs1mLtXvBo": "Colleague 👷",
+  "4mNv6pQs9kLrYwAj": "Aunt Maria 🌸",
+  "1kRt8mPs3nQvZxCu": "Neighbor 🏡",
+};
+
+// Spread across 5 months so the monthly chart has meaningful data
 const DEMO_CONTRIBUTIONS: JarContribution[] = [
-  { pubkey:"dc1", contributor:"7vK2MtR3mPq9xNsL", amount:50_000_000,  comment:"Happy birthday! 🎂",    createdAt: NOW - 3_600 },
-  { pubkey:"dc2", contributor:"3nR8xWt9kLsPmVqJ", amount:100_000_000, comment:"From uncle Mike 🎉",    createdAt: NOW - 86_400 },
-  { pubkey:"dc3", contributor:"5mP4kLs2nQrTbYzX", amount:25_000_000,  comment:"From grandma 🌸",       createdAt: NOW - 172_800 },
-  { pubkey:"dc4", contributor:"9xWt3nR8kLsPvCmN", amount:200_000_000, comment:"",                       createdAt: NOW - 259_200 },
-  { pubkey:"dc5", contributor:"2kLs5mP4nQrTwEuI", amount:30_000_000,  comment:"Go Japan! ✈️",          createdAt: NOW - 432_000 },
-  { pubkey:"dc6", contributor:"8pQr7nKs1mLtXvBo", amount:75_000_000,  comment:"Fuel for the road 🏍️", createdAt: NOW - 518_400 },
-  { pubkey:"dc7", contributor:"4mNv6pQs9kLrYwAj", amount:150_000_000, comment:"Let's go to Tokyo!",    createdAt: NOW - 604_800 },
-  { pubkey:"dc8", contributor:"1kRt8mPs3nQvZxCu", amount:20_000_000,  comment:"Small contribution 🙏", createdAt: NOW - 691_200 },
+  { pubkey:"dc1", contributor:"7vK2MtR3mPq9xNsL", amount:50_000_000,  comment:"Happy birthday! 🎂",    createdAt: NOW - 150 * 86400 },
+  { pubkey:"dc2", contributor:"3nR8xWt9kLsPmVqJ", amount:100_000_000, comment:"From Uncle Mike 🎉",    createdAt: NOW - 148 * 86400 },
+  { pubkey:"dc3", contributor:"5mP4kLs2nQrTbYzX", amount:75_000_000,  comment:"From Mom 💐",           createdAt: NOW - 110 * 86400 },
+  { pubkey:"dc4", contributor:"9xWt3nR8kLsPvCmN", amount:200_000_000, comment:"",                       createdAt: NOW - 108 * 86400 },
+  { pubkey:"dc5", contributor:"2kLs5mP4nQrTwEuI", amount:30_000_000,  comment:"Go Japan! ✈️",          createdAt: NOW - 75 * 86400 },
+  { pubkey:"dc6", contributor:"8pQr7nKs1mLtXvBo", amount:75_000_000,  comment:"Fuel for the road 🏍️", createdAt: NOW - 45 * 86400 },
+  { pubkey:"dc7", contributor:"4mNv6pQs9kLrYwAj", amount:150_000_000, comment:"Let's go to Tokyo!",    createdAt: NOW - 43 * 86400 },
+  { pubkey:"dc8", contributor:"1kRt8mPs3nQvZxCu", amount:20_000_000,  comment:"Small contribution 🙏", createdAt: NOW - 12 * 86400 },
+  { pubkey:"dc9", contributor:"7vK2MtR3mPq9xNsL", amount:25_000_000,  comment:"Keep going! 💪",        createdAt: NOW - 3 * 86400 },
 ];
+
+// Per-jar demo contributions for detail panel
+const DEMO_CONTRIBUTIONS_BY_JAR: Record<string, JarContribution[]> = {
+  "FeAzYeZuvo6eaPcsVp1Yguegcp2AhwwPWTfPV5Z4B9hC": [
+    { pubkey:"a1", contributor:"7vK2MtR3mPq9xNsL", amount:50_000_000,  comment:"Happy birthday! 🎂",   createdAt: NOW - 3 * 86400 },
+    { pubkey:"a2", contributor:"3nR8xWt9kLsPmVqJ", amount:100_000_000, comment:"From Uncle Mike! 🎉",  createdAt: NOW - 10 * 86400 },
+    { pubkey:"a3", contributor:"5mP4kLs2nQrTbYzX", amount:25_000_000,  comment:"From Mom 💐",          createdAt: NOW - 30 * 86400 },
+  ],
+  "ExvN6nxRbWpqQJrpG6shY9tbcWTtHKEaJDmFVebxFqu4": [
+    { pubkey:"j1", contributor:"2kLs5mP4nQrTwEuI", amount:30_000_000,  comment:"Go Japan! ✈️",         createdAt: NOW - 5 * 86400 },
+    { pubkey:"j2", contributor:"4mNv6pQs9kLrYwAj", amount:150_000_000, comment:"Let's go to Tokyo! 🗾", createdAt: NOW - 20 * 86400 },
+    { pubkey:"j3", contributor:"9xWt3nR8kLsPvCmN", amount:80_000_000,  comment:"",                      createdAt: NOW - 45 * 86400 },
+    { pubkey:"j4", contributor:"8pQr7nKs1mLtXvBo", amount:75_000_000,  comment:"Mount Fuji here we go 🗻", createdAt: NOW - 90 * 86400 },
+  ],
+  "28teBgT2U1y25ARUkgGfHjeyBHhnJXorVtLs6Qk93ppc": [
+    { pubkey:"m1", contributor:"1kRt8mPs3nQvZxCu", amount:20_000_000,  comment:"Ride safe! 🤘",         createdAt: NOW - 7 * 86400 },
+    { pubkey:"m2", contributor:"7vK2MtR3mPq9xNsL", amount:25_000_000,  comment:"Fuel for the road 🏍️", createdAt: NOW - 40 * 86400 },
+  ],
+};
 
 // ---------------------------------------------------------------------------
 // Dashboard root
@@ -228,19 +261,14 @@ const DEMO_CONTRIBUTIONS: JarContribution[] = [
 export default function Dashboard() {
   const [activePage, setActivePage] = useState<
     "dashboard" | "analytics" | "contributors" | "demo"
-  >("dashboard");
+  >("demo");
+  const prevKeyRef = useRef<string | null>(null);
   const [modal, setModal] = useState<"new-jar" | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [scenario, setScenario] = useState(50);
-  const [showWelcome, setShowWelcome] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return !localStorage.getItem("jarfi_welcomed");
-  });
-  const dismissWelcome = () => {
-    localStorage.setItem("jarfi_welcomed", "1");
-    setShowWelcome(false);
-  };
+  const [showWelcome, setShowWelcome] = useState(true);
+  const dismissWelcome = () => setShowWelcome(false);
 
   const { publicKey, wallet } = useWallet();
   const { connection } = useConnection();
@@ -258,6 +286,14 @@ export default function Dashboard() {
   const [addFundsJar, setAddFundsJar] = useState<{ pubkey: string; name: string; currency: "usdc" | "sol" } | null>(null);
   const [initialDepositPrompt, setInitialDepositPrompt] = useState<{ pubkey: string; name: string; currency: "usdc" | "sol" } | null>(null);
   const [cosignerInvite, setCosignerInvite] = useState<{ jar_pubkey: string; token: string; name: string } | null>(null);
+
+  // Switch tab when wallet connects / disconnects
+  useEffect(() => {
+    const key = publicKey?.toBase58() ?? null;
+    if (key && !prevKeyRef.current) setActivePage("dashboard"); // just connected
+    if (!key && prevKeyRef.current)  setActivePage("demo");     // just disconnected
+    prevKeyRef.current = key;
+  }, [publicKey]);
 
   useEffect(() => {
     fetchApy().then((d) =>
@@ -398,23 +434,42 @@ export default function Dashboard() {
           ← jarfi.xyz
         </Link>
 
-        {/* New jar button */}
-        <button
-          onClick={() => { setSidebarOpen(false); setModal("new-jar"); }}
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", padding: "9px 0", background: "#111", color: "#fff", border: "none", borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)", marginBottom: 20 }}
-        >
-          + New jar
-        </button>
+        {/* New jar button — only when wallet connected */}
+        {publicKey && (
+          <button
+            onClick={() => { setSidebarOpen(false); setModal("new-jar"); }}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", padding: "9px 0", background: "#111", color: "#fff", border: "none", borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)", marginBottom: 20 }}
+          >
+            + New jar
+          </button>
+        )}
+        {!publicKey && <div style={{ marginBottom: 12 }} />}
 
-        {/* Nav items */}
+        {/* Nav items — My Jars / Activity / People only with wallet */}
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           {[
-            { key: "dashboard",    icon: "jar",      label: "My jars" },
-            { key: "analytics",    icon: "activity", label: "Activity" },
-            { key: "contributors", icon: "people",   label: "People" },
-            { key: "demo",         icon: "star",     label: "Demo" },
-          ].map(({ key, icon, label }) => {
+            { key: "dashboard",    icon: "jar",      label: "My jars",  walletOnly: true },
+            { key: "analytics",    icon: "activity", label: "Activity", walletOnly: true },
+            { key: "contributors", icon: "people",   label: "People",   walletOnly: true },
+            { key: "docs",         icon: "docs",     label: "Docs",     walletOnly: false },
+            { key: "demo",         icon: "star",     label: "Demo",     walletOnly: false },
+          ].filter(item => !item.walletOnly || !!publicKey).map(({ key, icon, label }) => {
             const active = activePage === key;
+            // "Docs" opens external link
+            if (key === "docs") {
+              return (
+                <a key="docs" href="https://app.gitbook.com/o/wk5vJJXk4fxcDH3nmeC3/s/LMzY6IFQxwIgx9cv15x1/" target="_blank" rel="noopener noreferrer"
+                  style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 10px", borderRadius: 8, textDecoration: "none", transition: "background .12s" }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "#F5F5F3"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+                >
+                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#F0F0EE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "#666" }}>
+                    <SidebarIcon name="docs" />
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: "#444", letterSpacing: "-0.01em" }}>Docs ↗</span>
+                </a>
+              );
+            }
             return (
               <button key={key} onClick={() => navigate(key as typeof activePage)}
                 style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 10px", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "var(--font)", background: active ? "#ECFDF5" : "transparent", transition: "background .12s" }}
@@ -430,17 +485,8 @@ export default function Dashboard() {
           })}
         </div>
 
-        {/* Wallet at bottom */}
-        <div style={{ marginTop: "auto", padding: "12px 10px 0", borderTop: "1px solid #F0F0EE" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#1F8A5B", flexShrink: 0 }}>
-              {avatarInitials}
-            </div>
-            <div style={{ fontSize: 12, fontWeight: 500, color: "#333", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {greeting ?? "Not connected"}
-            </div>
-          </div>
-        </div>
+        {/* Spacer */}
+        <div style={{ marginTop: "auto" }} />
       </aside>
 
       {/* ── Main ───────────────────────────────────────────────────────────── */}
@@ -869,6 +915,7 @@ function DashboardPage({
         onAddFunds={onAddFunds}
         onScheduleUpdate={onScheduleUpdate}
         onJarBroken={(pubkey) => { onJarBroken(pubkey); setSelectedJar(null); }}
+        initialContribs={!greeting ? (DEMO_CONTRIBUTIONS_BY_JAR[selectedJar.id] ?? []) : undefined}
       />
     );
   }
@@ -1560,7 +1607,6 @@ function V3Timeline({ liveJars }: { liveJars: JarType[] }) {
 function V3MonthlyChart({ contributions }: { contributions: JarContribution[] }) {
   if (contributions.length === 0) return null;
 
-  // Group contributions by month
   const byMonth: Record<string, number> = {};
   contributions.forEach(c => {
     const d = new Date(c.createdAt * 1000);
@@ -1568,43 +1614,63 @@ function V3MonthlyChart({ contributions }: { contributions: JarContribution[] })
     byMonth[key] = (byMonth[key] || 0) + c.amount / 1_000_000;
   });
 
-  // Last 6 months (or fewer if less data)
   const now = new Date();
   const months = Array.from({ length: 6 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const label = d.toLocaleDateString("en-US", { month: "short" });
-    return { key, label, value: byMonth[key] || 0 };
+    return { key, label: d.toLocaleDateString("en-US", { month: "short" }), value: byMonth[key] || 0 };
   }).filter(m => Object.keys(byMonth).some(k => k <= m.key));
 
   if (months.every(m => m.value === 0)) return null;
 
   const max = Math.max(...months.map(m => m.value), 1);
-  const fmt = (v: number) => v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${Math.round(v)}`;
   const total = months.reduce((s, m) => s + m.value, 0);
+  const fmt = (v: number) => v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${Math.round(v)}`;
+
+  // SVG dimensions
+  const W = 460, H = 72, PAD_X = 24, PAD_Y = 8;
+  const n = months.length;
+  const xs = months.map((_, i) => PAD_X + (i / Math.max(n - 1, 1)) * (W - PAD_X * 2));
+  const ys = months.map(m => PAD_Y + (1 - m.value / max) * (H - PAD_Y * 2));
+  const polyline = xs.map((x, i) => `${x},${ys[i]}`).join(" ");
 
   return (
     <div style={{ background:"#fff", borderRadius:18, border:"1px solid #EAEAEA", padding:"20px 22px" }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:20 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:16 }}>
         <div>
           <div style={{ fontSize:11, color:"#888", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>Contributions</div>
           <div style={{ fontSize:14, fontWeight:600 }}>{fmt(total)} received</div>
         </div>
-        <div style={{ fontSize:11, color:"#999" }}>Last {months.length} months</div>
+        <div style={{ fontSize:11, color:"#bbb" }}>Last {months.length} months</div>
       </div>
-      <div style={{ display:"flex", alignItems:"flex-end", gap:8, height:100 }}>
-        {months.map(m => {
-          const h = max > 0 ? Math.max(4, (m.value / max) * 84) : 0;
-          return (
-            <div key={m.key} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
-              {m.value > 0 && <div style={{ fontSize:9, color:"#666", fontWeight:500 }}>{fmt(m.value)}</div>}
-              <div style={{ width:"100%", display:"flex", flexDirection:"column", justifyContent:"flex-end", height:84 }}>
-                <div style={{ background: m.value > 0 ? "#1F8A5B" : "#F0F0EE", height: m.value > 0 ? h : 4, borderRadius:4, transition:"height .3s" }} />
-              </div>
-              <div style={{ fontSize:10, color:"#999" }}>{m.label}</div>
-            </div>
-          );
-        })}
+
+      {/* SVG line + dots chart */}
+      <div style={{ position:"relative" }}>
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:H, overflow:"visible" }}>
+          {/* Zero baseline */}
+          <line x1={PAD_X} y1={H - PAD_Y} x2={W - PAD_X} y2={H - PAD_Y} stroke="#F0F0EE" strokeWidth={1} />
+          {/* Line */}
+          <polyline points={polyline} fill="none" stroke="#1F8A5B" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+          {/* Dots + labels */}
+          {months.map((m, i) => (
+            <g key={m.key}>
+              {/* Value label */}
+              {m.value > 0 && (
+                <text x={xs[i]} y={ys[i] - 8} textAnchor="middle" fontSize={9} fill="#888" fontFamily="var(--font)" fontWeight={500}>
+                  {fmt(m.value)}
+                </text>
+              )}
+              {/* Dot */}
+              <circle cx={xs[i]} cy={ys[i]} r={m.value > 0 ? 3.5 : 2} fill={m.value > 0 ? "#1F8A5B" : "#E0E0DC"} />
+            </g>
+          ))}
+        </svg>
+        {/* Month labels */}
+        <div style={{ display:"flex", justifyContent:"space-between", marginTop:4, paddingLeft: PAD_X, paddingRight: PAD_X }}>
+          {months.map(m => (
+            <div key={m.key} style={{ fontSize:10, color:"#bbb", textAlign:"center", flex:1 }}>{m.label}</div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -1654,20 +1720,26 @@ function V3Achievements({ liveJars, contributions }: { liveJars: JarType[]; cont
           <button
             key={a.id}
             onClick={() => setSelected(selected === a.id ? null : a.id)}
-            title={a.label}
-            style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4, padding:"8px 4px", borderRadius:10, border:"none", background: a.earned ? "#ECFDF5" : "#F4F4F1", cursor:"pointer", opacity: a.earned ? 1 : 0.45, transition:"opacity .2s, background .2s", fontFamily:"var(--font)" }}
+            title={a.earned ? a.label : "???"}
+            style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4, padding:"8px 4px", borderRadius:10, border:"none", background: a.earned ? "#ECFDF5" : "#F4F4F1", cursor:"pointer", transition:"opacity .2s, background .2s", fontFamily:"var(--font)" }}
           >
-            <div style={{ fontSize:20 }}>{a.icon}</div>
-            <div style={{ fontSize:9, fontWeight:600, color: a.earned ? "#1F8A5B" : "#888", textAlign:"center", lineHeight:1.2 }}>{a.label}</div>
+            <div style={{ fontSize:20 }}>{a.earned ? a.icon : "🔒"}</div>
+            <div style={{ fontSize:9, fontWeight:600, color: a.earned ? "#1F8A5B" : "#bbb", textAlign:"center", lineHeight:1.2 }}>
+              {a.earned ? a.label : "???"}
+            </div>
           </button>
         ))}
       </div>
       {selectedAch && (
         <div style={{ marginTop:12, padding:"10px 14px", background: selectedAch.earned ? "#ECFDF5" : "#F4F4F1", borderRadius:10, display:"flex", alignItems:"center", gap:10 }}>
-          <span style={{ fontSize:20 }}>{selectedAch.icon}</span>
+          <span style={{ fontSize:20 }}>{selectedAch.earned ? selectedAch.icon : "🔒"}</span>
           <div>
-            <div style={{ fontSize:12, fontWeight:600, color: selectedAch.earned ? "#1F8A5B" : "#555" }}>{selectedAch.label}</div>
-            <div style={{ fontSize:11, color:"#777", marginTop:2 }}>{selectedAch.desc}</div>
+            <div style={{ fontSize:12, fontWeight:600, color: selectedAch.earned ? "#1F8A5B" : "#555" }}>
+              {selectedAch.earned ? selectedAch.label : "Secret achievement"}
+            </div>
+            <div style={{ fontSize:11, color:"#777", marginTop:2 }}>
+              {selectedAch.earned ? selectedAch.desc : "Keep saving to unlock this achievement"}
+            </div>
           </div>
           {selectedAch.earned && <div style={{ marginLeft:"auto", fontSize:11, fontWeight:700, color:"#1F8A5B" }}>✓</div>}
         </div>
@@ -1723,11 +1795,11 @@ function V3Contributors({ contributions }: { contributions: JarContribution[] })
               <div style={{ width: 28, height: 28, borderRadius: "50%", background: color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600, flexShrink: 0 }}>{initials}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                  <div style={{ fontSize: 12, fontWeight: 500 }}>{name}</div>
-                  <div style={{ fontSize: 12, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>${c.total.toFixed(2)}</div>
+                  <div style={{ fontSize: 12, fontWeight: 500 }}>{DEMO_NAMES[c.addr] ?? name}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, fontVariantNumeric: "tabular-nums", color: "#1F8A5B" }}>${c.total.toFixed(0)}</div>
                 </div>
-                <div style={{ height: 3, background: "#F0F0EE", borderRadius: 2, marginTop: 5, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${(c.total / maxTotal) * 100}%`, background: color, borderRadius: 2 }} />
+                <div style={{ height: 2, background: "#F0F0EE", borderRadius: 1, marginTop: 5, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${(c.total / maxTotal) * 100}%`, background: color, borderRadius: 1, opacity: 0.7 }} />
                 </div>
               </div>
             </div>
@@ -1767,7 +1839,7 @@ function V3Activity({ contributions, liveJars }: { contributions: JarContributio
         <div style={{ fontSize: 13, color: "#999", padding: "20px 0", textAlign: "center" }}>No recent activity</div>
       ) : (
         sorted.map((c, i) => {
-          const shortAddr = `${c.contributor.slice(0, 4)}…${c.contributor.slice(-4)}`;
+          const displayName = DEMO_NAMES[c.contributor] ?? `${c.contributor.slice(0, 4)}…${c.contributor.slice(-4)}`;
           const ago = timeAgo(c.createdAt);
           return (
             <div key={c.pubkey} style={{
@@ -1777,7 +1849,7 @@ function V3Activity({ contributions, liveJars }: { contributions: JarContributio
             }}>
               <div style={{ width: 26, height: 26, borderRadius: 8, background: "#EAF4EE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0 }}>💝</div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 500 }}>{shortAddr} contributed</div>
+                <div style={{ fontSize: 12, fontWeight: 500 }}>{displayName} contributed</div>
                 {c.comment && <div style={{ fontSize: 11, color: "#999", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>&quot;{c.comment.slice(0, 40)}&quot;</div>}
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, flexShrink: 0 }}>
@@ -2870,6 +2942,7 @@ function SidebarIcon({ name }: { name: string }) {
   if (name === "plus")     return <svg style={s} viewBox="0 0 14 14" fill="none"><path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>;
   if (name === "star")     return <svg style={s} viewBox="0 0 14 14" fill="none"><path d="M7 1.5l1.4 3h3.1l-2.5 1.8 1 3L7 7.7 4 9.3l1-3L2.5 4.5h3.1L7 1.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>;
   if (name === "gear")     return <svg style={s} viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/><path d="M7 1v2M7 11v2M13 7h-2M3 7H1" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/></svg>;
+  if (name === "docs")     return <svg style={s} viewBox="0 0 14 14" fill="none"><path d="M3 2h6l2 2v8H3V2z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/><path d="M9 2v2h2" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/><path d="M5 6h4M5 8.5h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/></svg>;
   return null;
 }
 
@@ -2940,6 +3013,7 @@ function JarDetailPanel({
   onAddFunds,
   onScheduleUpdate,
   onJarBroken,
+  initialContribs,
 }: {
   jar: JarType;
   apy: { usdc_kamino: number; sol_marinade: number };
@@ -2949,10 +3023,11 @@ function JarDetailPanel({
   onAddFunds: (pubkey: string, name: string, currency: "usdc" | "sol") => void;
   onScheduleUpdate: (schedules: Schedule[]) => void;
   onJarBroken: (pubkey: string) => void;
+  initialContribs?: JarContribution[];
 }) {
   const { connection } = useConnection();
   const { wallet, publicKey } = useWallet();
-  const [contribs, setContribs] = useState<JarContribution[]>([]);
+  const [contribs, setContribs] = useState<JarContribution[]>(initialContribs ?? []);
   const [copied, setCopied] = useState(false);
   const [cosigners, setCosigners] = useState<Cosigner[]>([]);
   const [editSchedule, setEditSchedule] = useState<Schedule | null>(null);
@@ -3324,6 +3399,7 @@ function JarDetailPanel({
           {/* Break jar */}
           {(() => {
             const now = Math.floor(Date.now() / 1000);
+            const isEmpty = jar.amount === 0;
             const canBreak = !jar.locked ||
               jar.jarType === "SHARED" ||
               (jar.jarType === "DATE" && jar.unlockDate > 0 && now >= jar.unlockDate) ||
@@ -3336,6 +3412,25 @@ function JarDetailPanel({
               : jar.jarType === "GOAL_BY_DATE"
               ? `Unlocks at goal or on ${jar.unlockDate > 0 ? new Date(jar.unlockDate * 1000).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "date"}`
               : "";
+
+            // Empty + locked → offer dashboard removal only
+            if (isEmpty && jar.locked && !canBreak) {
+              return (
+                <div style={{ marginTop: 16 }}>
+                  <button
+                    onClick={() => {
+                      fetch(`${BACKEND}/jar/meta/${jar.id}`, { method: "DELETE" }).catch(() => {});
+                      onJarBroken(jar.id);
+                    }}
+                    style={{ width: "100%", padding: "10px 0", background: "none", border: "1px solid #E0E0DC", borderRadius: 9, color: "#888", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "var(--font)" }}
+                  >
+                    Remove from dashboard
+                  </button>
+                  <div style={{ fontSize: 11, color: "#bbb", textAlign: "center", marginTop: 6 }}>{lockHint} · No funds to withdraw</div>
+                </div>
+              );
+            }
+
             return (
               <div style={{ marginTop: 16 }}>
                 <button
@@ -3465,7 +3560,7 @@ function JarDetailPanel({
                         {breakResult.txSignature.slice(0, 20)}…{breakResult.txSignature.slice(-8)}
                       </span>
                       <a
-                        href={`https://explorer.solana.com/tx/${breakResult.txSignature}?cluster=devnet`}
+                        href={`https://solscan.io/tx/${breakResult.txSignature}?cluster=devnet`}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{ fontSize: 12, fontWeight: 600, color: "#6D28D9", whiteSpace: "nowrap", textDecoration: "none" }}
