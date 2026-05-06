@@ -32,7 +32,7 @@ const SLUG_META: Record<string, { name: string; emoji: string }> = {
 };
 
 const IS_SOLANA_PUBKEY = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:3001";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://jarfi.up.railway.app";
 
 export default function GiftClient({ slug }: { slug: string }) {
   const knownPubkey = SLUG_TO_PUBKEY[slug];

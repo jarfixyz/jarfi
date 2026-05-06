@@ -1,7 +1,7 @@
 // Backend API client — talks to jarfi-backend
 
 const API_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:3001";
+  process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://jarfi.up.railway.app";
 
 export type JarApiResponse = {
   ok: boolean;

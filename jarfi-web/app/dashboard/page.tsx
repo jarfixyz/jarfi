@@ -524,7 +524,7 @@ export default function Dashboard() {
               fetchJarByPubkey(connection, new PublicKey(jarPubkey))
                 .then(jar => { if (jar) addJar(jar); })
                 .catch(() => {});
-              fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:3001"}/jar/meta`, {
+              fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://jarfi.up.railway.app"}/jar/meta`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ pubkey: jarPubkey, name: params.jarName, emoji: params.jarEmoji, jarType: contractToJarType(params.mode, params.unlockDate) }),

@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'https://jarfi.up.railway.app'
 
 export async function subscribeToPush(ownerPubkey: string): Promise<void> {
   if (
