@@ -26,7 +26,7 @@ const { depositToKamino, getYieldEarned, getLiveApyPublic } = require('./kaminoS
 const { stakeWithMarinade } = require('./marinadeService')
 const { swapUsdcToSol } = require('./jupiterService')
 const dbMod = require('./db')
-const { isWebhookProcessed, markWebhookProcessed, saveJarMeta, getJarMeta } = dbMod
+const { isWebhookProcessed, markWebhookProcessed, saveJarMeta, getJarMeta, deleteJarMeta } = dbMod
 const { createGroup, getGroup, joinGroup, listGroupsByOwner } = require('./groupService')
 const {
   addSchedule,
@@ -272,6 +272,17 @@ app.post('/jar/meta', (req, res) => {
     }
     saveJarMeta(pubkey, name ?? '', emoji ?? '🏺', jarType ?? '', slug)
     res.json({ ok: true, share_slug: slug })
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message })
+  }
+})
+
+app.delete('/jar/meta/:pubkey', (req, res) => {
+  try {
+    const { pubkey } = req.params
+    if (!pubkey) return res.status(400).json({ ok: false, error: 'pubkey required' })
+    const deleted = deleteJarMeta(pubkey)
+    res.json({ ok: true, deleted })
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message })
   }

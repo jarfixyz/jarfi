@@ -191,6 +191,7 @@ const upsertJarMeta = db.prepare(`
 
 const selectJarMeta = db.prepare(`SELECT name, emoji, jar_type, share_slug FROM jar_meta WHERE pubkey = ?`)
 const selectJarMetaBySlug = db.prepare(`SELECT pubkey, name, emoji, jar_type FROM jar_meta WHERE share_slug = ?`)
+const deleteJarMetaStmt = db.prepare(`DELETE FROM jar_meta WHERE pubkey = ?`)
 
 module.exports = {
   // Webhooks idempotency
@@ -226,6 +227,7 @@ module.exports = {
   },
   getJarMeta(pubkey) { return selectJarMeta.get(pubkey) ?? null },
   getJarMetaBySlug(slug) { return selectJarMetaBySlug.get(slug) ?? null },
+  deleteJarMeta(pubkey) { return deleteJarMetaStmt.run(pubkey).changes > 0 },
 
   // Trips
   createTripRow(trip) { insertTrip.run(trip) },
