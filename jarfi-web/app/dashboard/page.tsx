@@ -167,12 +167,38 @@ type JarType = {
 };
 
 // ---------------------------------------------------------------------------
+// Demo jars — hardcoded for showcase (real pubkeys on devnet)
+// ---------------------------------------------------------------------------
+
+const DEMO_JARS: JarType[] = [
+  {
+    id: "FeAzYeZuvo6eaPcsVp1Yguegcp2AhwwPWTfPV5Z4B9hC",
+    emoji: "🎂", name: "Anya's Birthday", description: "Birthday gift jar",
+    amount: 45, goal: 200, locked: false, unlockLabel: "Open", unlockDate: 0,
+    currency: "usdc", futureValue: 49, jarType: "GOAL", mode: 1, image: "gift",
+  },
+  {
+    id: "ExvN6nxRbWpqQJrpG6shY9tbcWTtHKEaJDmFVebxFqu4",
+    emoji: "✈️", name: "Japan Trip", description: "Group savings for Japan",
+    amount: 340, goal: 1500, locked: true,
+    unlockLabel: "Dec 2026", unlockDate: Math.floor(new Date("2026-12-01").getTime() / 1000),
+    currency: "usdc", futureValue: 398, jarType: "GOAL_BY_DATE", mode: 2, image: "travel",
+  },
+  {
+    id: "28teBgT2U1y25ARUkgGfHjeyBHhnJXorVtLs6Qk93ppc",
+    emoji: "🏍️", name: "New Moto", description: "Saving for a motorcycle",
+    amount: 850, goal: 3000, locked: false, unlockLabel: "Open", unlockDate: 0,
+    currency: "usdc", futureValue: 930, jarType: "GOAL", mode: 1, image: "bike",
+  },
+];
+
+// ---------------------------------------------------------------------------
 // Dashboard root
 // ---------------------------------------------------------------------------
 
 export default function Dashboard() {
   const [activePage, setActivePage] = useState<
-    "dashboard" | "analytics" | "contributors"
+    "dashboard" | "analytics" | "contributors" | "demo"
   >("dashboard");
   const [modal, setModal] = useState<"new-jar" | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -334,6 +360,7 @@ export default function Dashboard() {
           { key: "dashboard", icon: "home", label: "Home" },
           { key: "analytics", icon: "activity", label: "Analytics" },
           { key: "contributors", icon: "people", label: "Contributors" },
+          { key: "demo", icon: "star", label: "Demo" },
         ].map(({ key, icon, label }) => {
           const active = activePage === key || (key === "dashboard" && activePage === "dashboard");
           return (
@@ -489,6 +516,13 @@ export default function Dashboard() {
             onBack={() => navigate("dashboard")}
           />
         )}
+        {activePage === "demo" && (
+          <DemoPage
+            apy={apy}
+            onMenuToggle={() => setSidebarOpen((v) => !v)}
+            onAddFunds={(pubkey, name, currency) => setAddFundsJar({ pubkey, name, currency })}
+          />
+        )}
       </main>
 
       {/* ── New Jar Modal ──────────────────────────────────────────────────── */}
@@ -555,16 +589,7 @@ export default function Dashboard() {
             } catch (e: unknown) {
               const msg = e instanceof Error ? e.message : String(e);
               console.error("[create-jar] error:", msg);
-              const friendly = msg.includes("rejected") || msg.includes("User rejected")
-                ? "Transaction cancelled"
-                : msg.includes("blockhash") || msg.includes("congested") || msg.includes("congestion")
-                ? "Devnet congestion — please try again"
-                : msg.includes("insufficient") || msg.includes("lamports")
-                ? "Not enough SOL for fees"
-                : msg.includes("timed out")
-                ? "Network timeout — please try again"
-                : msg.slice(0, 120);
-              showToast("❌ " + friendly);
+              throw e; // let modal show inline error + retry button
             }
           }}
         />
@@ -820,7 +845,7 @@ function DashboardPage({
                   <button onClick={onNewJar} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#111", color: "#fff", fontSize: 14, fontWeight: 500, padding: "11px 22px", borderRadius: 10, border: "none", cursor: "pointer", fontFamily: "var(--font)" }}>Create a jar</button>
                 </div>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+                <div className="jar-cards-grid" style={{ display: "grid", gap: 12 }}>
                   {liveJars.map((j) => (
                     <V2JarCard
                       key={j.id}
@@ -859,6 +884,13 @@ function DashboardPage({
           </>
         )}
       </div>
+
+      <style>{`
+        .jar-cards-grid { grid-template-columns: repeat(4, 1fr); }
+        @media (max-width: 1200px) { .jar-cards-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 800px)  { .jar-cards-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 480px)  { .jar-cards-grid { grid-template-columns: 1fr; } }
+      `}</style>
     </div>
   );
 }
@@ -1222,6 +1254,99 @@ function ContributorsPage({
 }
 
 // ---------------------------------------------------------------------------
+// DEMO PAGE
+// ---------------------------------------------------------------------------
+
+function DemoPage({
+  apy,
+  onMenuToggle,
+  onAddFunds,
+}: {
+  apy: { usdc_kamino: number; sol_marinade: number };
+  onMenuToggle: () => void;
+  onAddFunds: (pubkey: string, name: string, currency: "usdc" | "sol") => void;
+}) {
+  const [selectedJar, setSelectedJar] = useState<JarType | null>(null);
+
+  if (selectedJar) {
+    return (
+      <JarDetailPanel
+        jar={selectedJar}
+        apy={apy}
+        schedules={[]}
+        onBack={() => setSelectedJar(null)}
+        onMenuToggle={onMenuToggle}
+        onAddFunds={onAddFunds}
+        onScheduleUpdate={() => {}}
+        onJarBroken={() => {}}
+      />
+    );
+  }
+
+  return (
+    <div style={{ background: "#F4F4F1", flex: 1, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      {/* Mobile bar */}
+      <div className="flex items-center justify-between border-b border-black/5 bg-[#F4F4F1] px-4 py-3 md:hidden">
+        <button onClick={onMenuToggle} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 5h14M3 10h14M3 15h14" stroke="#111" strokeWidth="1.6" strokeLinecap="round"/></svg>
+        </button>
+        <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.3px" }}>jarfi</div>
+        <div style={{ width: 32 }} />
+      </div>
+
+      <div style={{ padding: "20px 24px 40px", display: "flex", flexDirection: "column", gap: 16, flex: 1 }}>
+        {/* Header */}
+        <div>
+          <div style={{ fontSize: 12, color: "#666", marginBottom: 3 }}>Explore</div>
+          <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.025em" }}>Demo jars</div>
+          <div style={{ fontSize: 13, color: "#999", marginTop: 4 }}>Real on-chain jars on Solana devnet — click to explore</div>
+        </div>
+
+        {/* Jar grid */}
+        <div className="jar-cards-grid" style={{ display: "grid", gap: 12 }}>
+          {DEMO_JARS.map((j) => (
+            <V2JarCard
+              key={j.id}
+              jar={j}
+              onSelect={() => setSelectedJar(j)}
+              onAddFunds={(e) => { e.stopPropagation(); onAddFunds(j.id, j.name, j.currency as "usdc" | "sol"); }}
+            />
+          ))}
+        </div>
+
+        {/* Gift links */}
+        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #EAEAEA", padding: "18px 20px" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, letterSpacing: "-0.01em" }}>Direct gift links</div>
+          {[
+            { slug: "anya", name: "Anya's Birthday" },
+            { slug: "japan", name: "Japan Trip" },
+            { slug: "moto", name: "New Moto" },
+          ].map(({ slug, name }) => (
+            <div key={slug} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #F4F4F1" }}>
+              <span style={{ fontSize: 13, color: "#444" }}>{name}</span>
+              <a
+                href={`https://jarfi.xyz/gift/${slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: 12, fontWeight: 600, color: "#1F8A5B", textDecoration: "none" }}
+              >
+                jarfi.xyz/gift/{slug} ↗
+              </a>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <style>{`
+        .jar-cards-grid { grid-template-columns: repeat(3, 1fr); }
+        @media (max-width: 900px) { .jar-cards-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 540px) { .jar-cards-grid { grid-template-columns: 1fr; } }
+      `}</style>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // BALANCE CHART — generated from real contributions
 // ---------------------------------------------------------------------------
 
@@ -1366,6 +1491,7 @@ function NewJarModal({
   const [approvalMode, setApprovalMode] = useState<"NONE" | "FAMILY_APPROVAL">("NONE");
 
   const [submitting, setSubmitting] = useState(false);
+  const [txError, setTxError] = useState<string | null>(null);
 
   const { publicKey } = useWallet();
   const walletConnected = !!publicKey;
@@ -1443,9 +1569,9 @@ function NewJarModal({
   // ── Create ──
   async function handleCreate() {
     if (!selectedType) return;
-    // GoalAmountRequired (6010): goal-based jars must have a non-zero amount
     if ((selectedType === "GOAL" || selectedType === "GOAL_BY_DATE") && goalUsd <= 0) return;
     setSubmitting(true);
+    setTxError(null);
     try {
       const unlockDate = customDate
         ? Math.floor(new Date(customDate).getTime() / 1000)
@@ -1460,6 +1586,17 @@ function NewJarModal({
         : null;
 
       await onCreate({ jarName, jarEmoji, jarImage, mode, unlockDate: contractUnlockDate, goalAmount: contractGoal, currency: "usdc", recurring, groupTrip: null, approvalMode });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setTxError(
+        msg.includes("blockhash") || msg.includes("congested") || msg.includes("congestion")
+          ? "Devnet busy — tap 'Create jar' to retry"
+          : msg.includes("rejected") || msg.includes("User rejected")
+          ? "Transaction cancelled — tap 'Create jar' to try again"
+          : msg.includes("insufficient") || msg.includes("lamports")
+          ? "Not enough SOL for fees"
+          : "Transaction failed — tap 'Create jar' to retry"
+      );
     } finally {
       setSubmitting(false);
     }
@@ -1887,15 +2024,21 @@ function NewJarModal({
               </div>
             )}
 
+            {txError && (
+              <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#DC2626", display: "flex", alignItems: "center", gap: 8 }}>
+                <span>⚠️</span><span>{txError}</span>
+              </div>
+            )}
+
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <button onClick={goBack} style={{ fontSize: 14, color: "var(--text-secondary)", cursor: "pointer", padding: "13px 0", border: "none", background: "none", fontFamily: "var(--font)" }}>Back</button>
               {walletConnected ? (
                 <button
                   onClick={handleCreate}
                   disabled={submitting}
-                  style={{ flex: 1, background: "var(--green)", color: "#fff", fontSize: 15, fontWeight: 500, padding: "13px 20px", borderRadius: 8, border: "none", cursor: submitting ? "not-allowed" : "pointer", fontFamily: "var(--font)", opacity: submitting ? 0.6 : 1 }}
+                  style={{ flex: 1, background: txError ? "#111" : "var(--green)", color: "#fff", fontSize: 15, fontWeight: 500, padding: "13px 20px", borderRadius: 8, border: "none", cursor: submitting ? "not-allowed" : "pointer", fontFamily: "var(--font)", opacity: submitting ? 0.6 : 1 }}
                 >
-                  {submitting ? "Creating…" : "Create jar"}
+                  {submitting ? "Creating…" : txError ? "Retry →" : "Create jar"}
                 </button>
               ) : (
                 <div style={{ flex: 1 }}><WalletButton /></div>
@@ -1938,6 +2081,7 @@ function SidebarIcon({ name }: { name: string }) {
   if (name === "activity") return <svg style={s} viewBox="0 0 18 18" fill="none"><path d="M2 9h3l2-5 2 10 2-5h5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>;
   if (name === "people") return <svg style={s} viewBox="0 0 18 18" fill="none"><circle cx="7" cy="7" r="3" stroke="currentColor" strokeWidth="1.4"/><path d="M2 15c.5-2.5 2.5-4 5-4s4.5 1.5 5 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/><circle cx="13" cy="6" r="2" stroke="currentColor" strokeWidth="1.4"/></svg>;
   if (name === "plus") return <svg style={s} viewBox="0 0 18 18" fill="none"><path d="M9 3v12M3 9h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>;
+  if (name === "star") return <svg style={s} viewBox="0 0 18 18" fill="none"><path d="M9 2l1.8 4h4.2l-3.4 2.5 1.3 4L9 10.2l-3.9 2.3 1.3-4L3 6h4.2L9 2z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/></svg>;
   if (name === "gear") return <svg style={s} viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.4"/><path d="M9 1.5v2.5M9 14v2.5M16.5 9H14M4 9H1.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>;
   return null;
 }
@@ -2129,7 +2273,7 @@ function JarDetailPanel({
       {/* Back nav */}
       <div style={{ padding: "14px 24px 0" }}>
         <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 500, color: "#666", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font)" }}>
-          ← My jars
+          ← Back
         </button>
       </div>
 
