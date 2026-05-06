@@ -45,6 +45,7 @@ import { subscribeToPush } from "@/lib/push";
 import TransakWidget from "@/components/TransakWidget";
 import { contractToJarType, jarTypeToContract, JAR_TYPE_LABELS, JAR_TYPE_ICONS, UNLOCK_RULE_LABEL, unlockRuleForType, STEP_FLOWS, JAR_TYPE_DESCRIPTIONS } from "@/lib/jarTypes";
 import type { JarType as JarTypeEnum, StepName } from "@/lib/jarTypes";
+import { JAR_IMAGE_ORDER, JAR_IMAGE_LABELS, JAR_IMAGE_TINTS, JAR_SVGS, type JarImageKey } from "@/lib/jar-illustrations";
 
 // ---------------------------------------------------------------------------
 // Jar name storage (localStorage) — on-chain jars have no name field
@@ -527,7 +528,7 @@ export default function Dashboard() {
               fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://jarfi.up.railway.app"}/jar/meta`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ pubkey: jarPubkey, name: params.jarName, emoji: params.jarEmoji, jarType: contractToJarType(params.mode, params.unlockDate) }),
+                body: JSON.stringify({ pubkey: jarPubkey, name: params.jarName, emoji: params.jarEmoji, jarType: contractToJarType(params.mode, params.unlockDate), image: params.jarImage }),
               }).then(r => r.json()).then(d => { if (d.share_slug) saveJarSlug(jarPubkey, d.share_slug); }).catch(() => {});
               if (params.recurring) {
                 try {
@@ -1401,6 +1402,7 @@ function NewJarModal({
   onCreate: (params: {
     jarName: string;
     jarEmoji: string;
+    jarImage: JarImageKey | null;
     mode: number;
     unlockDate: number;
     goalAmount: number;
@@ -1421,6 +1423,7 @@ function NewJarModal({
   // Name
   const [jarName, setJarName] = useState("");
   const [jarEmoji, setJarEmoji] = useState("🫙");
+  const [jarImage, setJarImage] = useState<JarImageKey | null>(null);
 
   // Goal
   const [goalInput, setGoalInput] = useState("");
@@ -1530,7 +1533,7 @@ function NewJarModal({
         ? { amount_usdc: Math.round(monthly * 100), frequency: "monthly" as const, day: 1, hour: 9, minute: 0 }
         : null;
 
-      await onCreate({ jarName, jarEmoji, mode, unlockDate: contractUnlockDate, goalAmount: contractGoal, currency: "usdc", recurring, groupTrip: null, approvalMode });
+      await onCreate({ jarName, jarEmoji, jarImage, mode, unlockDate: contractUnlockDate, goalAmount: contractGoal, currency: "usdc", recurring, groupTrip: null, approvalMode });
     } finally {
       setSubmitting(false);
     }
@@ -1665,6 +1668,52 @@ function NewJarModal({
               </div>
             </div>
             <FlowNav onBack={goBack} onNext={advanceStep} nextDisabled={!jarName.trim()} />
+          </div>
+        )}
+
+        {/* ── STEP: image ── */}
+        {step === "image" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 8 }}>
+                {selectedType && `${JAR_TYPE_ICONS[selectedType]} ${JAR_TYPE_LABELS[selectedType]}`}
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.6px" }}>Pick an illustration</div>
+              <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>It will appear on your jar card and gift page.</div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+              {JAR_IMAGE_ORDER.map((key) => {
+                const tint = JAR_IMAGE_TINTS[key];
+                const selected = jarImage === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setJarImage(key)}
+                    style={{
+                      border: selected ? `2px solid ${tint.illo}` : "2px solid transparent",
+                      borderRadius: 14,
+                      background: tint.bg,
+                      padding: "14px 8px 10px",
+                      cursor: "pointer",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 8,
+                      outline: "none",
+                      boxShadow: selected ? `0 0 0 3px ${tint.bg}` : "none",
+                      transition: "border-color 0.15s",
+                    }}
+                  >
+                    <div
+                      style={{ width: "100%", height: 64, color: tint.illo }}
+                      dangerouslySetInnerHTML={{ __html: JAR_SVGS[key] }}
+                    />
+                    <div style={{ fontSize: 11, fontWeight: 600, color: tint.illo }}>{JAR_IMAGE_LABELS[key]}</div>
+                  </button>
+                );
+              })}
+            </div>
+            <FlowNav onBack={goBack} onNext={advanceStep} nextDisabled={false} nextLabel={jarImage ? "Continue" : "Skip"} />
           </div>
         )}
 
