@@ -2061,20 +2061,30 @@ function JarDetailPanel({
     if (!wallet?.adapter || !publicKey) return;
     setBreaking(true);
     try {
-      let txSignature: string;
-      if (jar.currency === "usdc") {
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://jarfi.up.railway.app";
+      let txSignature: string | null = null;
+
+      if (jar.amount <= 0) {
+        // Empty jar — no on-chain withdrawal needed, just clean up
+        txSignature = null;
+      } else if (jar.currency === "usdc") {
         const microUnits = Math.round(jar.amount * 1_000_000);
         txSignature = await breakUsdcJarOnChain(wallet.adapter as never, connection, jar.id, microUnits);
       } else {
         txSignature = await breakSolJarOnChain(wallet.adapter as never, connection, jar.id);
       }
-      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://jarfi.up.railway.app";
+
       fetch(`${BACKEND}/jar/meta/${jar.id}`, { method: "DELETE" }).catch(() => {});
       setShowBreakModal(false);
-      setBreakResult({ txSignature, amount: jar.amount, currency: jar.currency, walletAddr: publicKey.toBase58() });
+      setBreakResult({
+        txSignature: txSignature ?? "",
+        amount: jar.amount,
+        currency: jar.currency,
+        walletAddr: publicKey.toBase58(),
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      showLocalToast("Failed: " + msg.slice(0, 80));
+      showLocalToast("Failed: " + msg.slice(0, 120));
       setBreaking(false);
       setShowBreakModal(false);
     }
@@ -2468,14 +2478,20 @@ function JarDetailPanel({
                   ✅
                 </div>
 
-                <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>Funds on the way!</div>
+                <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>
+                  {breakResult.amount > 0 ? "Funds on the way!" : "Jar removed!"}
+                </div>
                 <div style={{ fontSize: 14, color: "#6B7280", marginBottom: 28, lineHeight: 1.5 }}>
-                  Your jar has been broken. Funds were sent to your wallet.
+                  {breakResult.amount > 0
+                    ? "Your jar has been broken. Funds were sent to your wallet."
+                    : "Empty jar removed from your dashboard."}
                 </div>
 
                 {/* Amount block */}
                 <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 16, padding: 20, marginBottom: 16, textAlign: "left" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.6px", color: "#059669", marginBottom: 6 }}>Amount received</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.6px", color: "#059669", marginBottom: 6 }}>
+                    {breakResult.amount > 0 ? "Amount received" : "Balance"}
+                  </div>
                   <div style={{ fontSize: 36, fontWeight: 700, letterSpacing: "-1.5px", color: "#111" }}>
                     {breakResult.currency === "usdc"
                       ? `$${breakResult.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -2484,30 +2500,35 @@ function JarDetailPanel({
                       {breakResult.currency.toUpperCase()}
                     </span>
                   </div>
-                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 10 }}>
-                    Wallet: <span style={{ fontWeight: 600, color: "#111", fontFamily: "monospace" }}>
-                      {breakResult.walletAddr.slice(0, 6)}…{breakResult.walletAddr.slice(-4)}
-                    </span>
-                  </div>
+                  {breakResult.amount > 0 && (
+                    <div style={{ fontSize: 12, color: "#6B7280", marginTop: 10 }}>
+                      Wallet: <span style={{ fontWeight: 600, color: "#111", fontFamily: "monospace" }}>
+                        {breakResult.walletAddr.slice(0, 6)}…{breakResult.walletAddr.slice(-4)}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                {/* Transaction */}
-                <div style={{ background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 12, padding: 14, marginBottom: 24, textAlign: "left" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.6px", color: "#9CA3AF", marginBottom: 6 }}>Transaction</div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                    <span style={{ fontSize: 12, color: "#374151", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {breakResult.txSignature.slice(0, 20)}…{breakResult.txSignature.slice(-8)}
-                    </span>
-                    <a
-                      href={`https://explorer.solana.com/tx/${breakResult.txSignature}?cluster=devnet`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ fontSize: 12, fontWeight: 600, color: "#6D28D9", whiteSpace: "nowrap", textDecoration: "none" }}
-                    >
-                      View ↗
-                    </a>
+                {/* Transaction — only shown if there was one */}
+                {breakResult.txSignature && (
+                  <div style={{ background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 12, padding: 14, marginBottom: 24, textAlign: "left" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.6px", color: "#9CA3AF", marginBottom: 6 }}>Transaction</div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                      <span style={{ fontSize: 12, color: "#374151", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {breakResult.txSignature.slice(0, 20)}…{breakResult.txSignature.slice(-8)}
+                      </span>
+                      <a
+                        href={`https://explorer.solana.com/tx/${breakResult.txSignature}?cluster=devnet`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: 12, fontWeight: 600, color: "#6D28D9", whiteSpace: "nowrap", textDecoration: "none" }}
+                      >
+                        View ↗
+                      </a>
+                    </div>
                   </div>
-                </div>
+                )}
+                {!breakResult.txSignature && <div style={{ marginBottom: 24 }} />}
 
                 <button
                   onClick={() => { setBreakResult(null); onJarBroken(jar.id); }}
