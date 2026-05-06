@@ -453,7 +453,7 @@ app.post('/transak/session', async (req, res) => {
     // Step 1: get partner access token
     const tokenResp = await fetch(TRANSAK_REFRESH_URL, {
       method: 'POST',
-      headers: { 'x-api-secret': TRANSAK_API_SECRET, 'content-type': 'application/json' },
+      headers: { 'api-secret': TRANSAK_API_SECRET, 'content-type': 'application/json' },
       body: JSON.stringify({ apiKey: TRANSAK_API_KEY }),
     })
     if (!tokenResp.ok) {
