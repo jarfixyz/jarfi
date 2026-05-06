@@ -203,6 +203,15 @@ const DEMO_JARS: JarType[] = [
   },
 ];
 
+const NOW = Math.floor(Date.now() / 1000);
+const DEMO_CONTRIBUTIONS: JarContribution[] = [
+  { pubkey: "dc1", contributor: "7vK2MtR3mPq9", amount: 15_000_000, comment: "Happy birthday! 🎂", createdAt: NOW - 3_600 },
+  { pubkey: "dc2", contributor: "3nR8xWt9kLsP", amount: 50_000_000, comment: "", createdAt: NOW - 86_400 },
+  { pubkey: "dc3", contributor: "5mP4kLs2nQrT", amount: 20_000_000, comment: "From grandma 🌸", createdAt: NOW - 172_800 },
+  { pubkey: "dc4", contributor: "9xWt3nR8kLsP", amount: 100_000_000, comment: "", createdAt: NOW - 259_200 },
+  { pubkey: "dc5", contributor: "2kLs5mP4nQrT", amount: 30_000_000, comment: "Go Japan! ✈️", createdAt: NOW - 432_000 },
+];
+
 // ---------------------------------------------------------------------------
 // Dashboard root
 // ---------------------------------------------------------------------------
@@ -868,11 +877,53 @@ function DashboardPage({
               </div>
 
               {liveJars.length === 0 ? (
-                <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "64px 24px", textAlign: "center" }}>
-                  <div style={{ fontSize: 48, marginBottom: 16 }}>🫙</div>
-                  <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-0.02em", marginBottom: 8 }}>Start your first jar</div>
-                  <div style={{ fontSize: 14, color: "#666", lineHeight: 1.6, marginBottom: 28 }}>Save for something that matters. Alone or with people around you.</div>
-                  <button onClick={onNewJar} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#111", color: "#fff", fontSize: 14, fontWeight: 500, padding: "11px 22px", borderRadius: 10, border: "none", cursor: "pointer", fontFamily: "var(--font)" }}>Create a jar</button>
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  {/* Main CTA */}
+                  <div style={{ background: "#ECFAF3", borderRadius: 18, padding: "48px 24px", textAlign: "center" }}>
+                    <div style={{ width: 56, height: 56, borderRadius: 14, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, margin: "0 auto 20px", boxShadow: "0 2px 8px rgba(0,0,0,.08)" }}>🫙</div>
+                    <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.03em", marginBottom: 10 }}>Create your first jar</div>
+                    <div style={{ fontSize: 14, color: "#555", lineHeight: 1.6, marginBottom: 28, maxWidth: 340, margin: "0 auto 28px" }}>Set aside money for a goal, a date, or a person. It earns ~7.5%/yr automatically while you wait.</div>
+                    <button onClick={onNewJar} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#111", color: "#fff", fontSize: 14, fontWeight: 600, padding: "12px 28px", borderRadius: 10, border: "none", cursor: "pointer", fontFamily: "var(--font)" }}>+ New jar</button>
+                  </div>
+
+                  {/* Templates */}
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#999", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 10 }}>Or start from a template</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+                      {[
+                        { emoji: "✈️", bg: "#E2EBF7", label: "Trip fund", sub: "Save for a future trip" },
+                        { emoji: "🏡", bg: "#FBF1D6", label: "House down payment", sub: "Toward a home of your own" },
+                        { emoji: "👶", bg: "#E5F0E8", label: "Child's future", sub: "A jar that unlocks at 18" },
+                        { emoji: "🎁", bg: "#F8E4E4", label: "Group gift", sub: "Pool with friends for someone" },
+                      ].map((t) => (
+                        <button key={t.label} onClick={onNewJar}
+                          style={{ background: "#fff", border: "1px solid #EAEAEA", borderRadius: 14, padding: "18px 14px", textAlign: "left", cursor: "pointer", fontFamily: "var(--font)", transition: "box-shadow .15s" }}
+                          onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,.07)")}
+                          onMouseLeave={e => (e.currentTarget.style.boxShadow = "none")}
+                        >
+                          <div style={{ width: 40, height: 40, borderRadius: "50%", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, marginBottom: 12 }}>{t.emoji}</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: "#111" }}>{t.label}</div>
+                          <div style={{ fontSize: 12, color: "#888", lineHeight: 1.4 }}>{t.sub}</div>
+                          <div style={{ fontSize: 12, color: "#1F8A5B", fontWeight: 600, marginTop: 10 }}>Use template →</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Feature highlights */}
+                  <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #EAEAEA", padding: "20px 24px", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
+                    {[
+                      { icon: "📈", label: "Forecast your future", sub: "See how much your jars will grow with a 'what if' calculator." },
+                      { icon: "🏆", label: "Earn achievements", sub: "Unlock milestones as you save. 12 to collect." },
+                      { icon: "💚", label: "Friends & family help", sub: "Anyone with a link can chip in to your jars." },
+                    ].map(f => (
+                      <div key={f.label}>
+                        <div style={{ fontSize: 24, marginBottom: 8 }}>{f.icon}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{f.label}</div>
+                        <div style={{ fontSize: 12, color: "#888", lineHeight: 1.5 }}>{f.sub}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : (
                 <div className="jar-cards-grid" style={{ display: "grid", gap: 12 }}>
@@ -1313,83 +1364,24 @@ function DemoPage({
   onMenuToggle: () => void;
   onAddFunds: (pubkey: string, name: string, currency: "usdc" | "sol") => void;
 }) {
-  const [selectedJar, setSelectedJar] = useState<JarType | null>(null);
-
-  if (selectedJar) {
-    return (
-      <JarDetailPanel
-        jar={selectedJar}
-        apy={apy}
-        schedules={[]}
-        onBack={() => setSelectedJar(null)}
-        onMenuToggle={onMenuToggle}
-        onAddFunds={onAddFunds}
-        onScheduleUpdate={() => {}}
-        onJarBroken={() => {}}
-      />
-    );
-  }
-
+  const [scenario, setScenario] = useState(100);
   return (
-    <div style={{ background: "#F4F4F1", flex: 1, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      {/* Mobile bar */}
-      <div className="flex items-center justify-between border-b border-black/5 bg-[#F4F4F1] px-4 py-3 md:hidden">
-        <button onClick={onMenuToggle} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 5h14M3 10h14M3 15h14" stroke="#111" strokeWidth="1.6" strokeLinecap="round"/></svg>
-        </button>
-        <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.3px" }}>jarfi</div>
-        <div style={{ width: 32 }} />
-      </div>
-
-      <div style={{ padding: "20px 24px 40px", display: "flex", flexDirection: "column", gap: 16, flex: 1 }}>
-        {/* Header */}
-        <div>
-          <div style={{ fontSize: 12, color: "#666", marginBottom: 3 }}>Explore</div>
-          <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.025em" }}>Demo jars</div>
-          <div style={{ fontSize: 13, color: "#999", marginTop: 4 }}>Real on-chain jars on Solana devnet — click to explore</div>
-        </div>
-
-        {/* Jar grid */}
-        <div className="jar-cards-grid" style={{ display: "grid", gap: 12 }}>
-          {DEMO_JARS.map((j) => (
-            <V2JarCard
-              key={j.id}
-              jar={j}
-              onSelect={() => setSelectedJar(j)}
-              onAddFunds={(e) => { e.stopPropagation(); onAddFunds(j.id, j.name, j.currency as "usdc" | "sol"); }}
-            />
-          ))}
-        </div>
-
-        {/* Gift links */}
-        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #EAEAEA", padding: "18px 20px" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, letterSpacing: "-0.01em" }}>Direct gift links</div>
-          {[
-            { slug: "anya", name: "Anya's Birthday" },
-            { slug: "japan", name: "Japan Trip" },
-            { slug: "moto", name: "New Moto" },
-          ].map(({ slug, name }) => (
-            <div key={slug} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #F4F4F1" }}>
-              <span style={{ fontSize: 13, color: "#444" }}>{name}</span>
-              <a
-                href={`https://jarfi.xyz/gift/${slug}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ fontSize: 12, fontWeight: 600, color: "#1F8A5B", textDecoration: "none" }}
-              >
-                jarfi.xyz/gift/{slug} ↗
-              </a>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <style>{`
-        .jar-cards-grid { grid-template-columns: repeat(3, 1fr); }
-        @media (max-width: 900px) { .jar-cards-grid { grid-template-columns: repeat(2, 1fr); } }
-        @media (max-width: 540px) { .jar-cards-grid { grid-template-columns: 1fr; } }
-      `}</style>
-    </div>
+    <DashboardPage
+      onNewJar={() => {}}
+      scenario={scenario}
+      setScenario={setScenario}
+      liveJars={DEMO_JARS}
+      greeting="demo"
+      apy={apy}
+      schedules={[]}
+      onStopSchedule={async () => {}}
+      onScheduleUpdate={() => {}}
+      groups={[]}
+      contributions={DEMO_CONTRIBUTIONS}
+      onMenuToggle={onMenuToggle}
+      onAddFunds={onAddFunds}
+      onJarBroken={() => {}}
+    />
   );
 }
 
