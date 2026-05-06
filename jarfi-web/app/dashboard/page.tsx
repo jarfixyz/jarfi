@@ -1116,7 +1116,7 @@ function AnalyticsPage({
         subtitle="Full history across all jars"
         onMenuToggle={onMenuToggle}
       >
-        <button onClick={onBack} style={{ fontSize: 13, color: "var(--text-secondary)", background: "none", border: "1px solid var(--border)", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontFamily: "var(--font)" }}>
+        <button onClick={onBack} style={{ fontSize: 13, color: "#fff", background: "#111", border: "none", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontFamily: "var(--font)", fontWeight: 600 }}>
           ← Dashboard
         </button>
         <WalletButton compact />
@@ -1229,7 +1229,7 @@ function ContributorsPage({
         }
         onMenuToggle={onMenuToggle}
       >
-        <button onClick={onBack} style={{ fontSize: 13, color: "var(--text-secondary)", background: "none", border: "1px solid var(--border)", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontFamily: "var(--font)" }}>
+        <button onClick={onBack} style={{ fontSize: 13, color: "#fff", background: "#111", border: "none", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontFamily: "var(--font)", fontWeight: 600 }}>
           ← Dashboard
         </button>
         <WalletButton compact />

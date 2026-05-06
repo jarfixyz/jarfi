@@ -43,16 +43,20 @@ async function sendAndConfirmRobust(
   while (Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 2000));
 
-    const { value: status } = await connection.getSignatureStatus(signature);
-    if (status) {
-      if (status.err) throw new Error(`Transaction failed: ${JSON.stringify(status.err)}`);
-      if (
-        status.confirmationStatus === "processed" ||
-        status.confirmationStatus === "confirmed" ||
-        status.confirmationStatus === "finalized"
-      ) {
-        return signature;
+    try {
+      const { value: status } = await connection.getSignatureStatus(signature);
+      if (status) {
+        if (status.err) throw new Error(`Transaction failed: ${JSON.stringify(status.err)}`);
+        if (
+          status.confirmationStatus === "processed" ||
+          status.confirmationStatus === "confirmed" ||
+          status.confirmationStatus === "finalized"
+        ) {
+          return signature;
+        }
       }
+    } catch (e) {
+      if ((e as Error).message?.startsWith("Transaction failed:")) throw e;
     }
 
     if (Date.now() - lastResend > 5000) {
@@ -60,9 +64,13 @@ async function sendAndConfirmRobust(
       lastResend = Date.now();
     }
 
-    const blockHeight = await connection.getBlockHeight();
-    if (blockHeight > lastValidBlockHeight) {
-      throw new Error("blockhash expired — please try again");
+    try {
+      const blockHeight = await connection.getBlockHeight();
+      if (blockHeight > lastValidBlockHeight) {
+        throw new Error("blockhash expired — please try again");
+      }
+    } catch (e) {
+      if ((e as Error).message?.includes("blockhash expired")) throw e;
     }
   }
 

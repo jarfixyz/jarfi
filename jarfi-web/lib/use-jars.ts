@@ -54,7 +54,11 @@ export function useJars() {
     const known = loadKnownPubkeys(owner);
     if (known.length > 0) {
       Promise.all(known.map(pk => fetchJarByPubkey(connection, new PublicKey(pk)).catch(() => null)))
-        .then(fetched => setExtraJars(fetched.filter(Boolean) as JarAccount[]));
+        .then(fetched => {
+          const valid = fetched.filter(Boolean) as JarAccount[];
+          // Only update if at least one jar loaded — if ALL fail (RPC down), keep previous state
+          if (valid.length > 0) setExtraJars(valid);
+        });
     }
 
     // Step 2: try getProgramAccounts to discover any jars not in localStorage
