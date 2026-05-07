@@ -283,6 +283,8 @@ export default function Dashboard() {
   const dismissWelcome = () => setShowWelcome(false);
 
   const { publicKey, wallet, connecting } = useWallet();
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => { setHasMounted(true); }, []);
   const { connection } = useConnection();
   const { jars: liveJars, loading: jarsLoading, refresh: refreshJars, addJar, removeJar } = useJars();
   const [apy, setApy] = useState({ usdc_kamino: 5.5, sol_marinade: 6.85 });
@@ -434,8 +436,12 @@ export default function Dashboard() {
     [liveJars, apy]
   );
 
-  const effectiveContribsForPages = publicKey ? contributions : DEMO_CONTRIBUTIONS;
-  const effectiveJarsForPages = publicKey ? normalizedLive : (DEMO_JARS as JarType[]);
+  const effectiveContribsForPages = !publicKey
+    ? DEMO_CONTRIBUTIONS
+    : (contributions.length > 0 ? contributions : DEMO_CONTRIBUTIONS);
+  const effectiveJarsForPages = !publicKey
+    ? (DEMO_JARS as JarType[])
+    : (normalizedLive.length > 0 ? normalizedLive : (DEMO_JARS as JarType[]));
 
   const greeting = publicKey
     ? `${publicKey.toBase58().slice(0, 4)}…${publicKey.toBase58().slice(-4)}`
@@ -545,12 +551,12 @@ export default function Dashboard() {
 
       {/* ── Main ───────────────────────────────────────────────────────────── */}
       <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
-        {/* Loading state while wallet auto-reconnects — prevents flash of demo screen */}
-        {connecting && !publicKey && (
+        {/* hasMounted guard — prevents SSR flash and wallet reconnect flash */}
+        {(!hasMounted || connecting) && (
           <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F4F1", zIndex: 100 }}>
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}>🏺</div>
-              <div style={{ fontSize: 14, color: "#888" }}>Loading...</div>
+              <div style={{ fontSize: 14, color: "#888", fontFamily: "var(--font)" }}>Loading...</div>
             </div>
           </div>
         )}
@@ -2643,7 +2649,7 @@ function NewJarModal({
       const msg = e instanceof Error ? e.message : String(e);
       setTxError(
         msg.includes("blockhash") || msg.includes("congested") || msg.includes("congestion")
-          ? "Devnet busy — tap 'Create jar' to retry"
+          ? "Network busy — tap 'Retry'"
           : msg.includes("rejected") || msg.includes("User rejected")
           ? "Transaction cancelled — tap 'Create jar' to try again"
           : msg.includes("insufficient") || msg.includes("lamports")
