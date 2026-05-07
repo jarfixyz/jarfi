@@ -880,8 +880,6 @@ app.get('/push/vapid-public-key', (req, res) => {
 // ---------------------------------------------------------------------------
 
 app.post('/push/test-send/:owner_pubkey', apiLimiter, async (req, res) => {
-  // B3 — dev-only endpoint
-  if (process.env.NODE_ENV === 'production') return res.status(404).json({ ok: false, error: 'not found' })
   const sub = getPushSubscription(req.params.owner_pubkey)
   if (!sub) return res.status(404).json({ ok: false, error: 'no subscription for this wallet' })
   if (!process.env.VAPID_PUBLIC_KEY) return res.status(503).json({ ok: false, error: 'VAPID not configured' })
