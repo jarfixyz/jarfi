@@ -1,14 +1,20 @@
+// Take control immediately — don't wait for old SW to expire
+self.addEventListener('install', (event) => {
+  self.skipWaiting()
+})
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(clients.claim())
+})
+
 self.addEventListener('push', (event) => {
   const data = event.data?.json() ?? {}
   event.waitUntil(
-    self.registration.showNotification(data.title ?? 'JAR', {
+    self.registration.showNotification(data.title ?? 'Jarfi', {
       body: data.body ?? '',
       icon: '/favicon.ico',
+      badge: '/favicon.ico',
       data: data.data ?? {},
-      actions: [
-        { action: 'confirm', title: 'Підтвердити' },
-        { action: 'later', title: 'Пізніше' },
-      ],
     })
   )
 })

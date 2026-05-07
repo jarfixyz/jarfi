@@ -604,21 +604,34 @@ export default function Dashboard() {
         {publicKey && notifPermission === "granted" && (
           <div className="flex items-center justify-between bg-green-50 border-b border-green-200 px-6 py-2 text-sm">
             <span className="text-green-800">🔔 Push notifications enabled</span>
-            <button
-              onClick={async () => {
-                const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://jarfi.up.railway.app";
-                // Ensure subscription is saved before testing
-                const saved = await subscribeToPush(publicKey.toBase58()).catch(() => false);
-                if (!saved) { showToast("Failed to save push subscription"); return; }
-                const res = await fetch(`${API_URL}/push/test-send/${publicKey.toBase58()}`, { method: "POST" });
-                const data = await res.json();
-                if (data.ok) showToast("Test notification sent! 🔔");
-                else showToast(`Push error: ${data.error}`);
-              }}
-              className="ml-4 shrink-0 rounded-full bg-green-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
-            >
-              Send test
-            </button>
+            <div className="flex gap-2 ml-4">
+              <button
+                onClick={async () => {
+                  // Direct local test — no server, tests SW showNotification directly
+                  const reg = await navigator.serviceWorker.ready.catch(() => null);
+                  if (!reg) { showToast("Service worker not ready"); return; }
+                  await reg.showNotification("Jarfi test 🏺", { body: "Local notification works!", icon: "/favicon.ico" });
+                  showToast("Local notification triggered");
+                }}
+                className="shrink-0 rounded-full bg-gray-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gray-600"
+              >
+                Local test
+              </button>
+              <button
+                onClick={async () => {
+                  const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://jarfi.up.railway.app";
+                  const saved = await subscribeToPush(publicKey.toBase58()).catch(() => false);
+                  if (!saved) { showToast("Failed to save push subscription"); return; }
+                  const res = await fetch(`${API_URL}/push/test-send/${publicKey.toBase58()}`, { method: "POST" });
+                  const data = await res.json();
+                  if (data.ok) showToast("Push sent via server 🔔");
+                  else showToast(`Push error: ${data.error}`);
+                }}
+                className="shrink-0 rounded-full bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
+              >
+                Server test
+              </button>
+            </div>
           </div>
         )}
 
