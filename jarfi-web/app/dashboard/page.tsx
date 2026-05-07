@@ -315,7 +315,9 @@ export default function Dashboard() {
     );
   }, []);
 
-  const [notifPermission, setNotifPermission] = useState<NotificationPermission | null>(null);
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | null>(() =>
+    typeof Notification !== "undefined" ? Notification.permission : null
+  );
   useEffect(() => {
     if (typeof Notification !== "undefined") setNotifPermission(Notification.permission);
   }, []);
@@ -538,20 +540,24 @@ export default function Dashboard() {
 
       {/* ── Main ───────────────────────────────────────────────────────────── */}
       <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
-        {/* Push confirm banner */}
-        {/* Enable notifications prompt — only if user has schedules and hasn't granted yet */}
+        {/* Enable notifications banner */}
         {publicKey && notifPermission !== "granted" && notifPermission !== null && (
           <div className="flex items-center justify-between bg-amber-50 border-b border-amber-200 px-6 py-3 text-sm">
-            <span className="text-amber-800">🔔 Enable notifications to receive your monthly deposit reminders</span>
-            <button
-              onClick={async () => {
-                await subscribeToPush(publicKey.toBase58());
-                setNotifPermission(Notification.permission);
-              }}
-              className="ml-4 rounded-full bg-amber-500 px-4 py-1.5 text-xs font-semibold text-white hover:bg-amber-600"
-            >
-              Enable
-            </button>
+            {notifPermission === "denied"
+              ? <span className="text-amber-800">🔔 Notifications are blocked — allow jarfi.xyz in your browser settings to get reminders</span>
+              : <span className="text-amber-800">🔔 Enable notifications to receive monthly deposit reminders</span>
+            }
+            {notifPermission !== "denied" && (
+              <button
+                onClick={async () => {
+                  await subscribeToPush(publicKey.toBase58());
+                  if (typeof Notification !== "undefined") setNotifPermission(Notification.permission);
+                }}
+                className="ml-4 shrink-0 rounded-full bg-amber-500 px-4 py-1.5 text-xs font-semibold text-white hover:bg-amber-600"
+              >
+                Enable
+              </button>
+            )}
           </div>
         )}
 
@@ -980,17 +986,17 @@ function DashboardPage({
     else jarRouter.replace(`/dashboard?page=dashboard`, { scroll: false });
   }, [jarRouter]);
 
-  // Auto-select jar from URL once liveJars load
-  const pendingJarFromUrl = useRef<string | null>(
-    typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("jar") : null
-  );
+  // Auto-select jar from URL once liveJars load (useEffect reads window client-side only)
+  const [pendingJarPubkey, setPendingJarPubkey] = useState<string | null>(null);
   useEffect(() => {
-    if (!pendingJarFromUrl.current || liveJars.length === 0) return;
-    const jar = liveJars.find(j => j.id === pendingJarFromUrl.current);
-    if (jar) selectJar(jar as JarType);
-    pendingJarFromUrl.current = null;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [liveJars]);
+    const jar = new URLSearchParams(window.location.search).get("jar");
+    if (jar) setPendingJarPubkey(jar);
+  }, []);
+  useEffect(() => {
+    if (!pendingJarPubkey || liveJars.length === 0) return;
+    const jar = liveJars.find(j => j.id === pendingJarPubkey);
+    if (jar) { selectJar(jar); setPendingJarPubkey(null); }
+  }, [liveJars, pendingJarPubkey, selectJar]);
 
   // When no wallet — display demo data so the page is useful immediately
   const effectiveJars = hasWallet ? liveJars : DEMO_JARS;
