@@ -666,7 +666,7 @@ export default function Dashboard() {
         )}
 
         {/* Add funds — method chooser or direct flows */}
-        {addFundsJar && (() => {
+        {addFundsJar && !addFundsJar.pubkey.startsWith("Demo") && (() => {
           const canUseWallet = !!publicKey;
           const method = canUseWallet ? addFundsMethod : "transak";
           const closeAll = () => { setAddFundsJar(null); setAddFundsMethod("choose"); setDirectDepositAmount("100"); };
@@ -844,7 +844,7 @@ export default function Dashboard() {
           <DemoPage
             apy={apy}
             onMenuToggle={() => setSidebarOpen((v) => !v)}
-            onAddFunds={(pubkey, name, currency) => setAddFundsJar({ pubkey, name, currency })}
+            onAddFunds={() => { /* demo jars — no real deposits */ }}
           />
         )}
       </main>
