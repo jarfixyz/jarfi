@@ -59,7 +59,6 @@ export async function breakUsdcJarOnChain(
       [],
       "unlock-jar"
     );
-    console.log("[break-jar] unlockJar tx:", lastSignature);
   }
 
   // Step 2: withdraw_usdc (only if there's a balance to withdraw)
@@ -106,7 +105,6 @@ export async function breakUsdcJarOnChain(
     "withdraw-usdc"
   );
 
-  console.log("[break-jar] withdrawUsdc tx:", lastSignature);
   return lastSignature;
 }
 

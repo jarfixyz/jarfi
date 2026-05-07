@@ -75,6 +75,5 @@ export async function depositUsdcFromWallet(
     "deposit-usdc"
   );
 
-  console.log("[deposit-usdc] tx:", signature);
   return signature;
 }

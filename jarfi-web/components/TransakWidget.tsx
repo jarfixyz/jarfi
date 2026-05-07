@@ -96,7 +96,7 @@ export default function TransakWidget({
           partnerOrderId,
         });
         if (fiatAmount && fiatAmount > 0) params.set("fiatAmount", String(fiatAmount));
-        const base = process.env.NEXT_PUBLIC_ENV === "production"
+        const base = process.env.NEXT_PUBLIC_SOLANA_NETWORK === "mainnet"
           ? "https://global.transak.com"
           : "https://global-stg.transak.com";
         window.open(`${base}?${params}`, "_blank", "noopener noreferrer");

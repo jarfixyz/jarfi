@@ -86,7 +86,7 @@ export default function GiftClient({ slug }: { slug: string }) {
 
         const slugMeta = SLUG_META[slug];
         const rawBalance = isUsdc ? (j.usdcBalance ?? 0) : (j.balance ?? 0);
-        const divisor = isUsdc ? 10_000 : 10_000_000;
+        const divisor = isUsdc ? 1_000_000 : 1_000_000_000;
         const jarType = contractToJarType(j.mode, j.unlockDate);
 
         setJar({

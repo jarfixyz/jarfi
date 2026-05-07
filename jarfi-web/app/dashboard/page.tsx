@@ -813,7 +813,7 @@ export default function Dashboard() {
                     ...params.recurring,
                   });
                   setSchedules(await fetchSchedules(publicKey.toBase58()));
-                } catch { /* backend offline — jar is created, schedule skipped */ }
+                } catch { showToast("⚠️ Jar created but reminders couldn't be set up — try again in settings"); }
               }
               if (params.groupTrip) {
                 try {
@@ -1123,7 +1123,7 @@ function DashboardPage({
                 <div style={{ width: 36, height: 36, borderRadius: 10, background: "#EAF4EE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🏺</div>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 1 }}>Demo mode — connect a wallet to create your own jars</div>
-                  <div style={{ fontSize: 12, color: "#888" }}>Real jars on Solana devnet · up to 8.2% APY</div>
+                  <div style={{ fontSize: 12, color: "#888" }}>Real jars on Solana · up to 8.2% APY</div>
                 </div>
               </div>
             </div>
@@ -3752,7 +3752,7 @@ function JarDetailPanel({
                         {breakResult.txSignature.slice(0, 20)}…{breakResult.txSignature.slice(-8)}
                       </span>
                       <a
-                        href={`https://solscan.io/tx/${breakResult.txSignature}?cluster=devnet`}
+                        href={`https://solscan.io/tx/${breakResult.txSignature}${process.env.NEXT_PUBLIC_SOLANA_NETWORK === 'mainnet' ? '' : '?cluster=devnet'}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{ fontSize: 12, fontWeight: 600, color: "#6D28D9", whiteSpace: "nowrap", textDecoration: "none" }}
