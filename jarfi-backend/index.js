@@ -69,6 +69,12 @@ if (process.env.SERVER_WALLET_SECRET) {
   console.warn('[warn] SERVER_WALLET_SECRET not set — using ephemeral wallet')
 }
 
+// B5 — fail fast in production if server wallet is ephemeral
+if (process.env.NODE_ENV === 'production' && !process.env.SERVER_WALLET_SECRET) {
+  console.error('[startup] FATAL: SERVER_WALLET_SECRET is required in production — ephemeral wallet detected')
+  process.exit(1)
+}
+
 const wallet = new anchor.Wallet(serverKeypair)
 const provider = new anchor.AnchorProvider(connection, wallet, { commitment: 'confirmed' })
 anchor.setProvider(provider)
@@ -120,6 +126,12 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   console.log('[push] VAPID configured')
 } else {
   console.warn('[push] VAPID keys not set — push notifications disabled')
+}
+
+// B4 — fail fast in production if Transak secret is missing
+if (process.env.NODE_ENV === 'production' && !process.env.TRANSAK_API_SECRET) {
+  console.error('[startup] FATAL: TRANSAK_API_SECRET is required in production')
+  process.exit(1)
 }
 
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
@@ -233,8 +245,8 @@ app.post('/jar/create', async (req, res) => {
       txSignature,
     })
   } catch (err) {
-    console.error('[/jar/create]', err.message)
-    res.status(500).json({ ok: false, error: err.message })
+    console.error('[/jar/create] error:', err)
+    res.status(500).json({ ok: false, error: 'Internal server error' })
   }
 })
 
@@ -274,7 +286,8 @@ app.post('/jar/meta', (req, res) => {
     saveJarMeta(pubkey, name ?? '', emoji ?? '🏺', jarType ?? '', slug, image ?? null)
     res.json({ ok: true, share_slug: slug })
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message })
+    console.error('[/jar/meta] error:', err)
+    res.status(500).json({ ok: false, error: 'Internal server error' })
   }
 })
 
@@ -285,7 +298,8 @@ app.delete('/jar/meta/:pubkey', (req, res) => {
     const deleted = deleteJarMeta(pubkey)
     res.json({ ok: true, deleted })
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message })
+    console.error('[/jar/meta DELETE] error:', err)
+    res.status(500).json({ ok: false, error: 'Internal server error' })
   }
 })
 
@@ -362,8 +376,8 @@ app.get('/jar/:pubkey', async (req, res) => {
       })),
     })
   } catch (err) {
-    console.error('[/jar/:pubkey]', err.message)
-    res.status(500).json({ ok: false, error: err.message })
+    console.error('[/jar/:pubkey] error:', err)
+    res.status(500).json({ ok: false, error: 'Internal server error' })
   }
 })
 
@@ -492,8 +506,8 @@ app.post('/transak/session', async (req, res) => {
     const { data } = await sessionResp.json()
     res.json({ widgetUrl: data.widgetUrl, partnerOrderId })
   } catch (err) {
-    console.error('[transak/session]', err.message)
-    res.status(500).json({ error: err.message })
+    console.error('[transak/session] error:', err)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -624,8 +638,8 @@ app.post('/transak-webhook', async (req, res) => {
 
     res.json({ ok: true, txSignature })
   } catch (err) {
-    console.error('[transak-webhook]', err.message)
-    res.status(500).json({ ok: false, error: err.message })
+    console.error('[transak-webhook] error:', err)
+    res.status(500).json({ ok: false, error: 'Internal server error' })
   }
 })
 
@@ -637,7 +651,11 @@ app.post('/moonpay-webhook', async (req, res) => {
   try {
     const rawBody = req.body.toString()
     const moonpaySecret = process.env.MOONPAY_SECRET_KEY
-    if (moonpaySecret) {
+    if (!moonpaySecret) {
+      console.warn('[moonpay-webhook] MOONPAY_SECRET_KEY not set — refusing to process webhook')
+      return res.json({ ok: true, skipped: true, reason: 'secret not configured' })
+    }
+    {
       const header = req.headers['moonpay-signature-1'] || ''
       const parts  = Object.fromEntries(header.split(',').map(p => p.split('=')))
       const expected = crypto
@@ -663,8 +681,8 @@ app.post('/moonpay-webhook', async (req, res) => {
       .rpc()
     res.json({ ok: true, txSignature: tx })
   } catch (err) {
-    console.error('[moonpay-webhook]', err.message)
-    res.status(500).json({ ok: false, error: err.message })
+    console.error('[moonpay-webhook] error:', err)
+    res.status(500).json({ ok: false, error: 'Internal server error' })
   }
 })
 
@@ -675,14 +693,16 @@ app.post('/moonpay-webhook', async (req, res) => {
 app.post('/guardarian-webhook', async (req, res) => {
   try {
     const guardarianSecret = process.env.GUARDARIAN_WEBHOOK_SECRET
-    if (guardarianSecret) {
+    if (!guardarianSecret) {
+      console.warn('[guardarian-webhook] GUARDARIAN_WEBHOOK_SECRET not set — refusing to process webhook')
+      return res.json({ ok: true, skipped: true, reason: 'secret not configured' })
+    }
+    {
       const provided = req.headers['x-guardarian-signature'] || req.headers['authorization'] || ''
       if (provided !== guardarianSecret) {
         console.warn('[guardarian-webhook] invalid signature')
         return res.status(401).json({ ok: false, error: 'Unauthorized' })
       }
-    } else {
-      console.warn('[guardarian-webhook] GUARDARIAN_WEBHOOK_SECRET not set — skipping verification')
     }
 
     const rawBody = Buffer.isBuffer(req.body) ? req.body.toString() : JSON.stringify(req.body)
@@ -708,8 +728,8 @@ app.post('/guardarian-webhook', async (req, res) => {
     if (orderId) markWebhookProcessed(orderId, 'guardarian')
     res.json({ ok: true, txSignature: tx })
   } catch (err) {
-    console.error('[guardarian-webhook]', err.message)
-    res.status(500).json({ ok: false, error: err.message })
+    console.error('[guardarian-webhook] error:', err)
+    res.status(500).json({ ok: false, error: 'Internal server error' })
   }
 })
 
@@ -732,14 +752,21 @@ app.post('/schedule/create', (req, res) => {
     if (!jar_pubkey || !owner_pubkey || !amount_usdc || !frequency) {
       return res.status(400).json({ ok: false, error: 'missing required fields' })
     }
+    // B9 — validate schedule time values
+    const parsedHour   = Number(hour ?? 9)
+    const parsedMinute = Number(minute ?? 0)
+    const parsedDay    = Number(day ?? 1)
+    if (parsedHour < 0 || parsedHour > 23 || parsedMinute < 0 || parsedMinute > 59 || parsedDay < 1 || parsedDay > 28) {
+      return res.status(400).json({ ok: false, error: 'invalid schedule time values' })
+    }
     const schedule = addSchedule({
       jar_pubkey,
       owner_pubkey,
       amount_usdc: Number(amount_usdc),
       frequency,
-      day: Number(day ?? 1),
-      hour: Number(hour ?? 9),
-      minute: Number(minute ?? 0),
+      day:    parsedDay,
+      hour:   parsedHour,
+      minute: parsedMinute,
     })
     res.json({ ok: true, schedule })
   } catch (err) {
@@ -791,7 +818,9 @@ app.put('/schedule/:id', (req, res) => {
 // POST /schedule/test-fire/:id  — fire a schedule immediately (devnet testing)
 // ---------------------------------------------------------------------------
 
-app.post('/schedule/test-fire/:id', async (req, res) => {
+app.post('/schedule/test-fire/:id', apiLimiter, async (req, res) => {
+  // B2 — dev-only endpoint
+  if (process.env.NODE_ENV === 'production') return res.status(404).json({ ok: false, error: 'not found' })
   const dbMod = require('./db')
   const all = dbMod.getActiveSchedules()
   const schedule = all.find(s => s.id === req.params.id)
@@ -849,7 +878,9 @@ app.get('/push/vapid-public-key', (req, res) => {
 // POST /push/test-send/:owner_pubkey  — smoke test push notification
 // ---------------------------------------------------------------------------
 
-app.post('/push/test-send/:owner_pubkey', async (req, res) => {
+app.post('/push/test-send/:owner_pubkey', apiLimiter, async (req, res) => {
+  // B3 — dev-only endpoint
+  if (process.env.NODE_ENV === 'production') return res.status(404).json({ ok: false, error: 'not found' })
   const sub = getPushSubscription(req.params.owner_pubkey)
   if (!sub) return res.status(404).json({ ok: false, error: 'no subscription for this wallet' })
   if (!process.env.VAPID_PUBLIC_KEY) return res.status(503).json({ ok: false, error: 'VAPID not configured' })
@@ -864,7 +895,8 @@ app.post('/push/test-send/:owner_pubkey', async (req, res) => {
     await webpush.sendNotification(sub, payload)
     res.json({ ok: true })
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message })
+    console.error('[push/test-send] error:', err)
+    res.status(500).json({ ok: false, error: 'Internal server error' })
   }
 })
 
@@ -872,10 +904,27 @@ app.post('/push/test-send/:owner_pubkey', async (req, res) => {
 // POST /record-deposit — record a direct wallet deposit (no Transak)
 // ---------------------------------------------------------------------------
 
-app.post('/record-deposit', (req, res) => {
+app.post('/record-deposit', async (req, res) => {
   const { jar_pubkey, depositor_pubkey, amount_usdc, tx_signature, comment } = req.body
   if (!jar_pubkey || !depositor_pubkey || !amount_usdc || !tx_signature) {
     return res.status(400).json({ ok: false, error: 'missing required fields' })
+  }
+
+  // B1 — verify the tx exists on Solana before recording (5s timeout)
+  try {
+    const txVerified = await Promise.race([
+      connection.getTransaction(tx_signature, { maxSupportedTransactionVersion: 0 }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('rpc_timeout')), 5000)),
+    ])
+    if (txVerified === null) {
+      return res.status(400).json({ ok: false, error: 'transaction not found on chain' })
+    }
+  } catch (e) {
+    if (e.message === 'rpc_timeout') {
+      console.warn(`[record-deposit] RPC timeout verifying tx ${tx_signature} — allowing record`)
+    } else {
+      console.warn(`[record-deposit] RPC error verifying tx: ${e.message} — allowing record`)
+    }
   }
 
   const dbMod = require('./db')
@@ -956,8 +1005,8 @@ app.post('/jar/deposit-sol', async (req, res) => {
 
     res.json({ ok: true, depositTx })
   } catch (err) {
-    console.error('[/jar/deposit-sol]', err.message)
-    res.status(500).json({ ok: false, error: err.message })
+    console.error('[/jar/deposit-sol] error:', err)
+    res.status(500).json({ ok: false, error: 'Internal server error' })
   }
 })
 
@@ -1059,7 +1108,8 @@ app.post('/cosigner/create', (req, res) => {
     dbMod.addCosigner({ jar_pubkey, invite_token, created_at: Date.now() })
     res.json({ ok: true, invite_token })
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message })
+    console.error('[/cosigner/create] error:', err)
+    res.status(500).json({ ok: false, error: 'Internal server error' })
   }
 })
 
@@ -1082,7 +1132,8 @@ app.post('/cosigner/accept/:token', (req, res) => {
     const ok = dbMod.acceptCosigner(req.params.token, invitee_pubkey)
     res.json({ ok, jar_pubkey: row.jar_pubkey })
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message })
+    console.error('[/cosigner/accept] error:', err)
+    res.status(500).json({ ok: false, error: 'Internal server error' })
   }
 })
 
