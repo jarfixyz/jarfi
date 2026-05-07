@@ -304,10 +304,10 @@ export default function Dashboard() {
   // Switch tab when wallet connects / disconnects
   useEffect(() => {
     const key = publicKey?.toBase58() ?? null;
-    if (key && !prevKeyRef.current) setActivePage("dashboard"); // just connected
-    if (!key && prevKeyRef.current)  setActivePage("demo");     // just disconnected
+    if (key && !prevKeyRef.current) { setActivePage("dashboard"); router.replace("/dashboard?page=dashboard", { scroll: false }); }
+    if (!key && prevKeyRef.current)  { setActivePage("demo");      router.replace("/dashboard?page=demo",      { scroll: false }); }
     prevKeyRef.current = key;
-  }, [publicKey]);
+  }, [publicKey, router]);
 
   useEffect(() => {
     fetchApy().then((d) =>
