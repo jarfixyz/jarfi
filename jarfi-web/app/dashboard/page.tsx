@@ -312,10 +312,10 @@ export default function Dashboard() {
     );
   }, []);
 
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | null>(null);
   useEffect(() => {
-    if (!publicKey) return;
-    subscribeToPush(publicKey.toBase58()).catch(() => {});
-  }, [publicKey]);
+    if (typeof Notification !== "undefined") setNotifPermission(Notification.permission);
+  }, []);
 
   useEffect(() => {
     if (!publicKey) {
@@ -521,6 +521,22 @@ export default function Dashboard() {
       {/* ── Main ───────────────────────────────────────────────────────────── */}
       <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
         {/* Push confirm banner */}
+        {/* Enable notifications prompt — only if user has schedules and hasn't granted yet */}
+        {publicKey && schedules.length > 0 && notifPermission !== "granted" && notifPermission !== null && (
+          <div className="flex items-center justify-between bg-amber-50 border-b border-amber-200 px-6 py-3 text-sm">
+            <span className="text-amber-800">🔔 Enable notifications to receive your monthly deposit reminders</span>
+            <button
+              onClick={async () => {
+                await subscribeToPush(publicKey.toBase58());
+                setNotifPermission(Notification.permission);
+              }}
+              className="ml-4 rounded-full bg-amber-500 px-4 py-1.5 text-xs font-semibold text-white hover:bg-amber-600"
+            >
+              Enable
+            </button>
+          </div>
+        )}
+
         {confirmBanner && (
           <div className="sticky top-0 z-20 flex items-center justify-between bg-sol-purple px-6 py-3 text-sm font-medium text-white shadow">
             <span>
