@@ -282,7 +282,7 @@ export default function Dashboard() {
   const [showWelcome, setShowWelcome] = useState(true);
   const dismissWelcome = () => setShowWelcome(false);
 
-  const { publicKey, wallet } = useWallet();
+  const { publicKey, wallet, connecting } = useWallet();
   const { connection } = useConnection();
   const { jars: liveJars, loading: jarsLoading, refresh: refreshJars, addJar, removeJar } = useJars();
   const [apy, setApy] = useState({ usdc_kamino: 5.5, sol_marinade: 6.85 });
@@ -315,9 +315,7 @@ export default function Dashboard() {
     );
   }, []);
 
-  const [notifPermission, setNotifPermission] = useState<NotificationPermission | null>(() =>
-    typeof Notification !== "undefined" ? Notification.permission : null
-  );
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | null>(null);
   useEffect(() => {
     if (typeof Notification !== "undefined") setNotifPermission(Notification.permission);
   }, []);
@@ -363,6 +361,10 @@ export default function Dashboard() {
     if (page && ["dashboard", "analytics", "contributors", "demo"].includes(page)) {
       setActivePage(page as "dashboard" | "analytics" | "contributors" | "demo");
     }
+
+    // Open new-jar modal from landing page CTAs
+    const action = p.get("action");
+    if (action === "new-jar") setModal("new-jar");
 
     // Restore selected jar from URL (applied once jars load)
     const jarPubkey = p.get("jar");
@@ -431,6 +433,9 @@ export default function Dashboard() {
       }),
     [liveJars, apy]
   );
+
+  const effectiveContribsForPages = publicKey ? contributions : DEMO_CONTRIBUTIONS;
+  const effectiveJarsForPages = publicKey ? normalizedLive : (DEMO_JARS as JarType[]);
 
   const greeting = publicKey
     ? `${publicKey.toBase58().slice(0, 4)}…${publicKey.toBase58().slice(-4)}`
@@ -540,6 +545,15 @@ export default function Dashboard() {
 
       {/* ── Main ───────────────────────────────────────────────────────────── */}
       <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
+        {/* Loading state while wallet auto-reconnects — prevents flash of demo screen */}
+        {connecting && !publicKey && (
+          <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F4F1", zIndex: 100 }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>🏺</div>
+              <div style={{ fontSize: 14, color: "#888" }}>Loading...</div>
+            </div>
+          </div>
+        )}
         {/* Enable notifications banner */}
         {publicKey && notifPermission !== "granted" && notifPermission !== null && (
           <div className="flex items-center justify-between bg-amber-50 border-b border-amber-200 px-6 py-3 text-sm">
@@ -751,8 +765,8 @@ export default function Dashboard() {
         )}
         {activePage === "analytics" && (
           <AnalyticsPage
-            liveJars={normalizedLive}
-            contributions={contributions}
+            liveJars={effectiveJarsForPages}
+            contributions={effectiveContribsForPages}
             apy={apy}
             onMenuToggle={() => setSidebarOpen((v) => !v)}
             onBack={() => navigate("dashboard")}
@@ -760,8 +774,8 @@ export default function Dashboard() {
         )}
         {activePage === "contributors" && (
           <ContributorsPage
-            contributions={contributions}
-            liveJars={normalizedLive}
+            contributions={effectiveContribsForPages}
+            liveJars={effectiveJarsForPages}
             onMenuToggle={() => setSidebarOpen((v) => !v)}
             onBack={() => navigate("dashboard")}
           />
@@ -1148,7 +1162,11 @@ function DashboardPage({
             {effectiveJars.length > 0 && (
               <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
                 <V3Forecast totalSaved={totalSaved} apy={apy} />
-                <V3Suggestions />
+                <V3Suggestions
+                  liveJars={effectiveJars}
+                  onSelectJar={selectJar}
+                  onNavigate={(page) => jarRouter.replace(`/dashboard?page=${page}`, { scroll: false })}
+                />
               </div>
             )}
 
@@ -1663,11 +1681,46 @@ function V3SliderRow({ label, displayVal, min, max, step, val, setVal }: {
 // V3 SUGGESTIONS
 // ---------------------------------------------------------------------------
 
-function V3Suggestions() {
+function V3Suggestions({
+  liveJars,
+  onSelectJar,
+  onNavigate,
+}: {
+  liveJars: JarType[];
+  onSelectJar: (jar: JarType) => void;
+  onNavigate: (page: "dashboard" | "analytics" | "contributors" | "demo") => void;
+}) {
+  const topJar = liveJars[0];
   const recs = [
-    { id: 1, title: "Add $50/mo to your top jar", impact: "+$8,400 by 2034", emoji: "💡", cta: "Set up" },
-    { id: 2, title: "Stay on pace — check timeline", impact: "Your jars are on track", emoji: "⚠️", cta: "Adjust" },
-    { id: 3, title: "Friends contributed last month", impact: "Send a thank-you message", emoji: "💚", cta: "Send" },
+    {
+      id: 1,
+      title: topJar ? `Add monthly contributions to "${topJar.name}"` : "Set up monthly contributions",
+      impact: "+$8,400 by 2034",
+      emoji: "💡",
+      cta: "Set up",
+      onClick: () => topJar && onSelectJar(topJar),
+    },
+    {
+      id: 2,
+      title: "Check your savings timeline",
+      impact: "See projected jar values",
+      emoji: "📈",
+      cta: "View",
+      onClick: () => onNavigate("analytics"),
+    },
+    {
+      id: 3,
+      title: "Share your gift link",
+      impact: "Let friends & family contribute",
+      emoji: "💚",
+      cta: "Share",
+      onClick: () => {
+        if (topJar) {
+          const url = `${typeof window !== "undefined" ? window.location.origin : "https://jarfi.xyz"}/gift/${topJar.id}`;
+          navigator.clipboard.writeText(url).catch(() => {});
+        }
+      },
+    },
   ];
   return (
     <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "20px 22px" }}>
@@ -1687,7 +1740,7 @@ function V3Suggestions() {
               <div style={{ fontSize: 13, fontWeight: 500 }}>{r.title}</div>
               <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>{r.impact}</div>
             </div>
-            <button style={{ padding: "6px 12px", background: "#111", color: "#fff", border: "none", borderRadius: 8, fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "var(--font)", flexShrink: 0 }}>{r.cta}</button>
+            <button onClick={r.onClick} style={{ padding: "6px 12px", background: "#111", color: "#fff", border: "none", borderRadius: 8, fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "var(--font)", flexShrink: 0 }}>{r.cta}</button>
           </div>
         ))}
       </div>
@@ -3221,6 +3274,7 @@ function JarDetailPanel({
   const { wallet, publicKey } = useWallet();
   const [contribs, setContribs] = useState<JarContribution[]>(initialContribs ?? []);
   const [copied, setCopied] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const [cosigners, setCosigners] = useState<Cosigner[]>([]);
   const [editSchedule, setEditSchedule] = useState<Schedule | null>(null);
   const [showBreakModal, setShowBreakModal] = useState(false);
@@ -3397,7 +3451,7 @@ function JarDetailPanel({
                   <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 2 }}>Est. monthly earnings</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.5px" }}>{isUsdc ? "Kamino" : "Marinade"}</div>
+                  <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.5px" }}>Kamino</div>
                   <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 2 }}>Protocol</div>
                 </div>
               </div>
@@ -3413,7 +3467,7 @@ function JarDetailPanel({
                   You&apos;ll have <strong style={{ color: "var(--green)" }}>{fmtK(future)}</strong> by {unlockStr}
                 </div>
                 <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>
-                  This includes your contributions and {isUsdc ? `Kamino ${apy.usdc_kamino}%` : `Marinade ${apy.sol_marinade}%`} yield.
+                  This includes your contributions and {isUsdc ? `Kamino ${apy.usdc_kamino}%` : `Kamino ${apy.usdc_kamino}%`} yield.
                 </div>
               </div>
             )}
@@ -3523,7 +3577,7 @@ function JarDetailPanel({
                 { label: "Unlocks",  value: unlockStr ?? "No date set" },
                 { label: "Network",  value: "Solana" },
                 { label: "Currency", value: isUsdc ? "USDC" : "SOL" },
-                { label: "Yield",    value: `${isUsdc ? apy.usdc_kamino : apy.sol_marinade}% APY via ${isUsdc ? "Kamino" : "Marinade"}` },
+                { label: "Yield",    value: `${apy.usdc_kamino}% APY via Kamino` },
               ].map(s => (
                 <div key={s.label} style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
                   <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>{s.label}</span>
@@ -3605,19 +3659,23 @@ function JarDetailPanel({
               ? `Unlocks at goal or on ${jar.unlockDate > 0 ? new Date(jar.unlockDate * 1000).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "date"}`
               : "";
 
-            // Empty + locked → offer dashboard removal only
+            // Empty + locked → offer dashboard removal only (with two-step confirm)
             if (isEmpty && jar.locked && !canBreak) {
               return (
                 <div style={{ marginTop: 16 }}>
-                  <button
-                    onClick={() => {
-                      fetch(`${BACKEND}/jar/meta/${jar.id}`, { method: "DELETE" }).catch(() => {});
-                      onJarBroken(jar.id);
-                    }}
-                    style={{ width: "100%", padding: "10px 0", background: "none", border: "1px solid #E0E0DC", borderRadius: 9, color: "#888", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "var(--font)" }}
-                  >
-                    Remove from dashboard
-                  </button>
+                  {!confirmRemove ? (
+                    <button onClick={() => setConfirmRemove(true)} style={{ width: "100%", padding: "10px 0", background: "none", border: "1px solid #E0E0DC", borderRadius: 9, color: "#888", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "var(--font)" }}>
+                      Remove from dashboard
+                    </button>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div style={{ fontSize: 13, color: "#555", textAlign: "center" }}>Remove this jar from your dashboard?</div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button onClick={() => setConfirmRemove(false)} style={{ flex: 1, padding: "9px 0", background: "none", border: "1px solid #E0E0DC", borderRadius: 9, color: "#888", fontSize: 13, cursor: "pointer", fontFamily: "var(--font)" }}>Cancel</button>
+                        <button onClick={() => { fetch(`${BACKEND}/jar/meta/${jar.id}`, { method: "DELETE" }).catch(() => {}); onJarBroken(jar.id); }} style={{ flex: 1, padding: "9px 0", background: "#fee2e2", border: "1px solid #fca5a5", borderRadius: 9, color: "#dc2626", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "var(--font)" }}>Remove</button>
+                      </div>
+                    </div>
+                  )}
                   <div style={{ fontSize: 11, color: "#bbb", textAlign: "center", marginTop: 6 }}>{lockHint} · No funds to withdraw</div>
                 </div>
               );

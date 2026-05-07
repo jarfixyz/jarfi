@@ -125,7 +125,7 @@ export default function Landing() {
               return <a key={href} href={href} style={{ fontSize:13, color:T.text2, textDecoration:"none" }}>{label}</a>;
             })}
           </div>
-          <Link href="/dashboard" style={{ fontSize:13, fontWeight:600, background:T.text, color:"#fff", padding:"8px 16px", borderRadius:8, textDecoration:"none" }}>
+          <Link href="/dashboard?action=new-jar" style={{ fontSize:13, fontWeight:600, background:T.text, color:"#fff", padding:"8px 16px", borderRadius:8, textDecoration:"none" }}>
             Create a jar
           </Link>
         </div>
@@ -147,7 +147,7 @@ export default function Landing() {
               Create a jar, set a goal, and let family or friends top it up instantly — your money earns up to 8.2% APY automatically, onchain.
             </p>
             <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-              <Link href="/dashboard" style={btnDark}>Create a jar →</Link>
+              <Link href="/dashboard?action=new-jar" style={btnDark}>Create a jar →</Link>
               <Link href="/dashboard" style={btnOutline}>See dashboard</Link>
             </div>
           </div>
@@ -428,7 +428,7 @@ export default function Landing() {
                   Based on 5.5% APY USDC lending yield via Kamino (conservative estimate). Past performance does not guarantee future results.
                 </div>
               </div>
-              <Link href="/dashboard" style={{ ...btnDark, marginTop:14, width:"100%", justifyContent:"center", boxSizing:"border-box" }}>
+              <Link href="/dashboard?action=new-jar" style={{ ...btnDark, marginTop:14, width:"100%", justifyContent:"center", boxSizing:"border-box" }}>
                 Start a jar →
               </Link>
             </div>
