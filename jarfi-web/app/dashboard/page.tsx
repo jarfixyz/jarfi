@@ -279,8 +279,16 @@ export default function Dashboard() {
   const [toast, setToast] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [scenario, setScenario] = useState(50);
-  const [showWelcome, setShowWelcome] = useState(true);
-  const dismissWelcome = () => setShowWelcome(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+  useEffect(() => {
+    if (typeof localStorage !== 'undefined' && !localStorage.getItem('jarfi_welcome_seen')) {
+      setShowWelcome(true);
+    }
+  }, []);
+  const dismissWelcome = () => {
+    setShowWelcome(false);
+    if (typeof localStorage !== 'undefined') localStorage.setItem('jarfi_welcome_seen', '1');
+  };
 
   const { publicKey, wallet, connecting, connected } = useWallet();
   const [hasMounted, setHasMounted] = useState(false);
@@ -565,7 +573,7 @@ export default function Dashboard() {
       <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
         {/* Splash: wait for mount AND wallet settlement to prevent flash */}
         {(!hasMounted || !walletSettled) && (
-          <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F4F1", zIndex: 100 }}>
+          <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F4F1", zIndex: 9999 }}>
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}>🏺</div>
               <div style={{ fontSize: 14, color: "#888", fontFamily: "var(--font)" }}>Loading...</div>
@@ -911,7 +919,7 @@ export default function Dashboard() {
       )}
 
       {/* ── Welcome modal (first-time, no wallet) ───────────────────────── */}
-      {showWelcome && !publicKey && (
+      {showWelcome && !publicKey && walletSettled && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }} onClick={dismissWelcome}>
           <div style={{ background:"#fff", borderRadius:24, padding:40, maxWidth:440, width:"100%", boxShadow:"0 20px 60px rgba(0,0,0,0.15)" }} onClick={e => e.stopPropagation()}>
             <div style={{ textAlign:"center", marginBottom:32 }}>
