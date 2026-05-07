@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   LayoutGrid,
   Package,
@@ -268,10 +269,12 @@ const DEMO_CONTRIBUTIONS_BY_JAR: Record<string, JarContribution[]> = {
 // ---------------------------------------------------------------------------
 
 export default function Dashboard() {
+  const router = useRouter();
   const [activePage, setActivePage] = useState<
     "dashboard" | "analytics" | "contributors" | "demo"
   >("demo");
   const prevKeyRef = useRef<string | null>(null);
+  const pendingJarRef = useRef<string | null>(null);
   const [modal, setModal] = useState<"new-jar" | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -344,19 +347,34 @@ export default function Dashboard() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const p = new URLSearchParams(window.location.search);
-    const jar_pubkey = p.get("confirm");
-    const amount_usdc = Number(p.get("amount") ?? 0);
-    const manual = p.get("manual") === "1";
-    if (jar_pubkey) setConfirmBanner({ jar_pubkey, amount_usdc, manual });
+
+    // Push notification confirm flow
+    const confirmPubkey = p.get("confirm");
+    if (confirmPubkey) {
+      const amount_usdc = Number(p.get("amount") ?? 0);
+      const manual = p.get("manual") === "1";
+      setConfirmBanner({ jar_pubkey: confirmPubkey, amount_usdc, manual });
+    }
+
+    // Restore page tab from URL
+    const page = p.get("page");
+    if (page && ["dashboard", "analytics", "contributors", "demo"].includes(page)) {
+      setActivePage(page as "dashboard" | "analytics" | "contributors" | "demo");
+    }
+
+    // Restore selected jar from URL (applied once jars load)
+    const jarPubkey = p.get("jar");
+    if (jarPubkey) pendingJarRef.current = jarPubkey;
   }, []);
 
-  // Close sidebar when navigating
+  // Close sidebar when navigating + sync URL
   const navigate = useCallback(
     (page: typeof activePage) => {
       setActivePage(page);
       setSidebarOpen(false);
+      router.replace(`/dashboard?page=${page}`, { scroll: false });
     },
-    []
+    [router]
   );
 
   // Normalize on-chain JarAccount → JarType
@@ -522,7 +540,7 @@ export default function Dashboard() {
       <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
         {/* Push confirm banner */}
         {/* Enable notifications prompt — only if user has schedules and hasn't granted yet */}
-        {publicKey && schedules.length > 0 && notifPermission !== "granted" && notifPermission !== null && (
+        {publicKey && notifPermission !== "granted" && notifPermission !== null && (
           <div className="flex items-center justify-between bg-amber-50 border-b border-amber-200 px-6 py-3 text-sm">
             <span className="text-amber-800">🔔 Enable notifications to receive your monthly deposit reminders</span>
             <button
@@ -952,8 +970,27 @@ function DashboardPage({
   onJarBroken: (pubkey: string) => void;
 }) {
   const hasWallet = !!greeting;
+  const jarRouter = useRouter();
   const [selectedJar, setSelectedJar] = useState<JarType | null>(null);
   const [sortBy, setSortBy] = useState<"recent" | "amount" | "progress" | "unlock">("recent");
+
+  const selectJar = useCallback((jar: JarType | null) => {
+    setSelectedJar(jar);
+    if (jar) jarRouter.replace(`/dashboard?page=dashboard&jar=${jar.id}`, { scroll: false });
+    else jarRouter.replace(`/dashboard?page=dashboard`, { scroll: false });
+  }, [jarRouter]);
+
+  // Auto-select jar from URL once liveJars load
+  const pendingJarFromUrl = useRef<string | null>(
+    typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("jar") : null
+  );
+  useEffect(() => {
+    if (!pendingJarFromUrl.current || liveJars.length === 0) return;
+    const jar = liveJars.find(j => j.id === pendingJarFromUrl.current);
+    if (jar) selectJar(jar as JarType);
+    pendingJarFromUrl.current = null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveJars]);
 
   // When no wallet — display demo data so the page is useful immediately
   const effectiveJars = hasWallet ? liveJars : DEMO_JARS;
@@ -1030,11 +1067,11 @@ function DashboardPage({
         jar={selectedJar}
         apy={apy}
         schedules={schedules}
-        onBack={() => setSelectedJar(null)}
+        onBack={() => selectJar(null)}
         onMenuToggle={onMenuToggle}
         onAddFunds={onAddFunds}
         onScheduleUpdate={onScheduleUpdate}
-        onJarBroken={(pubkey) => { onJarBroken(pubkey); setSelectedJar(null); }}
+        onJarBroken={(pubkey) => { onJarBroken(pubkey); selectJar(null); }}
         initialContribs={DEMO_CONTRIBUTIONS_BY_JAR[selectedJar.id]}
       />
     );
@@ -1197,7 +1234,7 @@ function DashboardPage({
                     <V2JarCard
                       key={j.id}
                       jar={j}
-                      onSelect={() => setSelectedJar(j)}
+                      onSelect={() => selectJar(j)}
                       onAddFunds={(e) => { e.stopPropagation(); onAddFunds(j.id, j.name, j.currency as "usdc" | "sol"); }}
                     />
                   ))}
