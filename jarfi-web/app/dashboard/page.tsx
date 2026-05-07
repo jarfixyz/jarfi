@@ -282,9 +282,22 @@ export default function Dashboard() {
   const [showWelcome, setShowWelcome] = useState(true);
   const dismissWelcome = () => setShowWelcome(false);
 
-  const { publicKey, wallet, connecting } = useWallet();
+  const { publicKey, wallet, connecting, connected } = useWallet();
   const [hasMounted, setHasMounted] = useState(false);
   useEffect(() => { setHasMounted(true); }, []);
+
+  // walletSettled: keep splash until we know whether wallet auto-connected.
+  // Without this, there's a 1-render gap where hasMounted=true but connecting
+  // hasn't started yet → flashes the disconnected/demo state.
+  const [walletSettled, setWalletSettled] = useState(false);
+  useEffect(() => {
+    if (!hasMounted) return;
+    const storedWallet = typeof localStorage !== 'undefined' ? localStorage.getItem('walletName') : null;
+    if (!storedWallet || connected) { setWalletSettled(true); return; }
+    // Wallet adapter will autoConnect — wait for it, cap at 1.2s
+    const t = setTimeout(() => setWalletSettled(true), 1200);
+    return () => clearTimeout(t);
+  }, [hasMounted, connected]);
   const { connection } = useConnection();
   const { jars: liveJars, loading: jarsLoading, refresh: refreshJars, addJar, removeJar } = useJars();
   const [apy, setApy] = useState({ usdc_kamino: 5.5, sol_marinade: 6.85 });
@@ -358,10 +371,11 @@ export default function Dashboard() {
       setConfirmBanner({ jar_pubkey: confirmPubkey, amount_usdc, manual });
     }
 
-    // Restore page tab from URL
+    // Restore page tab from URL (demo is guest-only — redirect to dashboard if wallet connected)
     const page = p.get("page");
     if (page && ["dashboard", "analytics", "contributors", "demo"].includes(page)) {
-      setActivePage(page as "dashboard" | "analytics" | "contributors" | "demo");
+      const isGuest = !publicKey;
+      setActivePage((page === "demo" && !isGuest) ? "dashboard" : page as "dashboard" | "analytics" | "contributors" | "demo");
     }
 
     // Open new-jar modal from landing page CTAs
@@ -490,12 +504,14 @@ export default function Dashboard() {
         {/* Nav items — My Jars / Activity / People only with wallet */}
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           {[
-            { key: "dashboard",    icon: "jar",      label: "My jars",  walletOnly: true },
-            { key: "analytics",    icon: "activity", label: "Activity", walletOnly: true },
-            { key: "contributors", icon: "people",   label: "People",   walletOnly: true },
-            { key: "docs",         icon: "docs",     label: "Docs",     walletOnly: false },
-            { key: "demo",         icon: "star",     label: "Demo",     walletOnly: false },
-          ].filter(item => !item.walletOnly || !!publicKey).map(({ key, icon, label }) => {
+            { key: "dashboard",    icon: "jar",      label: "My jars",  walletOnly: true,  guestOnly: false },
+            { key: "analytics",    icon: "activity", label: "Activity", walletOnly: true,  guestOnly: false },
+            { key: "contributors", icon: "people",   label: "People",   walletOnly: true,  guestOnly: false },
+            { key: "docs",         icon: "docs",     label: "Docs",     walletOnly: false, guestOnly: false },
+            { key: "demo",         icon: "star",     label: "Demo",     walletOnly: false, guestOnly: true  },
+          ].filter(item =>
+            (!item.walletOnly || !!publicKey) && (!item.guestOnly || !publicKey)
+          ).map(({ key, icon, label }) => {
             const active = activePage === key;
             // "Docs" opens external link
             if (key === "docs") {
@@ -551,8 +567,8 @@ export default function Dashboard() {
 
       {/* ── Main ───────────────────────────────────────────────────────────── */}
       <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
-        {/* hasMounted guard — prevents SSR flash and wallet reconnect flash */}
-        {(!hasMounted || connecting) && (
+        {/* Splash: wait for mount AND wallet settlement to prevent flash */}
+        {(!hasMounted || !walletSettled) && (
           <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F4F1", zIndex: 100 }}>
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}>🏺</div>
@@ -578,6 +594,27 @@ export default function Dashboard() {
                 Enable
               </button>
             )}
+          </div>
+        )}
+        {/* Test push button — shown when notifications are granted */}
+        {publicKey && notifPermission === "granted" && (
+          <div className="flex items-center justify-between bg-green-50 border-b border-green-200 px-6 py-2 text-sm">
+            <span className="text-green-800">🔔 Push notifications enabled</span>
+            <button
+              onClick={async () => {
+                const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://jarfi.up.railway.app";
+                // Ensure subscription is saved before testing
+                const saved = await subscribeToPush(publicKey.toBase58()).catch(() => false);
+                if (!saved) { showToast("Failed to save push subscription"); return; }
+                const res = await fetch(`${API_URL}/push/test-send/${publicKey.toBase58()}`, { method: "POST" });
+                const data = await res.json();
+                if (data.ok) showToast("Test notification sent! 🔔");
+                else showToast(`Push error: ${data.error}`);
+              }}
+              className="ml-4 shrink-0 rounded-full bg-green-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
+            >
+              Send test
+            </button>
           </div>
         )}
 
@@ -857,6 +894,10 @@ export default function Dashboard() {
                 setInitialDepositPrompt({ pubkey: jarPubkey, name: params.jarName, currency: params.currency === 'usdc' ? 'usdc' : 'sol' });
               }
               showToast(params.groupTrip ? "Group trip created ✈️" : "Jar created 🏺");
+              // Subscribe to push after jar creation so recurring reminders work
+              subscribeToPush(publicKey.toBase58()).then(() => {
+                if (typeof Notification !== "undefined") setNotifPermission(Notification.permission);
+              }).catch(() => {});
             } catch (e: unknown) {
               const msg = e instanceof Error ? e.message : String(e);
               console.error("[create-jar] error:", msg);

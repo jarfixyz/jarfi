@@ -1,7 +1,7 @@
 "use client";
 
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Wallet, ChevronDown, LogOut, Copy } from "lucide-react";
 
 interface WalletButtonProps {
@@ -23,6 +23,28 @@ export function WalletButton({ compact = false }: WalletButtonProps) {
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
+
+  // If Phantom is locked, adapter still reports connected=true with cached publicKey.
+  // Detect this by checking window.phantom.solana.isConnected and force-disconnect.
+  useEffect(() => {
+    if (!connected) return;
+    const phantom = (window as any)?.phantom?.solana;
+    if (!phantom) return;
+    if (phantom.isConnected === false) {
+      disconnect();
+    }
+  }, [connected, disconnect]);
+
+  useEffect(() => {
+    const phantom = (window as any)?.phantom?.solana;
+    if (!phantom) return;
+    // accountChanged fires with null when wallet locks or account changes
+    const onAccountChanged = (key: unknown) => {
+      if (!key) disconnect();
+    };
+    phantom.on?.("accountChanged", onAccountChanged);
+    return () => phantom.off?.("accountChanged", onAccountChanged);
+  }, [disconnect]);
 
   const installedWallets = wallets.filter((w) => w.readyState === "Installed");
 
