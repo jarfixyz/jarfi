@@ -23,6 +23,8 @@ import { WalletButton } from "@/components/wallet-button";
 import { useJars } from "@/lib/use-jars";
 import { createUsdcJarOnChain } from "@/lib/create-jar";
 import { breakUsdcJarOnChain } from "@/lib/break-jar";
+import { depositUsdcFromWallet } from "@/lib/deposit-usdc";
+import { recordDirectDeposit } from "@/lib/api";
 import { CURRENCY_USDC, fetchJarByPubkey } from "@/lib/program";
 import { PublicKey } from "@solana/web3.js";
 import {
@@ -289,8 +291,10 @@ export default function Dashboard() {
     amount_usdc: number;
     manual?: boolean;
   } | null>(null);
-  const [showDepositTransak, setShowDepositTransak] = useState(false);
   const [addFundsJar, setAddFundsJar] = useState<{ pubkey: string; name: string; currency: "usdc" | "sol" } | null>(null);
+  const [addFundsMethod, setAddFundsMethod] = useState<"choose" | "wallet" | "transak">("choose");
+  const [directDepositAmount, setDirectDepositAmount] = useState("100");
+  const [directDepositLoading, setDirectDepositLoading] = useState(false);
   const [initialDepositPrompt, setInitialDepositPrompt] = useState<{ pubkey: string; name: string; currency: "usdc" | "sol" } | null>(null);
   const [cosignerInvite, setCosignerInvite] = useState<{ jar_pubkey: string; token: string; name: string } | null>(null);
 
@@ -526,7 +530,13 @@ export default function Dashboard() {
             </span>
             <div className="ml-4 flex items-center gap-2">
               <button
-                onClick={() => setShowDepositTransak(true)}
+                onClick={() => {
+                  const jarName = normalizedLive.find(j => j.id === confirmBanner!.jar_pubkey)?.name ?? "your jar";
+                  setDirectDepositAmount(String(confirmBanner!.amount_usdc / 100));
+                  setAddFundsJar({ pubkey: confirmBanner!.jar_pubkey, name: jarName, currency: "usdc" });
+                  setAddFundsMethod(publicKey ? "wallet" : "transak");
+                  setConfirmBanner(null);
+                }}
                 className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-sol-purple hover:bg-white/90"
               >
                 Top up
@@ -541,34 +551,103 @@ export default function Dashboard() {
           </div>
         )}
 
-        {showDepositTransak && confirmBanner && (
-          <TransakWidget
-            vaultAddress={confirmBanner.jar_pubkey}
-            fiatAmount={confirmBanner.amount_usdc > 0 ? confirmBanner.amount_usdc / 100 : undefined}
-            contributorMessage="Monthly contribution"
-            onSuccess={() => {
-              setShowDepositTransak(false);
-              setConfirmBanner(null);
-              showToast("Deposit confirmed ✅");
-              refreshJars();
-            }}
-            onClose={() => setShowDepositTransak(false)}
-          />
-        )}
+        {/* Add funds — method chooser or direct flows */}
+        {addFundsJar && (() => {
+          const canUseWallet = !!publicKey;
+          const method = canUseWallet ? addFundsMethod : "transak";
+          const closeAll = () => { setAddFundsJar(null); setAddFundsMethod("choose"); setDirectDepositAmount("100"); };
 
-        {addFundsJar && (
-          <TransakWidget
-            vaultAddress={addFundsJar.pubkey}
-            contributorMessage={`Top up ${addFundsJar.name}`}
+          if (method === "transak") {
+            return (
+              <TransakWidget
+                vaultAddress={addFundsJar.pubkey}
+                contributorMessage={`Top up ${addFundsJar.name}`}
+                onSuccess={() => { closeAll(); showToast("Deposit confirmed ✅"); refreshJars(); }}
+                onClose={closeAll}
+              />
+            );
+          }
 
-            onSuccess={() => {
-              setAddFundsJar(null);
-              showToast("Deposit confirmed ✅");
-              refreshJars();
-            }}
-            onClose={() => setAddFundsJar(null)}
-          />
-        )}
+          // Overlay modal wrapper
+          return (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+              <div style={{ background: "#fff", borderRadius: 20, padding: 28, width: "100%", maxWidth: 420, boxShadow: "0 20px 60px rgba(0,0,0,.25)", fontFamily: "var(--font)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                  <div style={{ fontSize: 18, fontWeight: 600 }}>Add funds — {addFundsJar.name}</div>
+                  <button onClick={closeAll} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "#888", lineHeight: 1 }}>×</button>
+                </div>
+
+                {method === "choose" && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <button onClick={() => setAddFundsMethod("wallet")}
+                      style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", border: "1.5px solid #059669", borderRadius: 14, cursor: "pointer", background: "#ECFDF5", fontFamily: "var(--font)", textAlign: "left" }}>
+                      <span style={{ fontSize: 26 }}>👛</span>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: "#059669" }}>From wallet</div>
+                        <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>Send USDC directly · No KYC · Instant</div>
+                      </div>
+                    </button>
+                    <button onClick={() => setAddFundsMethod("transak")}
+                      style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", border: "1px solid var(--border)", borderRadius: 14, cursor: "pointer", background: "var(--bg)", fontFamily: "var(--font)", textAlign: "left" }}>
+                      <span style={{ fontSize: 26 }}>💳</span>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 500 }}>Buy with card</div>
+                        <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>Powered by Transak · KYC required</div>
+                      </div>
+                    </button>
+                  </div>
+                )}
+
+                {method === "wallet" && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    <div style={{ fontSize: 13, color: "#555" }}>USDC will be sent from your connected wallet directly on-chain.</div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>Amount (USDC)</div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <div style={{ padding: "11px 14px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 15, fontWeight: 600, background: "var(--bg-muted)", color: "#888", minWidth: 36, textAlign: "center" }}>$</div>
+                        <input type="number" min="1" step="1"
+                          value={directDepositAmount}
+                          onChange={e => setDirectDepositAmount(e.target.value)}
+                          style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 8, padding: "11px 14px", fontSize: 15, fontFamily: "var(--font)", outline: "none" }}
+                        />
+                      </div>
+                    </div>
+                    <button
+                      disabled={directDepositLoading || !directDepositAmount || parseFloat(directDepositAmount) <= 0}
+                      onClick={async () => {
+                        if (!wallet?.adapter || !connection) return;
+                        setDirectDepositLoading(true);
+                        try {
+                          const amt = parseFloat(directDepositAmount);
+                          const sig = await depositUsdcFromWallet(wallet.adapter as never, connection, addFundsJar.pubkey, amt);
+                          await recordDirectDeposit({
+                            jar_pubkey: addFundsJar.pubkey,
+                            depositor_pubkey: publicKey!.toBase58(),
+                            amount_usdc: amt,
+                            tx_signature: sig,
+                            comment: `Direct deposit to ${addFundsJar.name}`,
+                          });
+                          closeAll();
+                          showToast("Deposit confirmed ✅");
+                          refreshJars();
+                        } catch (e: unknown) {
+                          const msg = e instanceof Error ? e.message : "Transaction failed";
+                          showToast(msg.includes("0x1") ? "Insufficient USDC balance" : "Transaction rejected");
+                        } finally {
+                          setDirectDepositLoading(false);
+                        }
+                      }}
+                      style={{ width: "100%", padding: "14px", background: directDepositLoading ? "#ccc" : "#059669", color: "#fff", border: "none", borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: directDepositLoading ? "not-allowed" : "pointer", fontFamily: "var(--font)" }}
+                    >
+                      {directDepositLoading ? "Sending…" : `Send $${directDepositAmount || "0"} USDC`}
+                    </button>
+                    <button onClick={() => setAddFundsMethod("choose")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#888", fontFamily: "var(--font)" }}>← Back</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Initial deposit prompt after jar creation */}
         {initialDepositPrompt && (
@@ -2346,6 +2425,8 @@ function NewJarModal({
   // Reminder
   const [reminderChoice, setReminderChoice] = useState<"monthly" | "none">("none");
   const [reminderAmount, setReminderAmount] = useState("100");
+  const [reminderDay, setReminderDay] = useState(1);
+  const [reminderHour, setReminderHour] = useState(9);
 
   // Security
   const [approvalMode, setApprovalMode] = useState<"NONE" | "FAMILY_APPROVAL">("NONE");
@@ -2442,7 +2523,7 @@ function NewJarModal({
       const { mode, contractUnlockDate, contractGoal } = jarTypeToContract(selectedType, unlockDate, goalAmount);
 
       const recurring = isReminder && monthly > 0
-        ? { amount_usdc: Math.round(monthly * 100), frequency: "monthly" as const, day: 1, hour: 9, minute: 0 }
+        ? { amount_usdc: Math.round(monthly * 100), frequency: "monthly" as const, day: reminderDay, hour: reminderHour, minute: 0 }
         : null;
 
       await onCreate({ jarName, jarEmoji, jarImage, customImage: customImageDataUrl, mode, unlockDate: contractUnlockDate, goalAmount: contractGoal, currency: "usdc", recurring, groupTrip: null, approvalMode });
@@ -2789,15 +2870,40 @@ function NewJarModal({
               ))}
             </div>
             {reminderChoice === "monthly" && (
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>Monthly amount</div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <div style={{ padding: "11px 14px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 15, fontWeight: 600, background: "var(--bg-muted)", color: "var(--text-secondary)", minWidth: 48, textAlign: "center" }}>$</div>
-                  <input type="number"
-                    value={suggestedMonthly && !reminderAmount ? String(suggestedMonthly) : reminderAmount}
-                    onChange={(e) => setReminderAmount(e.target.value)}
-                    style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 8, padding: "11px 14px", fontSize: 15, fontFamily: "var(--font)", outline: "none" }}
-                  />
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>Monthly amount</div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <div style={{ padding: "11px 14px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 15, fontWeight: 600, background: "var(--bg-muted)", color: "var(--text-secondary)", minWidth: 48, textAlign: "center" }}>$</div>
+                    <input type="number"
+                      value={suggestedMonthly && !reminderAmount ? String(suggestedMonthly) : reminderAmount}
+                      onChange={(e) => setReminderAmount(e.target.value)}
+                      style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 8, padding: "11px 14px", fontSize: 15, fontFamily: "var(--font)", outline: "none" }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>Remind me on day</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input type="number" min={1} max={28}
+                      value={reminderDay}
+                      onChange={(e) => setReminderDay(Math.min(28, Math.max(1, parseInt(e.target.value) || 1)))}
+                      style={{ width: 72, border: "1px solid var(--border)", borderRadius: 8, padding: "11px 14px", fontSize: 15, fontFamily: "var(--font)", outline: "none", textAlign: "center" }}
+                    />
+                    <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>of each month</span>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>At what time</div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {[{ label: "Morning", sub: "9:00 AM", hour: 9 }, { label: "Noon", sub: "12:00 PM", hour: 12 }, { label: "Evening", sub: "6:00 PM", hour: 18 }].map(t => (
+                      <button key={t.hour} onClick={() => setReminderHour(t.hour)}
+                        style={{ flex: 1, padding: "10px 8px", border: "1px solid", borderColor: reminderHour === t.hour ? "var(--text-primary)" : "var(--border)", borderRadius: 10, cursor: "pointer", background: reminderHour === t.hour ? "var(--bg-muted)" : "var(--bg)", fontFamily: "var(--font)", textAlign: "center" }}>
+                        <div style={{ fontSize: 13, fontWeight: 500 }}>{t.label}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>{t.sub}</div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}

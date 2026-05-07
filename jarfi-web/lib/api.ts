@@ -125,6 +125,24 @@ export async function updateScheduleApi(id: string, params: {
 }
 
 // ---------------------------------------------------------------------------
+// Direct deposit recording (wallet → on-chain → notify backend)
+// ---------------------------------------------------------------------------
+
+export async function recordDirectDeposit(params: {
+  jar_pubkey: string;
+  depositor_pubkey: string;
+  amount_usdc: number;
+  tx_signature: string;
+  comment?: string;
+}): Promise<void> {
+  await fetch(`${API_URL}/record-deposit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Cosigner API (Phase 5 — soft approval scaffold)
 // ---------------------------------------------------------------------------
 

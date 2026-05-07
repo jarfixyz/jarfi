@@ -846,6 +846,60 @@ app.get('/push/vapid-public-key', (req, res) => {
 })
 
 // ---------------------------------------------------------------------------
+// POST /push/test-send/:owner_pubkey  — smoke test push notification
+// ---------------------------------------------------------------------------
+
+app.post('/push/test-send/:owner_pubkey', async (req, res) => {
+  const sub = getPushSubscription(req.params.owner_pubkey)
+  if (!sub) return res.status(404).json({ ok: false, error: 'no subscription for this wallet' })
+  if (!process.env.VAPID_PUBLIC_KEY) return res.status(503).json({ ok: false, error: 'VAPID not configured' })
+
+  const payload = JSON.stringify({
+    title: 'Test notification 🧪',
+    body: 'Push notifications are working!',
+    data: { jar_pubkey: null, amount_usdc: 0, manual: false },
+  })
+
+  try {
+    await webpush.sendNotification(sub, payload)
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// POST /record-deposit — record a direct wallet deposit (no Transak)
+// ---------------------------------------------------------------------------
+
+app.post('/record-deposit', (req, res) => {
+  const { jar_pubkey, depositor_pubkey, amount_usdc, tx_signature, comment } = req.body
+  if (!jar_pubkey || !depositor_pubkey || !amount_usdc || !tx_signature) {
+    return res.status(400).json({ ok: false, error: 'missing required fields' })
+  }
+
+  const dbMod = require('./db')
+  dbMod.saveContribution({
+    id: tx_signature,
+    jar_pubkey,
+    contributor: depositor_pubkey,
+    amount: Math.round(amount_usdc * 1_000_000),
+    comment: comment ?? 'Direct wallet deposit',
+    created_at: Date.now(),
+  })
+
+  console.log(`[record-deposit] saved: $${amount_usdc} → ${jar_pubkey} tx:${tx_signature}`)
+
+  // Auto-stake to Kamino async (non-blocking)
+  const usdcMicroUnits = Math.round(amount_usdc * 1_000_000)
+  depositToKamino(connection, serverKeypair, jar_pubkey, usdcMicroUnits)
+    .then(r => console.log('[record-deposit] kamino stake:', r))
+    .catch(e => console.error('[record-deposit] kamino stake failed:', e.message))
+
+  res.json({ ok: true })
+})
+
+// ---------------------------------------------------------------------------
 // Helper: call record_marinade_stake on-chain after SDK stake
 // ---------------------------------------------------------------------------
 
