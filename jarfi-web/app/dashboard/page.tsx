@@ -1225,7 +1225,7 @@ function DashboardPage({
             {/* ── Forecast + Suggestions ──────────────────────────────────────── */}
             {effectiveJars.length > 0 && (
               <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
-                <V3Forecast totalSaved={totalSaved} apy={apy} />
+                <V3Forecast totalSaved={totalSaved} apy={apy} schedules={schedules} jars={effectiveJars} />
                 <V3Suggestions
                   liveJars={effectiveJars}
                   onSelectJar={selectJar}
@@ -1579,18 +1579,32 @@ function V3HeroStat({ label, value, sub, accent }: { label: string; value: strin
 function V3Forecast({
   totalSaved,
   apy,
+  schedules,
+  jars,
 }: {
   totalSaved: number;
   apy: { usdc_kamino: number; sol_marinade: number };
+  schedules: Schedule[];
+  jars: JarType[];
 }) {
-  const [mode, setMode] = useState<"how-much" | "reach-goal">("how-much");
-  const [monthly, setMonthly] = useState(150);
-  const [years, setYears] = useState(10);
-  const [target, setTarget] = useState(50000);
-  const [targetYears, setTargetYears] = useState(10);
+  const APY = (apy.usdc_kamino + apy.sol_marinade) / 2 / 100;
 
-  const avgApy = (apy.usdc_kamino + apy.sol_marinade) / 2 / 100;
-  const APY = avgApy;
+  // Real monthly from active schedules (amount_usdc is in cents)
+  const totalMonthly = schedules
+    .filter(s => s.active)
+    .reduce((sum, s) => {
+      const mo = s.frequency === "weekly" ? (s.amount_usdc / 100) * 4.33 : s.amount_usdc / 100;
+      return sum + mo;
+    }, 0);
+
+  // Time horizon: furthest unlock date among jars, min 3y, max 20y
+  const nowSec = Date.now() / 1000;
+  const maxUnlock = jars.reduce((max, j) => Math.max(max, j.unlockDate ?? 0), 0);
+  const yearsFromJars = maxUnlock > nowSec ? (maxUnlock - nowSec) / (365.25 * 24 * 3600) : 0;
+  const years = Math.min(20, Math.max(3, Math.round(yearsFromJars) || 5));
+
+  // Total goals across all jars
+  const totalGoal = jars.reduce((sum, j) => sum + (j.goalAmount ?? 0) / 1e6, 0);
 
   function forecastSeries(mo: number, yrs: number, rate: number, principal: number, pts: number): number[] {
     const arr: number[] = [];
@@ -1599,111 +1613,89 @@ function V3Forecast({
     for (let i = 0; i <= pts; i++) {
       arr.push(bal);
       const step = Math.ceil((yrs * 12) / pts);
-      for (let s = 0; s < step; s++) {
-        bal = bal * (1 + r) + mo;
-      }
+      for (let s = 0; s < step; s++) bal = bal * (1 + r) + mo;
     }
     return arr;
   }
 
-  const final = calcForecast(totalSaved, monthly, years, APY * 100);
-  const series = forecastSeries(monthly, years, APY, totalSaved, 60);
-  const bankSeries = forecastSeries(monthly, years, 0.005, totalSaved, 60);
+  const final = calcForecast(totalSaved, totalMonthly, years, APY * 100);
+  const series = forecastSeries(totalMonthly, years, APY, totalSaved, 60);
+  const bankSeries = forecastSeries(totalMonthly, years, 0.005, totalSaved, 60);
   const bankFinal = bankSeries[bankSeries.length - 1];
-  const yieldGain = final - totalSaved - monthly * 12 * years;
+  const yieldGain = Math.max(0, final - totalSaved - totalMonthly * 12 * years);
 
-  // Reverse calc for reach-goal mode
-  const r = APY / 12;
-  const n = targetYears * 12;
-  const fvPrincipal = totalSaved * Math.pow(1 + r, n);
-  const neededMonthly = Math.max(0, (target - fvPrincipal) * r / (Math.pow(1 + r, n) - 1));
-
-  const maxVal = Math.max(...series, 1);
+  const maxVal = Math.max(...series, totalGoal, 1);
   const W = 700, H = 200;
   const pathFor = (arr: number[]) =>
     arr.map((v, i) => `${(i / (arr.length - 1)) * W},${H - (v / maxVal) * (H - 14) - 4}`).join(" L ");
+  const goalY = totalGoal > 0 ? H - (totalGoal / maxVal) * (H - 14) - 4 : null;
 
   const fmt = (v: number) => `$${Math.round(v).toLocaleString()}`;
 
+  const hasSchedules = totalMonthly > 0;
+
   return (
     <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EAEAEA", padding: "22px 26px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
-        <div>
-          <div style={{ fontSize: 11, color: "#666", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Forecast</div>
-          <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.02em" }}>What if you save more?</div>
-        </div>
-        <div style={{ display: "flex", gap: 4, padding: 4, background: "#F7F8F7", borderRadius: 10 }}>
-          <V3TabBtn active={mode === "how-much"} onClick={() => setMode("how-much")}>How much will I have?</V3TabBtn>
-          <V3TabBtn active={mode === "reach-goal"} onClick={() => setMode("reach-goal")}>Reach a target</V3TabBtn>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: "#666", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Forecast</div>
+        <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.02em" }}>
+          Your savings plan
         </div>
       </div>
 
-      {mode === "how-much" ? (
-        <>
-          <div style={{ display: "flex", gap: 30, marginBottom: 14, flexWrap: "wrap" }}>
-            <div>
-              <div style={{ fontSize: 11, color: "#666", fontWeight: 500, marginBottom: 4 }}>You&apos;ll have</div>
-              <div style={{ fontSize: 38, fontWeight: 600, letterSpacing: "-0.035em", lineHeight: 1, color: "#1F8A5B" }}>{fmt(final)}</div>
-              <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>in {years} years</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: "#666", fontWeight: 500, marginBottom: 4 }}>Of which is yield</div>
-              <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.025em", lineHeight: 1, marginTop: 8 }}>{fmt(Math.max(0, yieldGain))}</div>
-              <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>at {(APY * 100).toFixed(1)}% avg APY</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: "#666", fontWeight: 500, marginBottom: 4 }}>vs. bank (0.5%)</div>
-              <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.025em", lineHeight: 1, marginTop: 8 }}>+{fmt(Math.max(0, final - bankFinal))}</div>
-              <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>extra earnings</div>
-            </div>
-          </div>
-
-          <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 200, display: "block", marginBottom: 14 }}>
-            <defs>
-              <linearGradient id="v3grad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stopColor="#1F8A5B" stopOpacity="0.22" />
-                <stop offset="1" stopColor="#1F8A5B" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            {[0.25, 0.5, 0.75].map(p => (
-              <line key={p} x1="0" y1={H * p} x2={W} y2={H * p} stroke="#F0F0EE" strokeWidth="1" strokeDasharray="2 4" />
-            ))}
-            {[Math.round(years / 4), Math.round(years / 2), Math.round(years * 3 / 4), years].map((y, i) => (
-              <text key={i} x={(y / years) * W} y={H - 2} fontSize="9" fill="#999" textAnchor="middle">{y}y</text>
-            ))}
-            <path d={`M ${pathFor(bankSeries)}`} fill="none" stroke="#999" strokeWidth="1.5" strokeDasharray="3 3" />
-            <path d={`M 0,${H} L ${pathFor(series)} L ${W},${H} Z`} fill="url(#v3grad)" />
-            <path d={`M ${pathFor(series)}`} fill="none" stroke="#1F8A5B" strokeWidth="2.5" />
-            <circle cx={W} cy={H - (final / maxVal) * (H - 14) - 4} r="5" fill="#1F8A5B" />
-          </svg>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-            <V3SliderRow label="Monthly contribution" displayVal={`${fmt(monthly)}/mo`} min={0} max={500} step={25} val={monthly} setVal={setMonthly} />
-            <V3SliderRow label="Time horizon" displayVal={`${years} years`} min={1} max={20} step={1} val={years} setVal={setYears} />
-          </div>
-        </>
-      ) : (
+      <div style={{ display: "flex", gap: 30, marginBottom: 14, flexWrap: "wrap" }}>
         <div>
-          <div style={{ display: "flex", gap: 30, marginBottom: 18, flexWrap: "wrap" }}>
-            <div>
-              <div style={{ fontSize: 11, color: "#666", fontWeight: 500, marginBottom: 4 }}>To reach</div>
-              <div style={{ fontSize: 38, fontWeight: 600, letterSpacing: "-0.035em", lineHeight: 1 }}>{fmt(target)}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: "#666", fontWeight: 500, marginBottom: 4 }}>In {targetYears} years, save</div>
-              <div style={{ fontSize: 38, fontWeight: 600, letterSpacing: "-0.035em", lineHeight: 1, color: "#1F8A5B" }}>{fmt(neededMonthly)}/mo</div>
-            </div>
-            <div style={{ flex: 1, minWidth: 160 }}>
-              <div style={{ fontSize: 11, color: "#666", fontWeight: 500, marginBottom: 4 }}>That&apos;s about</div>
-              <div style={{ fontSize: 13, color: "#111", marginTop: 8, lineHeight: 1.5 }}>
-                <strong>{fmt(neededMonthly / 30)}/day</strong> · less than a coffee.
-              </div>
-            </div>
+          <div style={{ fontSize: 11, color: "#666", fontWeight: 500, marginBottom: 4 }}>You&apos;ll have</div>
+          <div style={{ fontSize: 38, fontWeight: 600, letterSpacing: "-0.035em", lineHeight: 1, color: "#1F8A5B" }}>{fmt(final)}</div>
+          <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>in {years} years</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: "#666", fontWeight: 500, marginBottom: 4 }}>Yield earnings</div>
+          <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.025em", lineHeight: 1, marginTop: 8 }}>{fmt(yieldGain)}</div>
+          <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>at {(APY * 100).toFixed(1)}% avg APY</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: "#666", fontWeight: 500, marginBottom: 4 }}>vs. bank (0.5%)</div>
+          <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.025em", lineHeight: 1, marginTop: 8 }}>+{fmt(Math.max(0, final - bankFinal))}</div>
+          <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>extra earnings</div>
+        </div>
+        {hasSchedules && (
+          <div>
+            <div style={{ fontSize: 11, color: "#666", fontWeight: 500, marginBottom: 4 }}>Monthly deposits</div>
+            <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.025em", lineHeight: 1, marginTop: 8 }}>{fmt(totalMonthly)}/mo</div>
+            <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>across {schedules.filter(s => s.active).length} schedule{schedules.filter(s => s.active).length !== 1 ? "s" : ""}</div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-            <V3SliderRow label="Target amount" displayVal={fmt(target)} min={1000} max={200000} step={1000} val={target} setVal={setTarget} />
-            <V3SliderRow label="Time horizon" displayVal={`${targetYears} years`} min={1} max={20} step={1} val={targetYears} setVal={setTargetYears} />
-          </div>
+        )}
+      </div>
+
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 200, display: "block" }}>
+        <defs>
+          <linearGradient id="v3grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#1F8A5B" stopOpacity="0.22" />
+            <stop offset="1" stopColor="#1F8A5B" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {[0.25, 0.5, 0.75].map(p => (
+          <line key={p} x1="0" y1={H * p} x2={W} y2={H * p} stroke="#F0F0EE" strokeWidth="1" strokeDasharray="2 4" />
+        ))}
+        {[Math.round(years / 4), Math.round(years / 2), Math.round(years * 3 / 4), years].map((y, i) => (
+          <text key={i} x={(y / years) * W} y={H - 2} fontSize="9" fill="#999" textAnchor="middle">{y}y</text>
+        ))}
+        {goalY !== null && (
+          <>
+            <line x1="0" y1={goalY} x2={W} y2={goalY} stroke="#F59E0B" strokeWidth="1.5" strokeDasharray="4 3" />
+            <text x={W - 4} y={goalY - 4} fontSize="9" fill="#F59E0B" textAnchor="end">goal {fmt(totalGoal)}</text>
+          </>
+        )}
+        <path d={`M ${pathFor(bankSeries)}`} fill="none" stroke="#999" strokeWidth="1.5" strokeDasharray="3 3" />
+        <path d={`M 0,${H} L ${pathFor(series)} L ${W},${H} Z`} fill="url(#v3grad)" />
+        <path d={`M ${pathFor(series)}`} fill="none" stroke="#1F8A5B" strokeWidth="2.5" />
+        <circle cx={W} cy={H - (final / maxVal) * (H - 14) - 4} r="5" fill="#1F8A5B" />
+      </svg>
+
+      {!hasSchedules && (
+        <div style={{ marginTop: 12, fontSize: 12, color: "#999", textAlign: "center" }}>
+          Set up recurring deposits to see your full savings plan
         </div>
       )}
     </div>
