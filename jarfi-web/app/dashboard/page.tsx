@@ -450,12 +450,8 @@ export default function Dashboard() {
     [liveJars, apy]
   );
 
-  const effectiveContribsForPages = !publicKey
-    ? DEMO_CONTRIBUTIONS
-    : (contributions.length > 0 ? contributions : DEMO_CONTRIBUTIONS);
-  const effectiveJarsForPages = !publicKey
-    ? (DEMO_JARS as JarType[])
-    : (normalizedLive.length > 0 ? normalizedLive : (DEMO_JARS as JarType[]));
+  const effectiveContribsForPages = publicKey ? contributions : DEMO_CONTRIBUTIONS;
+  const effectiveJarsForPages = publicKey ? normalizedLive : (DEMO_JARS as JarType[]);
 
   const greeting = publicKey
     ? `${publicKey.toBase58().slice(0, 4)}…${publicKey.toBase58().slice(-4)}`

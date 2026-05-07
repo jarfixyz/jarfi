@@ -22,12 +22,28 @@ export async function subscribeToPush(ownerPubkey: string): Promise<boolean> {
     return false
   }
 
-  // Reuse existing subscription — unsubscribing destroys it and causes errors
+  const currentKeyBytes = urlBase64ToUint8Array(vapidPublicKey)
+
+  // Reuse existing subscription only if it was created with the same VAPID key.
+  // Mismatch happens when VAPID keys rotate — must unsubscribe and re-create.
   let sub = await reg.pushManager.getSubscription()
+  if (sub) {
+    const existingKey = sub.options?.applicationServerKey
+      ? new Uint8Array(sub.options.applicationServerKey as ArrayBuffer)
+      : null
+    const keysMatch = existingKey &&
+      existingKey.length === currentKeyBytes.length &&
+      existingKey.every((b, i) => b === currentKeyBytes[i])
+    if (!keysMatch) {
+      await sub.unsubscribe()
+      sub = null
+    }
+  }
+
   if (!sub) {
     sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+      applicationServerKey: currentKeyBytes,
     })
   }
 

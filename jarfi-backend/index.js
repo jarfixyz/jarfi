@@ -894,8 +894,14 @@ app.post('/push/test-send/:owner_pubkey', apiLimiter, async (req, res) => {
     await webpush.sendNotification(sub, payload)
     res.json({ ok: true })
   } catch (err) {
-    console.error('[push/test-send] error:', err)
-    res.status(500).json({ ok: false, error: 'Internal server error' })
+    const status = err?.statusCode ?? err?.status ?? 500
+    const message = err?.body ?? err?.message ?? 'unknown'
+    console.error('[push/test-send] error:', status, message)
+    // 410 Gone / 404 = subscription expired — clear it
+    if (status === 410 || status === 404) {
+      return res.status(410).json({ ok: false, error: 'Subscription expired — re-enable notifications' })
+    }
+    res.status(500).json({ ok: false, error: `Push failed (${status}): ${message}` })
   }
 })
 
