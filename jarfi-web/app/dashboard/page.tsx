@@ -610,7 +610,7 @@ export default function Dashboard() {
                   // Direct local test — no server, tests SW showNotification directly
                   const reg = await navigator.serviceWorker.ready.catch(() => null);
                   if (!reg) { showToast("Service worker not ready"); return; }
-                  await reg.showNotification("Jarfi test 🏺", { body: "Local notification works!", icon: "/favicon.ico" });
+                  await reg.showNotification("Jarfi test 🏺", { body: "Local notification works!", icon: "/favicon-32.png" });
                   showToast("Local notification triggered");
                 }}
                 className="shrink-0 rounded-full bg-gray-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gray-600"

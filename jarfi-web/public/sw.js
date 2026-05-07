@@ -12,8 +12,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title ?? 'Jarfi', {
       body: data.body ?? '',
-      icon: '/favicon.ico',
-      badge: '/favicon.ico',
+      icon: '/favicon-32.png',
+      badge: '/favicon-32.png',
       data: data.data ?? {},
     })
   )
