@@ -1604,7 +1604,7 @@ function V3Forecast({
   const years = Math.min(20, Math.max(3, Math.round(yearsFromJars) || 5));
 
   // Total goals across all jars
-  const totalGoal = jars.reduce((sum, j) => sum + (j.goalAmount ?? 0) / 1e6, 0);
+  const totalGoal = jars.reduce((sum, j) => sum + (j.goal ?? 0), 0);
 
   function forecastSeries(mo: number, yrs: number, rate: number, principal: number, pts: number): number[] {
     const arr: number[] = [];
