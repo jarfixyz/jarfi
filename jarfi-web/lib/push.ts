@@ -1,5 +1,7 @@
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'https://jarfi.up.railway.app'
 
+let cachedVapidKey: string | null = null
+
 export async function subscribeToPush(ownerPubkey: string): Promise<boolean> {
   if (
     typeof window === 'undefined' ||
@@ -25,15 +27,17 @@ export async function subscribeToPush(ownerPubkey: string): Promise<boolean> {
     return false
   }
 
-  let vapidPublicKey: string
-  try {
-    const res = await fetch(`${API_URL}/push/vapid-public-key`)
-    if (!res.ok) { console.error('[push] vapid key fetch failed:', res.status); return false }
-    vapidPublicKey = (await res.json()).publicKey
-  } catch (e) {
-    console.error('[push] vapid key fetch error:', e)
-    return false
+  if (!cachedVapidKey) {
+    try {
+      const res = await fetch(`${API_URL}/push/vapid-public-key`)
+      if (!res.ok) { console.error('[push] vapid key fetch failed:', res.status); return false }
+      cachedVapidKey = (await res.json()).publicKey
+    } catch (e) {
+      console.error('[push] vapid key fetch error:', e)
+      return false
+    }
   }
+  const vapidPublicKey = cachedVapidKey!
 
   const currentKeyBytes = urlBase64ToUint8Array(vapidPublicKey)
 

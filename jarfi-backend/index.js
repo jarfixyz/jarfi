@@ -141,7 +141,7 @@ app.set('trust proxy', 1) // Railway sits behind a proxy — needed for express-
 app.use(helmet())
 app.use(cors({ origin: ALLOWED_ORIGINS, optionsSuccessStatus: 200 }))
 
-const apiLimiter = rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false })
+const apiLimiter = rateLimit({ windowMs: 60_000, max: 300, standardHeaders: true, legacyHeaders: false })
 const webhookLimiter = rateLimit({ windowMs: 60_000, max: 30 })
 app.use('/jar', apiLimiter)
 app.use('/schedule', apiLimiter)
