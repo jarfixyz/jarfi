@@ -69,10 +69,9 @@ if (process.env.SERVER_WALLET_SECRET) {
   console.warn('[warn] SERVER_WALLET_SECRET not set — using ephemeral wallet')
 }
 
-// B5 — fail fast in production if server wallet is ephemeral
-if (process.env.NODE_ENV === 'production' && !process.env.SERVER_WALLET_SECRET) {
-  console.error('[startup] FATAL: SERVER_WALLET_SECRET is required in production — ephemeral wallet detected')
-  process.exit(1)
+// B5 — warn in production if server wallet is ephemeral (don't exit — Railway may not have env set yet)
+if (!process.env.SERVER_WALLET_SECRET) {
+  console.error('[startup] WARNING: SERVER_WALLET_SECRET not set — using ephemeral wallet, deposits will be lost on restart')
 }
 
 const wallet = new anchor.Wallet(serverKeypair)
@@ -128,10 +127,9 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   console.warn('[push] VAPID keys not set — push notifications disabled')
 }
 
-// B4 — fail fast in production if Transak secret is missing
-if (process.env.NODE_ENV === 'production' && !process.env.TRANSAK_API_SECRET) {
-  console.error('[startup] FATAL: TRANSAK_API_SECRET is required in production')
-  process.exit(1)
+// B4 — warn if Transak secret is missing (don't exit — webhook verification will be skipped)
+if (!process.env.TRANSAK_API_SECRET) {
+  console.error('[startup] WARNING: TRANSAK_API_SECRET not set — Transak webhook JWT verification disabled')
 }
 
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
@@ -316,7 +314,10 @@ app.get('/jar/by-slug/:slug', (req, res) => {
 
 app.get('/jar/:pubkey', async (req, res) => {
   try {
-    const jarPubkey = new PublicKey(req.params.pubkey)
+    let jarPubkey
+    try { jarPubkey = new PublicKey(req.params.pubkey) } catch {
+      return res.status(400).json({ ok: false, error: 'invalid pubkey' })
+    }
     const jar = await program.account.jar.fetch(jarPubkey)
 
     // Contributions are stored in SQLite at webhook time (getProgramAccounts blocked by Helius)

@@ -337,7 +337,7 @@ export default function Dashboard() {
       setContributions([]);
       return;
     }
-    Promise.all(liveJars.map(j => fetchContributionsForJar(j.pubkey)))
+    Promise.all(liveJars.filter(j => !j.pubkey.startsWith("Demo")).map(j => fetchContributionsForJar(j.pubkey)))
       .then(all => {
         const seen = new Set<string>();
         const merged = all.flat().filter(c => seen.has(c.pubkey) ? false : (seen.add(c.pubkey), true));
@@ -3341,7 +3341,7 @@ function JarDetailPanel({
   const giftFullUrl = `https://jarfi.xyz/gift/${giftPath}`;
 
   useEffect(() => {
-    if (!wallet?.adapter) return;
+    if (!wallet?.adapter || jar.id.startsWith("Demo")) return;
     fetchContributionsForJar(jar.id).then(setContribs).catch(() => {});
     fetchCosigners(jar.id).then(setCosigners).catch(() => {});
     // Ensure slug is stored — fetch from backend if not in localStorage
