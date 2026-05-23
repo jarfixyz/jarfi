@@ -1,0 +1,226 @@
+@import "tailwindcss";
+
+@theme {
+  /* Surfaces */
+  --color-bg: #F2F2EF;
+  --color-bg-alt: #E6E6E2;
+  --color-surface: #FFFFFF;
+  --color-card-warm: #F7F7F3;
+  --color-ink: #111111;
+  --color-ink-2: #333333;
+  --color-mute: #6B6B66;
+  --color-line: rgba(17, 17, 17, 0.10);
+  --color-line-soft: rgba(17, 17, 17, 0.05);
+
+  /* Primary — lime accent */
+  --color-accent: #C9F04A;
+  --color-accent-deep: #7CA61A;
+  --color-accent-glow: #E6FA9E;
+  --color-berry: #A83254;
+
+  /* Dark sections */
+  --color-warm-dark: #2C2420;
+
+  /* Semantics */
+  --color-forest: #1E6B4A;
+  --color-forest-soft: #DFF5E9;
+  --color-success: #1E6B4A;
+  --color-error: #E63946;
+
+  /* Legacy coral tokens — kept for non-landing pages (dashboard, create, jar) */
+  --color-coral: #E8614D;
+  --color-coral-deep: #C74835;
+  --color-coral-soft: #FDE8E4;
+
+  /* Legacy aliases — used by shared UI components */
+  --color-cream: var(--color-bg);
+  --color-paper: var(--color-surface);
+  --color-mint: var(--color-forest);
+  --color-mint-deep: var(--color-forest);
+  --color-mint-soft: var(--color-forest-soft);
+  --color-brand: var(--color-coral);
+  --color-brand-deep: var(--color-coral-deep);
+  --color-brand-soft: var(--color-coral-soft);
+  --color-sun: #FFD93D;
+  --color-sun-soft: #FFF4C2;
+  --color-sky: #A5D8FF;
+  --color-sky-soft: #E0F0FF;
+  --color-sol-purple: var(--color-coral);
+  --color-sol-green: var(--color-forest);
+  --gradient-sol: linear-gradient(135deg, var(--color-coral) 0%, var(--color-forest) 100%);
+  --gradient-sol-soft: linear-gradient(135deg, var(--color-coral-soft) 0%, var(--color-forest-soft) 100%);
+
+  /* Secondary — indigo */
+  --color-indigo: #7B61FF;
+  --color-indigo-soft: #EDE6FF;
+
+  /* Typography */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-serif), Georgia, "Times New Roman", serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+
+  /* Scale */
+  --text-xs: 0.8125rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.25rem;
+  --text-4xl: 3rem;
+  --text-5xl: 3.75rem;
+
+  /* Spacing */
+  --spacing-section: 100px;
+
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+  --radius-pill: 9999px;
+
+  /* Shadows — warm */
+  --shadow-sm: 0 2px 12px rgba(44, 36, 32, 0.04);
+  --shadow-md: 0 10px 28px rgba(44, 36, 32, 0.08);
+  --shadow-lg: 0 20px 60px rgba(44, 36, 32, 0.1), 0 1px 3px rgba(44, 36, 32, 0.06);
+
+  /* Container */
+  --container-wide: 1200px;
+
+  /* Motion */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 300ms;
+}
+
+@layer base {
+  html {
+    background-color: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    min-height: 100dvh;
+  }
+  ::selection {
+    background-color: var(--color-accent);
+    color: var(--color-ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent-deep);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  h1, h2, h3, h4 {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  .container-wide {
+    max-width: var(--container-wide);
+    margin-inline: auto;
+    padding-inline: 48px;
+  }
+
+  @media (max-width: 768px) {
+    .container-wide {
+      padding-inline: 1.5rem;
+    }
+  }
+
+  .hover-lift {
+    transition: transform var(--duration-base) var(--ease-spring),
+                box-shadow var(--duration-base) var(--ease-spring);
+  }
+  .hover-lift:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* Legacy — needed by non-landing pages until their redesign */
+  .text-gradient-sol {
+    background-image: var(--gradient-sol);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .bg-gradient-sol {
+    background-image: var(--gradient-sol);
+  }
+  .bg-gradient-sol-soft {
+    background-image: var(--gradient-sol-soft);
+  }
+  .divider-gradient {
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      var(--color-line) 20%,
+      var(--color-line) 80%,
+      transparent
+    );
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* Editorial ink/paper palette — shared by dashboard, create wizard, and jar view.
+   Components read these via var(--h-*); set on an ancestor with class="theme-editorial". */
+.theme-editorial {
+  --h-bg: #FAFAF7;
+  --h-bg-2: #F1F0EC;
+  --h-ink: #14151A;
+  --h-ink-2: #4A4D57;
+  --h-ink-3: #8A8D95;
+  --h-line: rgba(20, 21, 26, 0.08);
+  --h-line-2: rgba(20, 21, 26, 0.14);
+  --h-card: #FFFFFF;
+  --h-card-warm: #F1F0EC;
+  --h-accent: #2B3038;
+  --h-accent-deep: #14151A;
+  --h-accent-glow: #E8E7E2;
+  --h-green: #2B3038;
+}
+
+/* Jar view overrides: the finished-state accent shifts to forest green. */
+.theme-editorial.theme-editorial--jar {
+  --h-green: #1F6B4E;
+}
+
+/* Jar-type accent tokens — consumed by jar-types grid, jar-view APY pill, etc. */
+:root {
+  --accent-goal: #5DBE96;      /* mint */
+  --accent-lock: #6FA9D6;      /* sky */
+  --accent-group: #E0A45C;     /* amber */
+  --accent-recur: #9B7AC9;     /* violet */
+  --accent-goal-bg: #5DBE9614;
+  --accent-lock-bg: #6FA9D614;
+  --accent-group-bg: #E0A45C14;
+  --accent-recur-bg: #9B7AC914;
+}
+

@@ -1,0 +1,40 @@
+name = "jarfi-web"
+main = "worker-entry.js"
+compatibility_date = "2026-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "jarfi-db"
+database_id = "8a3c54e4-c32a-4ca6-ba13-6ca2cb55cbea"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "METADATA_BUCKET"
+bucket_name = "jarfi-metadata"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "cb353efdc9f445a799ffb26966e83527"
+
+[triggers]
+crons = ["*/1 * * * *"]
+
+[vars]
+HELIUS_RPC = "https://devnet.helius-rpc.com/?api-key=REPLACE_LOCAL_DEV"
+PUBLIC_RPC = "https://api.devnet.solana.com"
+PROGRAM_ID = "GBqqB8ZfNDPRyUZczbUxkmU3UopQ1BFMPu4sXGd115yF"
+NEXT_PUBLIC_TRANSAK_API_KEY = "8d6e939f-d145-4782-80f2-826e6de64496"
+TRANSAK_ENV = "STAGING"
+
+# Secrets (set via `wrangler secret put`):
+#   CRON_SECRET            — shared secret gating /api/cron/index + /api/transak/dev-fund
+#   HELIUS_API_KEY         — injected into HELIUS_RPC at runtime in production
+#   TRANSAK_API_SECRET     — Transak API Secret from Partner Dashboard (Generate next to API Secret)
+#   TRANSAK_WEBHOOK_SECRET — Transak webhook signing secret (HS256 JWT)
+#   RELAY_TREASURY_SECRET  — base58-encoded 64-byte secret of the relay hot wallet
+#   RELAY_ENC_KEY          — base64-encoded 32-byte AES-GCM key (encrypts ephemeral keypairs at rest)

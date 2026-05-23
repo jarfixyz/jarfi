@@ -1,0 +1,75 @@
+# ---------- OS ----------
+.DS_Store
+Thumbs.db
+
+# ---------- Tooling artifacts ----------
+.claude/
+.superpowers/
+docs/superpowers/
+
+# ---------- Editors ----------
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ---------- Node / pnpm ----------
+node_modules/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---------- Env / secrets ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+# Solana keypairs (never commit private keys)
+*-keypair.json
+id.json
+
+# ---------- Next.js (apps/web) ----------
+.next/
+out/
+next-env.d.ts
+.vercel/
+
+# ---------- Build / TS ----------
+dist/
+build/
+*.tsbuildinfo
+
+# ---------- Cloudflare / OpenNext / Wrangler ----------
+.open-next/
+.wrangler/
+.dev.vars
+.dev.vars.*
+worker-configuration.d.ts
+
+# ---------- Drizzle ----------
+# keep migrations/ committed; ignore local sqlite if any
+*.sqlite
+*.sqlite-journal
+*.db
+
+# ---------- Testing ----------
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+playwright/.cache/
+
+# ---------- Rust / Anchor ----------
+# Cargo.lock is committed for the on-chain program for reproducible builds.
+target/
+.anchor/
+**/*.rs.bk
+test-ledger/
+.crates.toml
+.crates2.json
+
+# ---------- Deploy artifacts (contain on-chain keys/addresses — review before sharing) ----------
+deploy-*.json

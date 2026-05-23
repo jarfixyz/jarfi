@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "types": ["mocha", "node", "chai"],
+    "lib": ["ES2022"],
+    "paths": {
+      "@jarfi/sdk": ["./packages/sdk/src/index.ts"]
+    }
+  },
+  "include": ["tests/**/*.ts", "scripts/**/*.ts", "packages/sdk/src/**/*.ts"]
+}
