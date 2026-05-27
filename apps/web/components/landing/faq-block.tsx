@@ -1,3 +1,5 @@
+import { BASE_APY_PERCENT } from "@/lib/apy";
+
 const FAQ_ITEMS: { q: string; a: string }[] = [
   {
     q: "Do my friends need a crypto wallet to contribute?",
@@ -5,7 +7,7 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
   },
   {
     q: "Where does the yield come from?",
-    a: "Idle USDC in your jar is lent on Kamino at roughly 5% APY. SOL jars can be staked via Marinade. Rates float with the market — we show the live number on every jar.",
+    a: `Idle USDC in your jar is lent on Kamino at roughly ${BASE_APY_PERCENT}% APY. Rates float with the market — we show the live number on every jar.`,
   },
   {
     q: "Is the money safe? Can jarfi touch it?",

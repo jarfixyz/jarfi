@@ -71,6 +71,13 @@ export class CircuitBreakerRpc {
   }
 }
 
-export function createRpc(env: { HELIUS_RPC: string; PUBLIC_RPC: string }) {
-  return new CircuitBreakerRpc(env.HELIUS_RPC, env.PUBLIC_RPC);
+export function createRpc(env: {
+  HELIUS_RPC: string;
+  PUBLIC_RPC: string;
+  HELIUS_API_KEY?: string;
+}) {
+  const heliusRpc = env.HELIUS_API_KEY
+    ? env.HELIUS_RPC.replace("REPLACE_LOCAL_DEV", env.HELIUS_API_KEY)
+    : env.PUBLIC_RPC;
+  return new CircuitBreakerRpc(heliusRpc, env.PUBLIC_RPC);
 }

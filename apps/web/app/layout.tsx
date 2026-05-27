@@ -38,6 +38,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       lang="en"
       className={`${inter.variable} ${serif.variable} ${grotesk.variable} ${GeistMono.variable}`}
     >
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://api.fontshare.com/v2/css?f[]=general-sans@500,600,700&display=swap"
+        />
+      </head>
       <body>
         {children}
         <Toaster />

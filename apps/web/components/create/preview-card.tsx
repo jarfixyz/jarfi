@@ -113,7 +113,7 @@ export function PreviewCard({
           className="mt-1 text-[12px]"
           style={{ color: "var(--h-ink-3)" }}
         >
-          {asset === "sol" ? "Marinade 6.2% APY" : "USDC · stable"}
+          {asset === "sol" ? "Stake yield" : "USDC · stable"}
           {jarType === "timeLocked" &&
             unlockDate &&
             ` · Locks ${unlockDate.toLocaleDateString("en", {

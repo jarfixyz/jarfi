@@ -5,6 +5,12 @@ export function SiteHeader() {
   return (
     <header
       style={{
+        position: "sticky",
+        top: 0,
+        zIndex: 30,
+        background: "rgba(255,255,255,0.85)",
+        backdropFilter: "saturate(140%) blur(10px)",
+        WebkitBackdropFilter: "saturate(140%) blur(10px)",
         borderBottom: "0.5px solid rgba(20,21,26,0.08)",
         fontFamily: "var(--font-grotesk), ui-sans-serif, system-ui, sans-serif",
       }}

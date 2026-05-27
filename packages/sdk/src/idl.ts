@@ -1,4 +1,4 @@
-import idl from "../../../target/idl/jarfi.json" with { type: "json" };
+import idl from "../../../target/idl/jarfi.json";
 import type { Jarfi } from "../../../target/types/jarfi";
 
 export { idl };

@@ -82,17 +82,6 @@ export function RemindersBlock() {
   return (
     <section className="rb-section">
       <div className="rb-grid">
-        <div className="rb-text">
-          <h2>A gentle nudge, not another forgotten goal.</h2>
-          <p>
-            Pick a cadence. Jarfi pings you when it&apos;s time to top up — and
-            the contributors when something lands in their jar.
-          </p>
-          <p className="rb-soon">
-            Browser today · Email, Telegram &amp; native mobile — soon.
-          </p>
-        </div>
-
         <div className="rb-timeline" role="list" aria-label="Example reminders">
           <div className="rb-timeline-head">
             <span className="rb-timeline-title">This week</span>
@@ -130,6 +119,17 @@ export function RemindersBlock() {
               </motion.div>
             ))}
           </div>
+        </div>
+
+        <div className="rb-text">
+          <h2>A gentle nudge, not another forgotten goal.</h2>
+          <p>
+            Pick a cadence. Jarfi pings you when it&apos;s time to top up — and
+            the contributors when something lands in their jar.
+          </p>
+          <p className="rb-soon">
+            Browser today · Email, Telegram &amp; native mobile — soon.
+          </p>
         </div>
       </div>
     </section>

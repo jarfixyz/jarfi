@@ -9,6 +9,9 @@ import { StatsStrip } from "@/components/dashboard/stats-strip";
 import { FilterBar, type JarView } from "@/components/dashboard/filter-bar";
 import { JarCard } from "@/components/dashboard/jar-card";
 import { JarRow } from "@/components/dashboard/jar-row";
+import { ProjectionChart } from "@/components/charts/projection-chart";
+import { useJarfiClient } from "@/lib/wallet/use-jarfi-client";
+import { PublicKey } from "@solana/web3.js";
 
 interface DashboardRow {
   pda: string;
@@ -31,13 +34,56 @@ function parseAmount(raw: string, asset: string): number {
 export function DashboardClient() {
   const { publicKey } = useWallet();
   const owner = publicKey?.toBase58();
+  const client = useJarfiClient();
 
   const { data, error, isLoading } = useSWR<DashboardRow[]>(
-    owner ? `/api/jars/by-owner/${owner}` : null,
-    async (url: string) => {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`dashboard fetch failed: ${res.status}`);
-      return res.json();
+    owner && client ? `dashboard:${owner}` : null,
+    async () => {
+      const cachePromise = fetch(`/api/jars/by-owner/${owner}`)
+        .then((r) => (r.ok ? (r.json() as Promise<DashboardRow[]>) : []))
+        .catch(() => [] as DashboardRow[]);
+      const chainPromise = client!
+        .fetchJarsByOwner(new PublicKey(owner!))
+        .catch(() => []);
+      const [cached, onChain] = await Promise.all([cachePromise, chainPromise]);
+
+      const byPda = new Map<string, DashboardRow>();
+      for (const r of cached) byPda.set(r.pda, r);
+      const enumKey = (v: unknown): string =>
+        typeof v === "string"
+          ? v
+          : v && typeof v === "object"
+            ? (Object.keys(v as Record<string, unknown>)[0] ?? "")
+            : "";
+      for (const j of onChain) {
+        const pda = j.pubkey.toBase58();
+        if (byPda.has(pda)) continue;
+        const a = j.account;
+        const asset: "sol" | "usdc" =
+          enumKey(a.asset) === "usdc" ? "usdc" : "sol";
+        const jarTypeKey = enumKey(a.jarType);
+        const statusKey = enumKey(a.status);
+        const unlockTs = Number(a.unlockTimestamp?.toString?.() ?? 0);
+        const statusStr =
+          statusKey === "withdrawn"
+            ? "withdrawn"
+            : statusKey === "cancelled"
+              ? "cancelled"
+              : jarTypeKey === "timeLocked" && unlockTs * 1000 > Date.now()
+                ? "locked"
+                : "active";
+        byPda.set(pda, {
+          pda,
+          asset,
+          totalContributed: a.totalContributed.toString(),
+          goalAmount: a.goalAmount?.toString() ?? "0",
+          status: statusStr,
+          title: null,
+          stakingEnabled: asset === "sol",
+          unlockTimestamp: unlockTs || null,
+        });
+      }
+      return Array.from(byPda.values());
     },
     { refreshInterval: 20000, revalidateOnFocus: true, dedupingInterval: 5000 },
   );
@@ -75,7 +121,7 @@ export function DashboardClient() {
       (j) => j.status === "completed" || j.status === "withdrawn",
     ).length;
 
-    return [
+    const all = [
       {
         label: "Total jars",
         value: jars.length,
@@ -110,7 +156,34 @@ export function DashboardClient() {
         hint: `of ${jars.length} jar${jars.length === 1 ? "" : "s"}`,
       },
     ];
+    return all.filter((s) => s.suffix !== "SOL");
   }, [jars, counts]);
+
+  const projection = useMemo(() => {
+    const lockedUsdc = jars.filter(
+      (j) =>
+        j.asset === "usdc" &&
+        j.unlockTimestamp &&
+        j.unlockTimestamp * 1000 > Date.now(),
+    );
+    const principal = lockedUsdc.reduce(
+      (s, j) => s + parseAmount(j.totalContributed, j.asset),
+      0,
+    );
+    const maxUnlock = lockedUsdc.reduce(
+      (max, j) => Math.max(max, j.unlockTimestamp ?? 0),
+      0,
+    );
+    const years = maxUnlock
+      ? Math.max(
+          1,
+          Math.ceil(
+            (maxUnlock * 1000 - Date.now()) / (365.25 * 86_400_000),
+          ),
+        )
+      : 0;
+    return { principal, years };
+  }, [jars]);
 
   const filtered = useMemo(() => {
     let result = jars;
@@ -263,6 +336,23 @@ export function DashboardClient() {
       >
         <StatsStrip stats={stats} />
       </motion.div>
+
+      {projection.principal > 0 && projection.years > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
+          className="mb-6"
+        >
+          <ProjectionChart
+            principal={projection.principal}
+            years={projection.years}
+            title="Locked jars projection"
+            subtitle={`Across ${projection.years}-year horizon to furthest unlock`}
+            height={220}
+          />
+        </motion.div>
+      )}
 
       <FilterBar
         tabs={filterTabs}

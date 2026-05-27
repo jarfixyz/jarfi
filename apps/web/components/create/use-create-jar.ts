@@ -32,12 +32,13 @@ type CreateStatus = "idle" | "running" | "done" | "error";
 async function requestShortlink(
   jarPda: string,
   signature: string,
+  title: string,
 ): Promise<string | null> {
   try {
     const res = await fetch("/api/shortlink", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jarPda, signature }),
+      body: JSON.stringify({ jarPda, signature, title }),
     });
     if (!res.ok) return null;
     const body = (await res.json()) as { shortId: string };
@@ -157,7 +158,7 @@ export function useCreateJar() {
         txSig = recovered;
       }
 
-      const shortId = await requestShortlink(jarPda.toBase58(), txSig);
+      const shortId = await requestShortlink(jarPda.toBase58(), txSig, args.title);
       setStatus("done");
       toast.success("Jar created.");
       if (typeof window !== "undefined") {

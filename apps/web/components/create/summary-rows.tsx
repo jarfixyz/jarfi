@@ -5,9 +5,16 @@ interface SummaryRowsProps {
   hasPhoto: boolean;
   asset: "sol" | "usdc";
   jarType: "flexible" | "timeLocked";
+  uiType: "goal" | "timeLocked" | "group";
   goalAmount: string;
   goalEnabled: boolean;
   unlockDate: Date | null;
+}
+
+function uiTypeLabel(t: SummaryRowsProps["uiType"]): string {
+  if (t === "goal") return "Goal jar";
+  if (t === "timeLocked") return "Time-locked";
+  return "Group jar";
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -66,7 +73,7 @@ export function SummaryRows(props: SummaryRowsProps) {
 
       <Row label="Type">
         <span className="flex items-center justify-end gap-2">
-          {props.jarType === "flexible" ? "Flexible" : "Locked"}
+          {uiTypeLabel(props.uiType)}
           {props.jarType === "timeLocked" && props.unlockDate && (
             <Chip>
               {props.unlockDate.toLocaleDateString("en", {
@@ -79,9 +86,15 @@ export function SummaryRows(props: SummaryRowsProps) {
       </Row>
 
       <Row label="Goal">
-        {props.goalEnabled && props.goalAmount
-          ? `${props.goalAmount} ${props.asset.toUpperCase()}`
-          : "No goal"}
+        {props.goalEnabled && props.goalAmount ? (
+          <span className="flex items-center justify-end gap-2">
+            <Chip>{`${props.goalAmount} ${props.asset.toUpperCase()}`}</Chip>
+          </span>
+        ) : (
+          <span style={{ color: "var(--h-ink-3)", fontWeight: 400 }}>
+            No goal
+          </span>
+        )}
       </Row>
     </div>
   );

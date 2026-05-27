@@ -1,11 +1,55 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { PublicKey } from "@solana/web3.js";
+import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { Modal } from "@/components/ui/modal";
 import type { JarPayload } from "@/lib/jar-fetch";
+import { USDC_MINT_DEVNET } from "@/lib/direct-indexer";
 import { useContribute } from "./use-contribute";
 import { QrTab } from "./qr-tab";
 import { RawTab } from "./raw-tab";
+
+function useWalletBalance(asset: "sol" | "usdc"): number | null {
+  const { publicKey } = useWallet();
+  const { connection } = useConnection();
+  const [balance, setBalance] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!publicKey) {
+      setBalance(null);
+      return;
+    }
+    let cancelled = false;
+    async function fetchBalance() {
+      try {
+        if (asset === "sol") {
+          const lamports = await connection.getBalance(publicKey!, "confirmed");
+          if (!cancelled) setBalance(lamports / 1_000_000_000);
+        } else {
+          const ata = getAssociatedTokenAddressSync(
+            new PublicKey(USDC_MINT_DEVNET),
+            publicKey!,
+            false,
+          );
+          const info = await connection.getTokenAccountBalance(ata, "confirmed").catch(() => null);
+          if (!cancelled) setBalance(info?.value.uiAmount ?? 0);
+        }
+      } catch {
+        if (!cancelled) setBalance(null);
+      }
+    }
+    void fetchBalance();
+    const id = setInterval(fetchBalance, 15_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [publicKey, connection, asset]);
+
+  return balance;
+}
 
 type Tab = "wallet" | "qr" | "raw";
 
@@ -60,6 +104,12 @@ export function ContributeModal({
 
   const assetLabel = jar.asset === "sol" ? "SOL" : "USDC";
   const quick = jar.asset === "sol" ? QUICK_AMOUNTS_SOL : QUICK_AMOUNTS_USDC;
+  const balance = useWalletBalance(jar.asset);
+  const maxSpendable =
+    balance === null ? null : jar.asset === "sol" ? Math.max(0, balance - 0.005) : balance;
+  const amountNum = parseFloat(amount);
+  const overBalance =
+    maxSpendable !== null && Number.isFinite(amountNum) && amountNum > maxSpendable;
 
   const wrapperStyle: React.CSSProperties = {
     fontFamily: "var(--font-grotesk), ui-sans-serif, system-ui, sans-serif",
@@ -119,11 +169,41 @@ export function ContributeModal({
 
             {tab === "wallet" && (
               <div className="flex flex-col gap-3">
-                <label
-                  style={{ fontSize: 12.5, color: INK_2, fontWeight: 500 }}
-                >
-                  How much?
-                </label>
+                <div className="flex items-center justify-between">
+                  <label
+                    style={{ fontSize: 12.5, color: INK_2, fontWeight: 500 }}
+                  >
+                    How much?
+                  </label>
+                  {balance !== null && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAmount(
+                          maxSpendable !== null
+                            ? (jar.asset === "sol"
+                                ? maxSpendable.toFixed(4)
+                                : maxSpendable.toFixed(2))
+                            : "",
+                        )
+                      }
+                      style={{
+                        fontSize: 11.5,
+                        color: INK_3,
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      Balance:{" "}
+                      <span style={{ color: INK_2, fontWeight: 500 }}>
+                        {(jar.asset === "sol"
+                          ? balance.toFixed(4)
+                          : balance.toFixed(2))}{" "}
+                        {assetLabel}
+                      </span>{" "}
+                      · Max
+                    </button>
+                  )}
+                </div>
                 <div
                   className="flex items-center rounded-[10px]"
                   style={{
@@ -192,6 +272,11 @@ export function ContributeModal({
                   }}
                 />
 
+                {overBalance && (
+                  <p style={{ color: "#8A3A32", fontSize: 12.5 }}>
+                    Not enough {assetLabel} in your wallet.
+                  </p>
+                )}
                 {error && (
                   <p style={{ color: "#8A3A32", fontSize: 12.5 }}>{error}</p>
                 )}
@@ -199,7 +284,7 @@ export function ContributeModal({
                 <button
                   type="button"
                   onClick={() => submit(Number(amount), donorName)}
-                  disabled={status === "running" || !amount}
+                  disabled={status === "running" || !amount || overBalance}
                   className="rounded-[8px] transition-colors"
                   style={{
                     background: ACCENT,
@@ -207,9 +292,9 @@ export function ContributeModal({
                     padding: "13px 24px",
                     fontSize: 14.5,
                     fontWeight: 500,
-                    opacity: status === "running" || !amount ? 0.55 : 1,
+                    opacity: status === "running" || !amount || overBalance ? 0.55 : 1,
                     cursor:
-                      status === "running" || !amount ? "default" : "pointer",
+                      status === "running" || !amount || overBalance ? "default" : "pointer",
                     marginTop: 4,
                   }}
                 >

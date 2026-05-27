@@ -18,6 +18,7 @@ import { RefundBanner } from "./refund-banner";
 import { ShareBar } from "./share-bar";
 import { PostCreateModal } from "./post-create-modal";
 import { ReminderPopover } from "@/components/reminders/reminder-popover";
+import { ProjectionChart } from "@/components/charts/projection-chart";
 import { useKaminoApy, formatApy } from "@/lib/yield-sim";
 import type { JarPayload } from "@/lib/jar-fetch";
 
@@ -177,7 +178,7 @@ export function JarView({
 
       {shortId && (
         <div className="mb-6">
-          <ShareBar shortId={shortId} isActive={jar.status === "active"} />
+          <ShareBar shortId={shortId} isActive={jar.status === "active"} title={jar.metadata.title} />
         </div>
       )}
 
@@ -275,38 +276,49 @@ export function JarView({
                 </span>
               </div>
             </div>
-            <div
-              style={{
-                width: 1,
-                alignSelf: "stretch",
-                background: "var(--h-line)",
-              }}
-            />
-            <div>
-              <div
-                className="text-[11px]"
-                style={{ color: "var(--h-ink-3)", letterSpacing: "0.01em" }}
-              >
-                Goal
-              </div>
-              <div
-                className="tabular-nums"
-                style={{
-                  fontSize: 17,
-                  fontWeight: 500,
-                  lineHeight: 1.15,
-                  letterSpacing: "-0.01em",
-                  color: "var(--h-ink)",
-                }}
-              >
-                {goalNum ? goalNum.toFixed(places) : "—"}{" "}
-                {goalNum && (
-                  <span style={{ color: "var(--h-ink-3)", fontSize: 12 }}>
-                    {assetLabel}
-                  </span>
-                )}
-              </div>
-            </div>
+            {goalNum && (
+              <>
+                <div
+                  style={{
+                    width: 1,
+                    alignSelf: "stretch",
+                    background: "var(--h-line)",
+                  }}
+                />
+                <div>
+                  <div
+                    className="text-[11px]"
+                    style={{ color: "var(--h-ink-3)", letterSpacing: "0.01em" }}
+                  >
+                    Goal
+                  </div>
+                  <div
+                    className="tabular-nums"
+                    style={{
+                      fontSize: 17,
+                      fontWeight: 500,
+                      lineHeight: 1.15,
+                      letterSpacing: "-0.01em",
+                      color: "var(--h-ink)",
+                    }}
+                  >
+                    {goalNum.toFixed(places)}{" "}
+                    <span style={{ color: "var(--h-ink-3)", fontSize: 12 }}>
+                      {assetLabel}
+                    </span>
+                  </div>
+                  {amountNum > 0 && (
+                    <div
+                      className="mt-1 text-[11px] tabular-nums"
+                      style={{ color: "var(--h-ink-3)" }}
+                    >
+                      {Math.min(100, Math.round((amountNum / goalNum) * 100))}%
+                      to goal
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
 
@@ -319,6 +331,29 @@ export function JarView({
             </span>
             Earning {formatApy(apy)} APY via Kamino
           </div>
+
+          {/* Projection chart — only for time-locked jars with a horizon */}
+          {amountNum > 0 &&
+            jar.jarType === "timeLocked" &&
+            jar.unlockTimestamp && (
+              <div className="mt-6">
+                <ProjectionChart
+                  principal={amountNum}
+                  apy={(apy ?? 5.4) / 100}
+                  years={Math.max(
+                    1,
+                    Math.ceil(
+                      (jar.unlockTimestamp * 1000 - Date.now()) /
+                        (365.25 * 86_400_000),
+                    ),
+                  )}
+                  title="Projection until unlock"
+                  subtitle={`Locks ${new Date(jar.unlockTimestamp * 1000).toLocaleDateString("en", { month: "short", year: "numeric" })}`}
+                  unit={jar.asset === "usdc" ? "USD" : assetLabel}
+                  height={220}
+                />
+              </div>
+            )}
 
           {/* Description */}
           {jar.metadata.description && (
@@ -548,12 +583,25 @@ export function JarView({
         onClose={closePostCreate}
         onPayCard={() => { setPostCreateOpen(false); setCardOpen(true); }}
         onPayWallet={() => { setPostCreateOpen(false); setAltOpen(true); }}
+        onRemind={() => { setPostCreateOpen(false); setReminderOpen(true); }}
       />
 
       <ReminderPopover
         open={reminderOpen}
         onClose={() => setReminderOpen(false)}
         jarName={jar.metadata?.title ?? "your jar"}
+        defaultDate={
+          jar.jarType === "timeLocked" && jar.unlockTimestamp
+            ? new Date(
+                Math.max(
+                  Date.now() + 86_400_000,
+                  jar.unlockTimestamp * 1000 - 86_400_000,
+                ),
+              )
+                .toISOString()
+                .slice(0, 10)
+            : undefined
+        }
       />
     </section>
   );

@@ -2,19 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { InlineCalendar } from "@/components/ui/inline-calendar";
 import { ToggleSwitch } from "@/components/ui/toggle-switch";
 import { CoverGrid } from "@/components/create/cover-grid";
 import { PreviewCard } from "@/components/create/preview-card";
 import { SummaryRows } from "@/components/create/summary-rows";
+import { TimeLockedForecast } from "@/components/charts/timelocked-forecast";
 import { useCreateJar } from "@/components/create/use-create-jar";
 import type { ProcessedCover } from "@/lib/cover";
+import { BASE_APY, BASE_APY_PERCENT } from "@/lib/apy";
 
 type UiJarType = "goal" | "timeLocked" | "group";
 
 type Step = 1 | 2 | 3 | 4;
-
-type ReminderFreq = "weekly" | "monthly" | "never";
 
 interface NotifPrefs {
   email: boolean;
@@ -22,10 +23,8 @@ interface NotifPrefs {
   push: boolean;
 }
 
-const KAMINO_APY = 0.054;
-
 function projectMonthly(monthly: number, years: number): number {
-  const r = KAMINO_APY / 12;
+  const r = BASE_APY / 12;
   const n = years * 12;
   if (r === 0) return monthly * n;
   return monthly * ((Math.pow(1 + r, n) - 1) / r);
@@ -59,6 +58,8 @@ const STEP_LABELS: Record<Step, { title: string; sub: string }> = {
 
 export function CreateWizard() {
   const [step, setStep] = useState<Step>(1);
+  const { publicKey } = useWallet();
+  const walletConnected = !!publicKey;
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -79,7 +80,8 @@ export function CreateWizard() {
   });
   const [signers, setSigners] = useState<string[]>(["you@example.com"]);
   const [threshold, setThreshold] = useState(1);
-  const [reminderFreq, setReminderFreq] = useState<ReminderFreq>("monthly");
+  const [reminderFreq, setReminderFreq] = useState<"off" | "weekly" | "monthly">("off");
+  const [reminderAmount, setReminderAmount] = useState<string>("");
 
   const { submit, status } = useCreateJar();
 
@@ -117,7 +119,13 @@ export function CreateWizard() {
     jarType === "timeLocked" ? "timeLocked" : "flexible";
 
   const canProceed1 = title.trim().length > 0;
-  const canProceed2 = jarType !== "timeLocked" || unlockDate !== null;
+  const goalNum = parseFloat(goalAmount);
+  const goalAmountValid =
+    Number.isFinite(goalNum) && goalNum >= 10 && goalNum <= 1_000_000;
+  const canProceed2 =
+    (jarType !== "timeLocked" || unlockDate !== null) &&
+    (jarType !== "goal" || (goalEnabled && goalAmountValid)) &&
+    (!goalEnabled || !goalAmount || goalAmountValid);
   const canProceed3 = signers.length > 0 && threshold >= 1 && threshold <= signers.length;
   const isCreating = status === "running";
   const isDone = status === "done";
@@ -178,6 +186,23 @@ export function CreateWizard() {
           </div>
 
           <StepNav step={step} setStep={setStep} />
+
+          {!walletConnected && (
+            <div
+              className="mt-4 flex items-center gap-3 rounded-[10px] px-4 py-3"
+              style={{
+                background: "var(--accent-warn-bg, #FCEEDC)",
+                border: "0.5px solid var(--accent-warn, #D49149)",
+                color: "var(--h-ink)",
+              }}
+            >
+              <span style={{ fontSize: 16 }}>👛</span>
+              <span className="text-[13px]" style={{ lineHeight: 1.5 }}>
+                Connect a Solana wallet now — you&apos;ll need it to sign and
+                publish the jar at the end.
+              </span>
+            </div>
+          )}
 
           {/* Card wrapper */}
           <div
@@ -254,7 +279,16 @@ export function CreateWizard() {
                         className="mb-5 overflow-visible"
                       >
                         <FieldLabel>Unlock date</FieldLabel>
-                        <DateField value={unlockDate} onChange={setUnlockDate} />
+                        <DateField
+                          value={unlockDate}
+                          onChange={setUnlockDate}
+                          minDate={(() => {
+                            const d = new Date();
+                            d.setDate(d.getDate() + 1);
+                            d.setHours(0, 0, 0, 0);
+                            return d;
+                          })()}
+                        />
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -264,19 +298,22 @@ export function CreateWizard() {
                     <span className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-medium" style={{ background: "var(--h-bg-2)", border: "0.5px solid var(--h-line-2)" }}>$</span>
                     <div className="flex-1">
                       <div className="text-[13.5px] font-medium">USDC</div>
-                      <div className="text-[12px]" style={{ color: "var(--h-ink-3)" }}>Stable value · Earns ~5.4% APY via Kamino</div>
+                      <div className="text-[12px]" style={{ color: "var(--h-ink-3)" }}>{`Stable value · Earns ~${BASE_APY_PERCENT}% APY via Kamino`}</div>
                     </div>
                   </div>
 
                   <FieldLabel>Goal</FieldLabel>
-                  <div className="mb-7 flex items-center gap-3">
+                  <div className="mb-2 flex items-center gap-3">
                     <div className="relative flex-1">
                       <input
                         type="number"
+                        min={10}
+                        max={1_000_000}
+                        step={1}
                         value={goalAmount}
                         onChange={(e) => setGoalAmount(e.target.value)}
                         disabled={!goalEnabled}
-                        placeholder="0.00"
+                        placeholder="e.g. 500"
                         className="w-full rounded-[8px] px-3.5 py-2.5 pr-[56px] text-[14px] outline-none transition-colors focus:border-[color:var(--h-ink-2)]"
                         style={{
                           ...inputStyle,
@@ -296,6 +333,25 @@ export function CreateWizard() {
                       label={goalEnabled ? "On" : "Off"}
                     />
                   </div>
+                  {goalEnabled && goalAmount && !goalAmountValid && (
+                    <p
+                      className="mb-5 text-[12px]"
+                      style={{ color: "var(--accent-warn, #B04A4A)" }}
+                    >
+                      Goal must be between $10 and $1,000,000.
+                    </p>
+                  )}
+                  {(!goalEnabled || !goalAmount) && (
+                    <p
+                      className="mb-5 text-[12px]"
+                      style={{ color: "var(--h-ink-3)" }}
+                    >
+                      Min $10 · Max $1,000,000
+                    </p>
+                  )}
+                  {goalEnabled && goalAmountValid && (
+                    <div className="mb-5" />
+                  )}
 
                   <AnimatePresence>
                     {jarType !== "timeLocked" && !goalEnabled && (
@@ -354,7 +410,7 @@ export function CreateWizard() {
                                 className="text-[11px] uppercase tracking-[0.08em]"
                                 style={{ color: "var(--h-ink-3)" }}
                               >
-                                In 5 years, at ~5.4% APY
+                                {`In 5 years, at ~${BASE_APY_PERCENT}% APY`}
                               </div>
                               <div
                                 className="mt-1 tabular-nums"
@@ -409,6 +465,8 @@ export function CreateWizard() {
                     setThreshold={setThreshold}
                     reminderFreq={reminderFreq}
                     setReminderFreq={setReminderFreq}
+                    reminderAmount={reminderAmount}
+                    setReminderAmount={setReminderAmount}
                   />
 
                   <div className="mt-7 flex items-center gap-3">
@@ -434,10 +492,21 @@ export function CreateWizard() {
                     hasPhoto={!!uploadedPhoto}
                     asset={asset}
                     jarType={onChainJarType}
+                    uiType={jarType}
                     goalAmount={goalAmount}
                     goalEnabled={goalEnabled}
                     unlockDate={unlockDate}
                   />
+
+                  {jarType === "timeLocked" && unlockDate && (
+                    <div className="mt-6">
+                      <TimeLockedForecast
+                        unlockDate={unlockDate}
+                        reminderFreq={reminderFreq}
+                        reminderAmount={parseFloat(reminderAmount) || 0}
+                      />
+                    </div>
+                  )}
 
                   <div className="mt-7 flex items-center gap-3">
                     <BackButton onClick={() => setStep(3)} />
@@ -639,9 +708,11 @@ function PrimaryButton({
 function DateField({
   value,
   onChange,
+  minDate,
 }: {
   value: Date | null;
   onChange: (d: Date) => void;
+  minDate?: Date;
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -713,6 +784,7 @@ function DateField({
           >
             <InlineCalendar
               value={value}
+              minDate={minDate}
               onChange={(d) => {
                 onChange(d);
                 setOpen(false);
@@ -755,6 +827,8 @@ function ControlsStep({
   setThreshold,
   reminderFreq,
   setReminderFreq,
+  reminderAmount,
+  setReminderAmount,
 }: {
   notif: NotifPrefs;
   setNotif: (n: NotifPrefs) => void;
@@ -762,8 +836,10 @@ function ControlsStep({
   setSigners: (s: string[]) => void;
   threshold: number;
   setThreshold: (n: number) => void;
-  reminderFreq: ReminderFreq;
-  setReminderFreq: (f: ReminderFreq) => void;
+  reminderFreq: "off" | "weekly" | "monthly";
+  setReminderFreq: (f: "off" | "weekly" | "monthly") => void;
+  reminderAmount: string;
+  setReminderAmount: (a: string) => void;
 }) {
   const [draftSigner, setDraftSigner] = useState("");
 
@@ -778,12 +854,6 @@ function ControlsStep({
     setSigners(next);
     if (threshold > next.length) setThreshold(Math.max(1, next.length));
   }
-
-  const reminderOptions: { value: ReminderFreq; label: string }[] = [
-    { value: "weekly", label: "Weekly" },
-    { value: "monthly", label: "Monthly" },
-    { value: "never", label: "Never" },
-  ];
 
   return (
     <div>
@@ -932,38 +1002,87 @@ function ControlsStep({
         </select>
       </div>
 
-      <FieldLabel>Contributor reminders</FieldLabel>
+      <FieldLabel>
+        Remind me to top up{" "}
+        <span
+          style={{
+            color: "var(--h-ink-3)",
+            fontWeight: 400,
+            textTransform: "none",
+            letterSpacing: 0,
+          }}
+        >
+          (optional)
+        </span>
+      </FieldLabel>
       <p
-        className="mb-3 text-[12px]"
+        className="mb-2 text-[12px]"
         style={{ color: "var(--h-ink-3)", lineHeight: 1.5 }}
       >
-        Nudge people who opened the link but haven't chipped in yet.
+        Set a cadence and the amount we&apos;ll nudge you to deposit.
       </p>
-      <div className="grid grid-cols-3 gap-2">
-        {reminderOptions.map((o) => (
-          <button
-            key={o.value}
-            type="button"
-            onClick={() => setReminderFreq(o.value)}
-            className="rounded-[8px] py-2.5 text-[13px] font-medium transition-colors"
-            style={
-              reminderFreq === o.value
-                ? {
-                    background: "var(--h-accent)",
-                    color: "#F1F0EC",
-                    border: "0.5px solid var(--h-accent-deep)",
-                  }
-                : {
-                    background: "var(--h-card)",
-                    color: "var(--h-ink)",
-                    border: "0.5px solid var(--h-line-2)",
-                  }
-            }
-          >
-            {o.label}
-          </button>
-        ))}
+      <div className="mb-3 grid grid-cols-3 gap-2">
+        {(["off", "weekly", "monthly"] as const).map((f) => {
+          const selected = reminderFreq === f;
+          const label = f === "off" ? "Off" : f === "weekly" ? "Weekly" : "Monthly";
+          const sub =
+            f === "off"
+              ? "No reminders"
+              : f === "weekly"
+                ? "Every 7 days"
+                : "Once a month";
+          return (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setReminderFreq(f)}
+              className="text-left rounded-[10px] p-3 transition"
+              style={{
+                background: selected
+                  ? "color-mix(in oklab, var(--h-accent) 8%, var(--h-card))"
+                  : "var(--h-card)",
+                border: `0.5px solid ${selected ? "var(--h-accent)" : "var(--h-line-2)"}`,
+                boxShadow: selected ? "0 0 0 1px var(--h-accent) inset" : "none",
+              }}
+            >
+              <div className="text-[13.5px] font-medium" style={{ color: "var(--h-ink)" }}>
+                {label}
+              </div>
+              <div className="text-[12px] mt-0.5" style={{ color: "var(--h-ink-3)" }}>
+                {sub}
+              </div>
+            </button>
+          );
+        })}
       </div>
+      <AnimatePresence>
+        {reminderFreq !== "off" && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="relative">
+              <input
+                type="number"
+                min="0"
+                value={reminderAmount}
+                onChange={(e) => setReminderAmount(e.target.value)}
+                placeholder="50"
+                className="w-full rounded-[8px] px-3.5 py-2.5 pr-[96px] text-[14px] outline-none transition-colors focus:border-[color:var(--h-ink-2)]"
+                style={inputStyle}
+              />
+              <span
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[11px] font-medium tracking-[0.02em]"
+                style={{ color: "var(--h-ink-3)" }}
+              >
+                {reminderFreq === "weekly" ? "USDC / WK" : "USDC / MO"}
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

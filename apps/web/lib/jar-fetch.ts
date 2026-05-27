@@ -3,7 +3,7 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import { JarfiClient } from "@jarfi/sdk";
 import type { JarAccount } from "@jarfi/sdk";
 import { createDb } from "@/lib/db/client";
-import { getShortLinkById } from "@/lib/db/shortlinks";
+import { getShortLinkById, getShortLinkByJar } from "@/lib/db/shortlinks";
 import { getJarByPda as getJarCacheByPda } from "@/lib/db/jars";
 import { buildDemoJar, isDemoShortId } from "./demo-jar";
 import type { JarMetadata } from "./metadata";
@@ -192,10 +192,15 @@ export async function fetchJarByShortId(
 export async function fetchJarByPda(
   pda: string,
 ): Promise<JarPayload | null> {
+  const { env } = getCloudflareContext();
+  const db = createDb(env.DB);
+  const link = await getShortLinkByJar(db, pda).catch(() => null);
+  const shortId = link?.shortId ?? null;
+
   const chain = await fetchJarOnChain(pda);
   if (chain) {
     const metadata = await fetchMetadata(chain.jar.metadataUri, "Untitled jar");
-    return buildPayload(chain.jar, chain.lamports, pda, null, metadata);
+    return buildPayload(chain.jar, chain.lamports, pda, shortId, metadata);
   }
-  return payloadFromCache(pda, null);
+  return payloadFromCache(pda, shortId);
 }

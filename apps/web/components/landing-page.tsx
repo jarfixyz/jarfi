@@ -6,6 +6,7 @@ import { ShareDemo } from "./landing/share-demo";
 import { PaymentBlock } from "./landing/payment-block";
 import { RemindersBlock } from "./landing/reminders-block";
 import { FaqBlock } from "./landing/faq-block";
+import { BASE_APY_PERCENT } from "@/lib/apy";
 
 export function LandingPage() {
   return (
@@ -21,9 +22,6 @@ export function LandingPage() {
             <a href="#faq">FAQ</a>
             <Link href="/dashboard">Dashboard</Link>
           </nav>
-          <Link href="/create" className="nav-btn">
-            Create a jar
-          </Link>
         </div>
 
         <section className="hero">
@@ -57,6 +55,10 @@ export function LandingPage() {
         <div className="divider" />
 
         <section className="calc-sec" id="how">
+          <header className="calc-header">
+            <h2>See how much you&apos;ll get with us</h2>
+            <p>Design your dream.</p>
+          </header>
           <div className="two-col">
             <div className="col-text">
               <h2>$50 a month. 18 years. Double the money.</h2>
@@ -65,7 +67,7 @@ export function LandingPage() {
                 jarfi — <strong>over $21,400</strong>.
               </p>
               <p>
-                That&apos;s ~5.4% APY from Kamino USDC lending. Your money works
+                That&apos;s ~{BASE_APY_PERCENT}% APY from Kamino USDC lending. Your money works
                 while you don&apos;t.
               </p>
               <p className="micro">

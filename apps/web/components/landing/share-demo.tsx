@@ -20,19 +20,8 @@ export function ShareDemo() {
   }
 
   return (
-    <section className="sd-section">
+    <section className="sd-section" id="contrib">
       <div className="sd-grid">
-        <div className="sd-text">
-          <h2>One link. Everyone pitches in.</h2>
-          <p>
-            Share by text, Telegram, or email. They open the link, they pay
-            with a card. No wallet, no signup.
-          </p>
-          <p>
-            The jar updates in real time — every contributor shows up in the
-            feed with a name and a note.
-          </p>
-        </div>
         <div className="sd-card">
           <span className="sd-label">Your jar link</span>
           <div className="sd-url">
@@ -66,6 +55,17 @@ export function ShareDemo() {
               </span>
             </div>
           </div>
+        </div>
+        <div className="sd-text">
+          <h2>One link. Everyone pitches in.</h2>
+          <p>
+            Share by text, Telegram, or email. They open the link, they pay
+            with a card. No wallet, no signup.
+          </p>
+          <p>
+            The jar updates in real time — every contributor shows up in the
+            feed with a name and a note.
+          </p>
         </div>
       </div>
     </section>

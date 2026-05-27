@@ -27,10 +27,11 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const db = createDb(env.DB);
-  const heliusRpc = env.HELIUS_API_KEY
-    ? env.HELIUS_RPC.replace("REPLACE_LOCAL_DEV", env.HELIUS_API_KEY)
-    : env.HELIUS_RPC;
-  const rpc = createRpc({ HELIUS_RPC: heliusRpc, PUBLIC_RPC: env.PUBLIC_RPC });
+  const rpc = createRpc({
+    HELIUS_RPC: env.HELIUS_RPC,
+    PUBLIC_RPC: env.PUBLIC_RPC,
+    HELIUS_API_KEY: env.HELIUS_API_KEY,
+  });
   const result = await runIndexerOnce(db, rpc, env.PROGRAM_ID);
   const sweep = await sweepFundedDeposits(env).catch((e) => ({
     attempted: 0,

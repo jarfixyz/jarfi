@@ -94,7 +94,7 @@ export function ContribMock() {
       <div className="cm-head">
         <div>
           <div className="cm-title">Honda CB500 Fund</div>
-          <div className="cm-sub">Goal $5,000 · Marinade 6.2% APY</div>
+          <div className="cm-sub">Goal $5,000 · Kamino USDC yield</div>
         </div>
         <div className="cm-url">jarfi.xyz/cb500</div>
       </div>

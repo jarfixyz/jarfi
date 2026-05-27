@@ -1,41 +1,15 @@
 "use client";
-import { toast } from "sonner";
 
 type Props = {
   open: boolean;
   onClose: () => void;
   onPayCard: () => void;
   onPayWallet: () => void;
+  onRemind: () => void;
 };
 
-export function PostCreateModal({ open, onClose, onPayCard, onPayWallet }: Props) {
+export function PostCreateModal({ open, onClose, onPayCard, onPayWallet, onRemind }: Props) {
   if (!open) return null;
-
-  async function setReminder() {
-    try {
-      if (typeof Notification === "undefined") {
-        toast.error("Notifications not supported in this browser");
-        return;
-      }
-      let perm = Notification.permission;
-      if (perm === "default") perm = await Notification.requestPermission();
-      if (perm !== "granted") {
-        toast.error("Reminder requires notification permission");
-        return;
-      }
-      const when = new Date();
-      when.setDate(when.getDate() + 1);
-      when.setHours(10, 0, 0, 0);
-      const ms = Math.max(60_000, when.getTime() - Date.now());
-      window.setTimeout(() => {
-        new Notification("jarfi · time to top up your jar 🍯");
-      }, ms);
-      toast.success("Reminder set ✓");
-      onClose();
-    } catch {
-      toast.error("Could not set reminder");
-    }
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(20,21,26,0.5)" }}>
@@ -46,7 +20,7 @@ export function PostCreateModal({ open, onClose, onPayCard, onPayWallet }: Props
         <div className="flex flex-col gap-2">
           <FundBtn icon="💳" label="Pay with card" onClick={onPayCard} />
           <FundBtn icon="👛" label="Pay from wallet" onClick={onPayWallet} />
-          <FundBtn icon="🔔" label="Remind me later" onClick={setReminder} />
+          <FundBtn icon="🔔" label="Remind me later" onClick={onRemind} />
         </div>
         <button onClick={onClose} className="mt-4 text-[12.5px]" style={{ color: "var(--h-ink-3)" }}>Skip for now</button>
       </div>

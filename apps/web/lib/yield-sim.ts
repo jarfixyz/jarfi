@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
+import { BASE_APY_PERCENT } from "./apy";
 
-const BASE = 5.4;
+export { BASE_APY, BASE_APY_PERCENT } from "./apy";
+const BASE = BASE_APY_PERCENT;
 const SPREAD = 0.3;
 const FETCH_INTERVAL_MS = 30_000;
 const JITTER_INTERVAL_MS = 10_000;

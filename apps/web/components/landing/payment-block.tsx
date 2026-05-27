@@ -13,8 +13,8 @@ export function PaymentBlock() {
     if (stage === "idle" || stage === "done") return;
     const next: Record<Stage, { to: Stage; ms: number } | null> = {
       idle: null,
-      auth: { to: "processing", ms: prefersReduced ? 200 : 900 },
-      processing: { to: "done", ms: prefersReduced ? 200 : 1100 },
+      auth: { to: "processing", ms: prefersReduced ? 150 : 600 },
+      processing: { to: "done", ms: prefersReduced ? 150 : 700 },
       done: null,
     };
     const step = next[stage];
@@ -58,7 +58,11 @@ export function PaymentBlock() {
             </div>
             <div className="pb-method" role="listitem">
               <span className="pb-method-icon" aria-hidden>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="6" width="19" height="13" rx="2"/><path d="M2.5 10h19"/><path d="M6 15h3"/></svg>
+                <svg width="26" height="22" viewBox="0 0 36 24" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="14" cy="12" r="8" fill="#EB001B"/>
+                  <circle cx="22" cy="12" r="8" fill="#F79E1B"/>
+                  <path d="M18 6.2a8 8 0 0 1 0 11.6 8 8 0 0 1 0-11.6Z" fill="#FF5F00"/>
+                </svg>
               </span>
               <span className="pb-method-name">Visa · MC</span>
             </div>
@@ -75,13 +79,26 @@ export function PaymentBlock() {
             </div>
             <div className="pb-method" role="listitem">
               <span className="pb-method-icon" aria-hidden>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14h1M14 20h3v1M20 17v4"/></svg>
+                <svg width="22" height="22" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <linearGradient id="sol-grad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                      <stop offset="0" stopColor="#9945FF"/>
+                      <stop offset="0.5" stopColor="#7C3AED"/>
+                      <stop offset="1" stopColor="#14F195"/>
+                    </linearGradient>
+                  </defs>
+                  <path fill="url(#sol-grad)" d="M5.4 16.6a.7.7 0 0 1 .5-.2H21a.35.35 0 0 1 .25.6l-2.65 2.6a.7.7 0 0 1-.5.2H3a.35.35 0 0 1-.25-.6l2.65-2.6Zm0-9.7a.72.72 0 0 1 .5-.2H21a.35.35 0 0 1 .25.6L18.6 9.9a.7.7 0 0 1-.5.2H3a.35.35 0 0 1-.25-.6L5.4 6.9Zm13.2 4.8a.7.7 0 0 0-.5-.2H3a.35.35 0 0 0-.25.6l2.65 2.6a.7.7 0 0 0 .5.2H21a.35.35 0 0 0 .25-.6l-2.65-2.6Z"/>
+                </svg>
               </span>
               <span className="pb-method-name">Solana Pay</span>
             </div>
             <div className="pb-method" role="listitem">
               <span className="pb-method-icon" aria-hidden>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M11 18h2"/></svg>
+                <svg width="22" height="22" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="2.5" y="5" width="19" height="14" rx="2.5" fill="#0A6E5C"/>
+                  <rect x="2.5" y="5" width="19" height="3.5" fill="#054738"/>
+                  <circle cx="17.5" cy="13" r="1.6" fill="#F4B942"/>
+                </svg>
               </span>
               <span className="pb-method-name">Wallet</span>
             </div>
@@ -143,12 +160,12 @@ export function PaymentBlock() {
           >
             <AnimatePresence mode="wait" initial={false}>
               {stage === "idle" && (
-                <motion.span key="idle" className="ap-pay-inner ap-pay-brand" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <motion.span key="idle" className="ap-pay-inner ap-pay-brand" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }}>
                   <ApplePayMark />
                 </motion.span>
               )}
               {stage === "auth" && (
-                <motion.span key="auth" className="ap-pay-inner" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <motion.span key="auth" className="ap-pay-inner" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }}>
                   <motion.span
                     className="ap-spinner"
                     aria-hidden
@@ -157,7 +174,7 @@ export function PaymentBlock() {
                 </motion.span>
               )}
               {stage === "processing" && (
-                <motion.span key="proc" className="ap-pay-inner" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <motion.span key="proc" className="ap-pay-inner" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }}>
                   <span className="ap-spinner" aria-hidden />
                   <span>Processing payment…</span>
                 </motion.span>
@@ -169,6 +186,7 @@ export function PaymentBlock() {
                   initial={{ opacity: 0, scale: 0.96 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0 }}
+                  transition={{ duration: 0.18 }}
                 >
                   <motion.svg
                     width="18"
@@ -196,13 +214,18 @@ export function PaymentBlock() {
           <AnimatePresence>
             {stage === "done" && (
               <motion.div
-                className="ap-receipt"
-                initial={{ opacity: 0, y: 8, height: 0 }}
-                animate={{ opacity: 1, y: 0, height: "auto" }}
-                exit={{ opacity: 0, y: -4, height: 0 }}
+                className="ap-toast"
+                initial={{ opacity: 0, y: -28, scale: 0.94 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -16, scale: 0.96 }}
+                transition={{ type: "spring", stiffness: 420, damping: 32, mass: 0.6 }}
               >
-                <span className="ap-receipt-dot" />
-                Anna added <strong>$50.00</strong> · &ldquo;happy birthday!&rdquo;
+                <span className="ap-toast-icon" aria-hidden>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4 4 10-10"/></svg>
+                </span>
+                <span className="ap-toast-text">
+                  Anna added <strong>$50.00</strong> · &ldquo;happy birthday!&rdquo;
+                </span>
               </motion.div>
             )}
           </AnimatePresence>

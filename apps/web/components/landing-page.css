@@ -7,49 +7,54 @@
   color: var(--lp-ink);
 }
 .jarfi-landing {
-  --font-display: var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-display: "General Sans", var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --lp-bg: #F3F1E9;
-  --lp-surface: #FBFAF4;
-  --lp-ink: #2A2622;
-  --lp-ink-2: #6B6258;
-  --lp-muted: #9B9388;
-  --lp-tertiary: #BFB8AC;
-  --lp-border: rgba(42, 38, 34, 0.08);
-  --lp-border-2: rgba(42, 38, 34, 0.16);
-  --lp-accent: #3E7058;
-  --lp-accent-deep: #2A2622;
-  --lp-accent-ink: #1A1714;
-  --lp-accent-soft: #ECE9DD;
-  --lp-accent-soft-2: #F1EFE3;
+  /* clean white card, subtle off-white for alternating sections */
+  --lp-bg: #F7F9FC;
+  --lp-surface: #FFFFFF;
+  --lp-ink: #11100E;
+  --lp-ink-2: #4F4A42;
+  --lp-muted: #8A847A;
+  --lp-tertiary: #B6B0A4;
+  --lp-border: rgba(17, 16, 14, 0.08);
+  --lp-border-2: rgba(17, 16, 14, 0.16);
+  --lp-accent: #08594A;
+  --lp-accent-deep: #043F34;
+  --lp-accent-ink: #11100E;
+  --lp-accent-soft: #DCEAE5;
+  --lp-accent-soft-2: #E8F0EC;
 
-  /* brand color layer — sage + cocoa */
-  --lp-brand: #6FA68C;
-  --lp-brand-deep: #3E7058;
-  --lp-brand-on: #FBFAF4;
-  --lp-brand-soft: #E3EEE7;
-  --lp-money: #3E7058;
-  --lp-money-bright: #6FA68C;
-  --lp-money-soft: #E3EEE7;
+  /* brand — deep teal (was sage). Saturated, confident, money-adjacent without being literal. */
+  --lp-brand: #0A6E5C;
+  --lp-brand-deep: #054738;
+  --lp-brand-on: #FFFFFF;
+  --lp-brand-soft: #D8EBE5;
+  --lp-money: #0A6E5C;
+  --lp-money-bright: #1A8E78;
+  --lp-money-soft: #D8EBE5;
+  /* legacy aliases — direction A collapses accents into brand teal. */
+  --lp-rust: var(--lp-brand-deep);
+  --lp-rust-deep: var(--lp-brand-deep);
+  --lp-rust-soft: var(--lp-brand-soft);
 
   --lp-radius-sm: 10px;
   --lp-radius-md: 18px;
   --lp-radius-lg: 22px;
-  --lp-shadow-warm: 0 1px 2px rgba(62, 112, 88, 0.04), 0 24px 56px -24px rgba(62, 112, 88, 0.22);
-  --lp-shadow-card: 0 1px 2px rgba(42, 38, 34, 0.04), 0 12px 36px -20px rgba(42, 38, 34, 0.14);
-  --lp-divider-dashed: 1px dashed rgba(62, 112, 88, 0.28);
+  --lp-shadow-warm: 0 1px 2px rgba(20, 17, 13, 0.04), 0 18px 40px -22px rgba(20, 17, 13, 0.18);
+  --lp-shadow-card: 0 1px 2px rgba(20, 17, 13, 0.03), 0 8px 24px -16px rgba(20, 17, 13, 0.10);
+  --lp-divider-dashed: 1px dashed rgba(17, 16, 14, 0.18);
 
-  /* category accents */
-  --accent-goal: #3E7058;
-  --accent-goal-bg: #E3EEE7;
-  --accent-lock: #6B5DB8;
-  --accent-lock-bg: #ECE8FA;
-  --accent-group: #D9A26F;
-  --accent-group-bg: #F6E8D6;
-  --accent-recur: #8A6B4B;
-  --accent-recur-bg: #EDE2D2;
+  /* category accents — all neutral ink. Differentiation through icon + content, not color. */
+  --accent-goal: #11100E;
+  --accent-goal-bg: #F0EFEC;
+  --accent-lock: #11100E;
+  --accent-lock-bg: #F0EFEC;
+  --accent-group: #11100E;
+  --accent-group-bg: #F0EFEC;
+  --accent-recur: #11100E;
+  --accent-recur-bg: #F0EFEC;
 
-  background: var(--lp-bg);
+  background: #181715;
   color: var(--lp-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -57,7 +62,9 @@
   display: flex;
   justify-content: center;
   padding: 24px;
+  position: relative;
 }
+.jarfi-landing .lp { position: relative; z-index: 1; }
 
 .jarfi-landing * {
   box-sizing: border-box;
@@ -68,9 +75,9 @@
 .jarfi-landing h1,
 .jarfi-landing h2,
 .jarfi-landing h3 {
-  font-weight: 500;
-  letter-spacing: -0.015em;
-  line-height: 1.15;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
 }
 
 .jarfi-landing button {
@@ -85,7 +92,7 @@
 
 .jarfi-landing .lp {
   width: 100%;
-  max-width: 1080px;
+  max-width: 1280px;
   background: var(--lp-surface);
   border-radius: var(--lp-radius-lg);
   overflow: hidden;
@@ -95,7 +102,7 @@
 }
 
 .jarfi-landing .divider {
-  height: 0.5px;
+  height: 1px;
   background: var(--lp-border);
 }
 
@@ -104,7 +111,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 32px;
+  padding: 18px 56px;
   border-bottom: 0.5px solid var(--lp-border);
 }
 .jarfi-landing .nav-logo {
@@ -125,6 +132,7 @@
 .jarfi-landing .nav-links {
   display: flex;
   gap: 28px;
+  margin-left: auto;
 }
 .jarfi-landing .nav-links a {
   font-size: 13.5px;
@@ -150,7 +158,7 @@
 
 /* ── HERO ── */
 .jarfi-landing .hero {
-  padding: 80px 48px 72px;
+  padding: 96px 72px 88px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -158,13 +166,13 @@
 }
 .jarfi-landing .hero h1 {
   font-family: var(--font-display);
-  font-size: clamp(38px, 5.2vw, 62px);
-  font-weight: 500;
-  line-height: 1.05;
-  letter-spacing: -0.025em;
+  font-size: clamp(46px, 6.4vw, 76px);
+  font-weight: 600;
+  line-height: 1.0;
+  letter-spacing: -0.035em;
   color: var(--lp-ink);
-  margin-bottom: 20px;
-  max-width: 26ch;
+  margin-bottom: 24px;
+  max-width: 22ch;
 }
 .jarfi-landing .hero h1 em {
   font-style: normal;
@@ -185,39 +193,63 @@
   flex-wrap: wrap;
 }
 .jarfi-landing .btn-main {
-  background: var(--lp-brand);
-  color: var(--lp-brand-on);
+  background: var(--lp-ink);
+  color: var(--lp-bg);
   border: none;
-  padding: 13px 26px;
+  padding: 14px 28px;
   border-radius: 999px;
   font-size: 14.5px;
   font-weight: 500;
+  letter-spacing: -0.005em;
   display: inline-flex;
   align-items: center;
-  box-shadow: 0 1px 0 rgba(181, 122, 26, 0.4), 0 8px 24px -10px rgba(232, 165, 61, 0.55);
+  transition: background 0.15s, transform 0.1s;
 }
 .jarfi-landing .btn-main:hover {
-  background: var(--lp-brand-deep);
+  background: #000;
 }
+.jarfi-landing .btn-main:active { transform: translateY(1px); }
 .jarfi-landing .btn-ghost {
   background: transparent;
-  border: 0.5px solid var(--lp-border-2);
+  border: 1px solid var(--lp-border-2);
   color: var(--lp-ink);
-  padding: 12px 20px;
-  border-radius: var(--lp-radius-sm);
+  padding: 14px 28px;
+  border-radius: 999px;
   font-size: 14.5px;
   font-weight: 500;
+  letter-spacing: -0.005em;
   display: inline-flex;
   align-items: center;
+  transition: background 0.15s, border-color 0.15s;
 }
 .jarfi-landing .btn-ghost:hover {
   background: var(--lp-bg);
+  border-color: var(--lp-ink);
 }
 
 /* ── CALC ── */
 .jarfi-landing .calc-sec {
-  padding: 72px 48px;
-  background: var(--lp-bg);
+  padding: 96px 72px;
+  background: linear-gradient(115deg, #ECF4EF 0%, #DEEAE4 28%, #E8F0EC 55%, #DBE7E5 82%, #D2E0E0 100%);
+}
+.jarfi-landing .calc-header {
+  text-align: center;
+  max-width: 720px;
+  margin: 0 auto 48px;
+}
+.jarfi-landing .calc-header h2 {
+  font-family: var(--font-display);
+  font-size: clamp(32px, 3.4vw, 44px);
+  font-weight: 600;
+  color: var(--lp-ink);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  margin-bottom: 12px;
+}
+.jarfi-landing .calc-header p {
+  font-size: 17px;
+  color: var(--lp-ink-2);
+  font-style: italic;
 }
 .jarfi-landing .two-col {
   display: grid;
@@ -227,11 +259,11 @@
 }
 .jarfi-landing .col-text h2 {
   font-family: var(--font-display);
-  font-size: 30px;
-  font-weight: 500;
+  font-size: clamp(28px, 2.8vw, 36px);
+  font-weight: 600;
   color: var(--lp-ink);
-  line-height: 1.15;
-  letter-spacing: -0.015em;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
   margin-bottom: 16px;
 }
 .jarfi-landing .col-text p {
@@ -241,8 +273,8 @@
   margin-bottom: 14px;
 }
 .jarfi-landing .col-text p strong {
-  font-weight: 500;
-  color: var(--lp-money);
+  font-weight: 600;
+  color: var(--lp-brand-deep);
 }
 .jarfi-landing .col-text .micro {
   font-size: 12px;
@@ -272,8 +304,8 @@
 }
 .jarfi-landing .calc-head-s {
   font-size: 11px;
-  color: var(--lp-brand-deep);
-  background: var(--lp-brand-soft);
+  color: var(--lp-ink-2);
+  background: rgba(17, 16, 14, 0.05);
   padding: 4px 10px;
   border-radius: 999px;
   font-weight: 500;
@@ -283,8 +315,8 @@
   display: grid;
   grid-template-columns: 130px 1fr 60px;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 16px;
+  margin-bottom: 22px;
 }
 .jarfi-landing .sl-lbl {
   font-size: 13px;
@@ -292,29 +324,43 @@
   white-space: nowrap;
 }
 .jarfi-landing .sl-track {
-  height: 4px;
+  height: 6px;
   background: var(--lp-border-2);
-  border-radius: 2px;
+  border-radius: 3px;
   position: relative;
   cursor: pointer;
   touch-action: none;
 }
+.jarfi-landing .sl-track::before {
+  content: "";
+  position: absolute;
+  inset: -12px 0;
+}
 .jarfi-landing .sl-fill {
   height: 100%;
   background: var(--lp-brand);
-  border-radius: 2px;
+  border-radius: 3px;
   position: relative;
 }
 .jarfi-landing .sl-thumb {
-  width: 14px;
-  height: 14px;
+  width: 22px;
+  height: 22px;
   background: var(--lp-brand);
   border-radius: 50%;
   position: absolute;
-  top: -5px;
-  right: -7px;
-  border: 2px solid var(--lp-surface);
-  box-shadow: 0 1px 4px rgba(20, 21, 26, 0.12);
+  top: 50%;
+  right: -11px;
+  transform: translateY(-50%);
+  border: 3px solid var(--lp-surface);
+  box-shadow: 0 2px 6px rgba(20, 21, 26, 0.18), 0 0 0 0.5px rgba(17, 16, 14, 0.08);
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.jarfi-landing .sl-track:hover .sl-thumb {
+  transform: translateY(-50%) scale(1.08);
+  box-shadow: 0 3px 10px rgba(20, 21, 26, 0.22), 0 0 0 0.5px rgba(17, 16, 14, 0.1);
+}
+.jarfi-landing .sl-track:active .sl-thumb {
+  transform: translateY(-50%) scale(1.12);
 }
 .jarfi-landing .sl-val {
   font-size: 13px;
@@ -332,14 +378,10 @@
   border-top: var(--lp-divider-dashed);
 }
 .jarfi-landing .res-box {
-  background: var(--lp-bg);
+  background: var(--lp-surface);
   border-radius: var(--lp-radius-sm);
   padding: 14px;
   border: 0.5px solid var(--lp-border);
-}
-.jarfi-landing .res-box.win {
-  background: var(--lp-money-soft);
-  border: 0.5px solid color-mix(in srgb, var(--lp-money) 40%, transparent);
 }
 .jarfi-landing .res-lbl {
   font-size: 11px;
@@ -348,15 +390,21 @@
   letter-spacing: 0.02em;
 }
 .jarfi-landing .res-num {
-  font-size: 32px;
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 700;
   color: var(--lp-ink);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.035em;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
   transition: color 0.2s;
 }
 .jarfi-landing .res-num.green {
-  color: var(--lp-money);
+  color: var(--lp-brand-deep);
+}
+.jarfi-landing .res-box.win {
+  background: var(--lp-surface);
+  border-color: color-mix(in srgb, var(--lp-brand) 35%, var(--lp-border));
 }
 .jarfi-landing .res-sub {
   font-size: 11px;
@@ -391,7 +439,7 @@
 
 /* ── STORY ── */
 .jarfi-landing .story-sec {
-  padding: 72px 48px;
+  padding: 96px 72px;
 }
 .jarfi-landing .story-head {
   max-width: 560px;
@@ -399,7 +447,7 @@
 }
 .jarfi-landing .story-head h2 {
   font-family: var(--font-display);
-  font-size: 30px;
+  font-size: clamp(28px, 2.8vw, 36px);
   font-weight: 500;
   color: var(--lp-ink);
   line-height: 1.15;
@@ -478,7 +526,7 @@
 
 /* ── CONTRIB ── */
 .jarfi-landing .contrib-sec {
-  padding: 72px 48px;
+  padding: 96px 72px;
   background: var(--lp-bg);
 }
 .jarfi-landing .two-col-rev {
@@ -629,12 +677,12 @@
 
 /* ── CTA ── */
 .jarfi-landing .cta-sec {
-  padding: 48px 48px 56px;
+  padding: 64px 72px 80px;
 }
 .jarfi-landing .cta-card {
   max-width: 880px;
   margin: 0 auto;
-  background: var(--lp-brand-soft);
+  background: linear-gradient(115deg, #ECF4EF 0%, #DEEAE4 28%, #E8F0EC 55%, #DBE7E5 82%, #D2E0E0 100%);
   border: 0.5px solid var(--lp-border);
   border-radius: var(--lp-radius-md);
   padding: 26px 32px;
@@ -677,7 +725,7 @@
   text-decoration: none;
   white-space: nowrap;
   flex-shrink: 0;
-  box-shadow: 0 1px 0 rgba(62, 112, 88, 0.3), 0 8px 22px -10px rgba(62, 112, 88, 0.5);
+  box-shadow: 0 1px 0 rgba(17, 16, 14, 0.18), 0 8px 22px -10px rgba(17, 16, 14, 0.28);
   transition: background 0.2s, transform 0.15s;
 }
 .jarfi-landing .cta-btn:hover {
@@ -688,7 +736,7 @@
 .jarfi-landing .cta-btn:hover svg { transform: translateX(2px); }
 /* ── FOOTER ── */
 .jarfi-landing footer {
-  padding: 22px 32px;
+  padding: 24px 56px;
   border-top: 0.5px solid var(--lp-border);
   display: flex;
   align-items: center;
@@ -761,7 +809,7 @@
 }
 
 /* ── JAR TYPES ── */
-.jarfi-landing .jt-section { padding: 72px 48px; background: var(--lp-bg); }
+.jarfi-landing .jt-section { padding: 96px 72px; background: var(--lp-bg); }
 .jarfi-landing .jt-head { max-width: 620px; margin: 0 auto 44px; text-align: center; }
 .jarfi-landing .jt-head h2 {
   font-family: var(--font-display);
@@ -779,32 +827,19 @@
   border-radius: var(--lp-radius-md);
   padding: 26px 22px;
   background: var(--lp-surface);
-  cursor: pointer;
   box-shadow: var(--lp-shadow-card);
-  transition: border-color 0.2s, transform 0.2s, background 0.2s, box-shadow 0.2s;
-}
-.jarfi-landing .jt-card:hover {
-  box-shadow: var(--lp-shadow-warm);
-}
-.jarfi-landing .jt-card:hover {
-  border-color: var(--card-accent);
-  background: color-mix(in srgb, var(--card-accent) 6%, var(--lp-surface));
-  transform: translateY(-2px);
 }
 .jarfi-landing .jt-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--card-accent) 12%, var(--lp-bg));
-  color: var(--card-accent);
+  width: 32px;
+  height: 32px;
+  color: var(--lp-brand-deep);
   display: flex;
   align-items: center;
-  justify-content: center;
-  margin-bottom: 12px;
-  border: 0.5px solid color-mix(in srgb, var(--card-accent) 28%, transparent);
-  transition: transform 0.2s;
+  justify-content: flex-start;
+  margin-bottom: 14px;
+  background: none;
+  border: none;
 }
-.jarfi-landing .jt-card:hover .jt-icon { transform: scale(1.06); }
 .jarfi-landing .jt-label {
   font-size: 11px;
   font-weight: 500;
@@ -849,23 +884,23 @@
 }
 
 /* ── SHARE DEMO ── */
-.jarfi-landing .sd-section { padding: 72px 48px; }
-.jarfi-landing .sd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+.jarfi-landing .sd-section { padding: 112px 72px; }
+.jarfi-landing .sd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
 .jarfi-landing .sd-text h2 {
   font-family: var(--font-display);
-  font-size: 30px;
+  font-size: clamp(28px, 2.8vw, 36px);
   font-weight: 500;
   line-height: 1.15;
   letter-spacing: -0.015em;
   color: var(--lp-ink);
-  margin-bottom: 14px;
+  margin-bottom: 20px;
 }
-.jarfi-landing .sd-text p { font-size: 15px; color: var(--lp-ink-2); line-height: 1.65; margin-bottom: 12px; }
+.jarfi-landing .sd-text p { font-size: 15.5px; color: var(--lp-ink-2); line-height: 1.7; margin-bottom: 16px; }
 .jarfi-landing .sd-card {
   background: var(--lp-surface);
   border-radius: var(--lp-radius-md);
   border: 0.5px solid var(--lp-border);
-  padding: 28px;
+  padding: 32px;
   box-shadow: var(--lp-shadow-warm);
 }
 .jarfi-landing .sd-label {
@@ -895,15 +930,15 @@
 }
 .jarfi-landing .sd-copy {
   font-size: 11.5px;
-  background: var(--lp-accent);
-  color: var(--lp-accent-soft);
+  background: var(--lp-ink);
+  color: #fff;
   border: none;
   padding: 7px 14px;
   border-radius: 999px;
   font-weight: 500;
   transition: background 0.2s;
 }
-.jarfi-landing .sd-copy:hover { background: var(--lp-accent-deep); }
+.jarfi-landing .sd-copy:hover { background: #000; }
 .jarfi-landing .sd-split { display: grid; grid-template-columns: 108px 1fr; gap: 18px; align-items: center; }
 .jarfi-landing .sd-qr {
   border: 0.5px solid var(--lp-border);
@@ -933,11 +968,14 @@
 .jarfi-landing .sd-chip:hover .sd-chip-icon { color: var(--lp-ink); }
 
 /* ── PAYMENT ── */
-.jarfi-landing .pb-section { padding: 72px 48px; background: var(--lp-bg); }
+.jarfi-landing .pb-section {
+  padding: 96px 72px;
+  background: linear-gradient(115deg, #ECF4EF 0%, #DEEAE4 28%, #E8F0EC 55%, #DBE7E5 82%, #D2E0E0 100%);
+}
 .jarfi-landing .pb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
 .jarfi-landing .pb-text h2 {
   font-family: var(--font-display);
-  font-size: 30px;
+  font-size: clamp(28px, 2.8vw, 36px);
   font-weight: 500;
   line-height: 1.15;
   letter-spacing: -0.015em;
@@ -1133,35 +1171,54 @@
   animation: ap-spin 0.7s linear infinite;
 }
 @keyframes ap-spin { to { transform: rotate(360deg); } }
-.jarfi-landing .ap-receipt {
-  margin-top: 12px;
-  font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.85);
-  padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 0.5px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
+.jarfi-landing .ap-sheet { position: relative; }
+.jarfi-landing .ap-toast {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  overflow: hidden;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(40, 40, 42, 0.86);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 0.5px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  z-index: 2;
+  pointer-events: none;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.92);
+  line-height: 1.35;
 }
-.jarfi-landing .ap-receipt strong { color: #fff; font-weight: 500; }
-.jarfi-landing .ap-receipt-dot {
-  width: 6px;
-  height: 6px;
+.jarfi-landing .ap-toast strong { color: #fff; font-weight: 600; }
+.jarfi-landing .ap-toast-icon {
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: #34c759;
-  box-shadow: 0 0 0 4px rgba(52, 199, 89, 0.18);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  box-shadow: 0 0 0 3px rgba(52, 199, 89, 0.22);
+}
+.jarfi-landing .ap-toast-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── REMINDERS ── */
-.jarfi-landing .rb-section { padding: 72px 48px; }
-.jarfi-landing .rb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+.jarfi-landing .rb-section { padding: 112px 72px; }
+.jarfi-landing .rb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
 .jarfi-landing .rb-text h2 {
   font-family: var(--font-display);
-  font-size: 30px;
+  font-size: clamp(28px, 2.8vw, 36px);
   font-weight: 500;
   line-height: 1.15;
   letter-spacing: -0.015em;
@@ -1173,12 +1230,10 @@
 /* Timeline of reminders */
 .jarfi-landing .rb-timeline {
   width: 100%;
-  max-width: 460px;
-  margin-left: auto;
   background: var(--lp-surface);
   border: 0.5px solid var(--lp-border);
   border-radius: var(--lp-radius-md);
-  padding: 18px 22px 22px;
+  padding: 28px 32px 32px;
   box-shadow: var(--lp-shadow-warm);
 }
 .jarfi-landing .rb-timeline-head {
@@ -1323,7 +1378,7 @@
 }
 
 /* ── FAQ ── */
-.jarfi-landing .faq-sec { padding: 64px 48px; }
+.jarfi-landing .faq-sec { padding: 88px 72px; }
 .jarfi-landing .faq-head-row {
   display: flex;
   flex-direction: column;
@@ -1422,4 +1477,3 @@
   border-bottom: 0.5px solid currentColor;
 }
 .jarfi-landing .faq-foot-link:hover { color: var(--lp-ink); }
-

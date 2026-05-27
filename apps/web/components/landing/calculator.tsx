@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { BASE_APY, BASE_APY_PERCENT } from "@/lib/apy";
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString();
 
@@ -93,7 +94,7 @@ export function Calculator() {
     return bal;
   };
   const bank = calc(0.005);
-  const jar = calc(0.062);
+  const jar = calc(BASE_APY);
   const delta = jar - bank;
   const youTotal = monthly * 12 * years;
   const giftsTotal = gifts * years;
@@ -129,7 +130,9 @@ export function Calculator() {
         step={1}
         value={years}
         onChange={setYears}
-        display={years + "y"}
+        display={
+          years + "y" + (years === 18 ? " · adulthood" : years === 5 ? " · short-term" : "")
+        }
       />
       <div className="calc-split">
         <span>You: <b>{fmt(youTotal)}</b></span>
@@ -143,7 +146,7 @@ export function Calculator() {
           <div className="res-sub">no staking</div>
         </div>
         <div className="res-box win">
-          <div className="res-lbl">jarfi (6.2%)</div>
+          <div className="res-lbl">{`jarfi (${BASE_APY_PERCENT}%)`}</div>
           <div className="res-num green">{fmt(jar)}</div>
           <div className="res-sub">with staking</div>
         </div>

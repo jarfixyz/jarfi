@@ -6,10 +6,12 @@ type Props = {
   open: boolean;
   onClose: () => void;
   jarName: string;
+  defaultDate?: string;
 };
 
-export function ReminderPopover({ open, onClose, jarName }: Props) {
+export function ReminderPopover({ open, onClose, jarName, defaultDate }: Props) {
   const [date, setDate] = useState<string>(() => {
+    if (defaultDate) return defaultDate;
     const d = new Date();
     d.setDate(d.getDate() + 7);
     return d.toISOString().slice(0, 10);
@@ -42,8 +44,8 @@ export function ReminderPopover({ open, onClose, jarName }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(20,21,26,0.5)" }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="rounded-[14px] p-6" style={{ background: "var(--h-card)", border: "0.5px solid var(--h-line)", width: "92%", maxWidth: 380 }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(20,21,26,0.5)" }}>
+      <div className="rounded-[14px] p-6" style={{ background: "var(--h-card)", border: "0.5px solid var(--h-line)", width: "92%", maxWidth: 380 }}>
         <div className="text-[16px] font-medium mb-1">Set a reminder</div>
         <div className="text-[12.5px] mb-4" style={{ color: "var(--h-ink-3)" }}>We&apos;ll nudge you when it&apos;s time.</div>
         <label className="block text-[11px] uppercase tracking-[0.08em] mb-1.5" style={{ color: "var(--h-ink-3)" }}>Date</label>
