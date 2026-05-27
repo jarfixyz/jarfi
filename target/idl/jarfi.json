@@ -1,0 +1,2561 @@
+{
+  "address": "GBqqB8ZfNDPRyUZczbUxkmU3UopQ1BFMPu4sXGd115yF",
+  "metadata": {
+    "name": "jarfi",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "jarfi: Solana savings jars"
+  },
+  "instructions": [
+    {
+      "name": "accept_admin",
+      "discriminator": [
+        112,
+        42,
+        45,
+        90,
+        116,
+        181,
+        13,
+        170
+      ],
+      "accounts": [
+        {
+          "name": "new_admin",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancel_jar",
+      "discriminator": [
+        115,
+        245,
+        126,
+        254,
+        208,
+        220,
+        212,
+        13
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "jar"
+          ]
+        },
+        {
+          "name": "jar",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_contribution",
+      "discriminator": [
+        212,
+        162,
+        137,
+        29,
+        10,
+        95,
+        186,
+        129
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "jar",
+          "writable": true
+        },
+        {
+          "name": "donor",
+          "writable": true
+        },
+        {
+          "name": "contribution",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  116,
+                  114,
+                  105,
+                  98
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "jar"
+              },
+              {
+                "kind": "account",
+                "path": "donor"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_jar",
+      "discriminator": [
+        92,
+        189,
+        114,
+        36,
+        186,
+        123,
+        0,
+        163
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "jar"
+          ]
+        },
+        {
+          "name": "jar",
+          "writable": true
+        },
+        {
+          "name": "jar_vault",
+          "writable": true,
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "jar"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "jar.mint",
+                "account": "Jar"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "owner_token_account",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "token_program",
+          "optional": true,
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "contribute_sol",
+      "discriminator": [
+        186,
+        36,
+        137,
+        50,
+        25,
+        152,
+        8,
+        5
+      ],
+      "accounts": [
+        {
+          "name": "donor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "jar",
+          "writable": true
+        },
+        {
+          "name": "contribution",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  116,
+                  114,
+                  105,
+                  98
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "jar"
+              },
+              {
+                "kind": "account",
+                "path": "donor"
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "contribute_spl",
+      "discriminator": [
+        56,
+        201,
+        213,
+        12,
+        65,
+        27,
+        3,
+        245
+      ],
+      "accounts": [
+        {
+          "name": "donor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "jar",
+          "writable": true
+        },
+        {
+          "name": "contribution",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  116,
+                  114,
+                  105,
+                  98
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "jar"
+              },
+              {
+                "kind": "account",
+                "path": "donor"
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "donor_token_account",
+          "writable": true
+        },
+        {
+          "name": "jar_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "jar"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "jar.mint",
+                "account": "Jar"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "create_jar",
+      "discriminator": [
+        79,
+        12,
+        25,
+        249,
+        245,
+        177,
+        203,
+        232
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "user_state"
+          ]
+        },
+        {
+          "name": "user_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "jar",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  106,
+                  97,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "user_state.jar_count",
+                "account": "UserState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "jar_vault",
+          "writable": true,
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "jar"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "vault_mint",
+          "optional": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "jar_type",
+          "type": {
+            "defined": {
+              "name": "JarType"
+            }
+          }
+        },
+        {
+          "name": "asset",
+          "type": {
+            "defined": {
+              "name": "Asset"
+            }
+          }
+        },
+        {
+          "name": "goal_amount",
+          "type": "u64"
+        },
+        {
+          "name": "unlock_timestamp",
+          "type": "i64"
+        },
+        {
+          "name": "metadata_uri",
+          "type": "string"
+        },
+        {
+          "name": "metadata_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "auto_stake",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "init_user_state",
+      "discriminator": [
+        229,
+        142,
+        179,
+        158,
+        177,
+        92,
+        220,
+        92
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "user_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_config",
+      "discriminator": [
+        208,
+        127,
+        21,
+        1,
+        194,
+        190,
+        196,
+        70
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "creation_fee_lamports",
+          "type": "u64"
+        },
+        {
+          "name": "withdraw_fee_bps",
+          "type": "u16"
+        },
+        {
+          "name": "allowed_usdc_mint",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "migrate_config_v2",
+      "discriminator": [
+        21,
+        39,
+        88,
+        172,
+        254,
+        205,
+        30,
+        141
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "propose_admin",
+      "discriminator": [
+        121,
+        214,
+        199,
+        212,
+        87,
+        39,
+        117,
+        234
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "new_admin",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "refund",
+      "discriminator": [
+        2,
+        96,
+        183,
+        251,
+        63,
+        208,
+        46,
+        46
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "jar",
+          "writable": true
+        },
+        {
+          "name": "donor",
+          "writable": true
+        },
+        {
+          "name": "contribution",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  116,
+                  114,
+                  105,
+                  98
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "jar"
+              },
+              {
+                "kind": "account",
+                "path": "donor"
+              }
+            ]
+          }
+        },
+        {
+          "name": "jar_vault",
+          "writable": true,
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "jar"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "jar.mint",
+                "account": "Jar"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "donor_token_account",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "token_program",
+          "optional": true,
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "update_config",
+      "discriminator": [
+        29,
+        158,
+        252,
+        191,
+        10,
+        83,
+        219,
+        99
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "new_creation_fee",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "new_withdraw_fee_bps",
+          "type": {
+            "option": "u16"
+          }
+        },
+        {
+          "name": "fee_enabled",
+          "type": {
+            "option": "bool"
+          }
+        },
+        {
+          "name": "paused",
+          "type": {
+            "option": "bool"
+          }
+        },
+        {
+          "name": "new_allowed_usdc_mint",
+          "type": {
+            "option": "pubkey"
+          }
+        },
+        {
+          "name": "new_min_auto_stake_lock_days",
+          "type": {
+            "option": "u16"
+          }
+        }
+      ]
+    },
+    {
+      "name": "update_marginfi_config",
+      "discriminator": [
+        56,
+        56,
+        44,
+        195,
+        150,
+        113,
+        121,
+        236
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "MarginFiConfigArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "update_metadata",
+      "discriminator": [
+        170,
+        182,
+        43,
+        239,
+        97,
+        78,
+        225,
+        186
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "jar"
+          ]
+        },
+        {
+          "name": "jar",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "new_uri",
+          "type": "string"
+        },
+        {
+          "name": "new_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "withdraw",
+      "discriminator": [
+        183,
+        18,
+        70,
+        156,
+        148,
+        109,
+        161,
+        34
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "jar"
+          ]
+        },
+        {
+          "name": "jar",
+          "writable": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "jar_vault",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "owner_token_account",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "treasury_token_account",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "token_program",
+          "optional": true,
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": {
+            "option": "u64"
+          }
+        }
+      ]
+    },
+    {
+      "name": "withdraw_treasury",
+      "discriminator": [
+        40,
+        63,
+        122,
+        158,
+        144,
+        216,
+        83,
+        96
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "destination",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    },
+    {
+      "name": "Contribution",
+      "discriminator": [
+        182,
+        187,
+        14,
+        111,
+        72,
+        167,
+        242,
+        212
+      ]
+    },
+    {
+      "name": "Jar",
+      "discriminator": [
+        197,
+        50,
+        234,
+        142,
+        247,
+        216,
+        114,
+        137
+      ]
+    },
+    {
+      "name": "UserState",
+      "discriminator": [
+        72,
+        177,
+        85,
+        249,
+        76,
+        167,
+        186,
+        126
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "AdminAcceptedEvent",
+      "discriminator": [
+        14,
+        221,
+        60,
+        92,
+        241,
+        147,
+        95,
+        66
+      ]
+    },
+    {
+      "name": "AdminProposedEvent",
+      "discriminator": [
+        212,
+        163,
+        91,
+        28,
+        223,
+        95,
+        2,
+        102
+      ]
+    },
+    {
+      "name": "CancelEvent",
+      "discriminator": [
+        71,
+        137,
+        239,
+        100,
+        220,
+        3,
+        242,
+        47
+      ]
+    },
+    {
+      "name": "CloseJarEvent",
+      "discriminator": [
+        141,
+        169,
+        253,
+        165,
+        192,
+        192,
+        205,
+        38
+      ]
+    },
+    {
+      "name": "ConfigUpdatedEvent",
+      "discriminator": [
+        245,
+        158,
+        129,
+        99,
+        60,
+        100,
+        214,
+        220
+      ]
+    },
+    {
+      "name": "ContributeEvent",
+      "discriminator": [
+        147,
+        4,
+        47,
+        213,
+        204,
+        84,
+        46,
+        189
+      ]
+    },
+    {
+      "name": "CreateJarEvent",
+      "discriminator": [
+        134,
+        236,
+        51,
+        247,
+        3,
+        100,
+        181,
+        210
+      ]
+    },
+    {
+      "name": "MetadataUpdatedEvent",
+      "discriminator": [
+        66,
+        19,
+        187,
+        5,
+        244,
+        90,
+        125,
+        113
+      ]
+    },
+    {
+      "name": "RefundEvent",
+      "discriminator": [
+        176,
+        159,
+        218,
+        59,
+        94,
+        213,
+        129,
+        218
+      ]
+    },
+    {
+      "name": "TreasuryWithdrawEvent",
+      "discriminator": [
+        75,
+        76,
+        60,
+        106,
+        68,
+        109,
+        219,
+        136
+      ]
+    },
+    {
+      "name": "WithdrawEvent",
+      "discriminator": [
+        22,
+        9,
+        133,
+        26,
+        160,
+        44,
+        71,
+        192
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "FeeTooHigh",
+      "msg": "Fee basis points exceed the 5% hard cap"
+    },
+    {
+      "code": 6001,
+      "name": "CreationFeeTooHigh",
+      "msg": "Creation fee exceeds hard cap"
+    },
+    {
+      "code": 6002,
+      "name": "MetadataUriTooLong",
+      "msg": "Metadata URI exceeds maximum length"
+    },
+    {
+      "code": 6003,
+      "name": "UnlockInPast",
+      "msg": "Unlock timestamp must be in the future"
+    },
+    {
+      "code": 6004,
+      "name": "UnlockTooFar",
+      "msg": "Unlock timestamp exceeds maximum duration"
+    },
+    {
+      "code": 6005,
+      "name": "UnlockNotAllowed",
+      "msg": "Unlock timestamp must be zero for Flexible jars"
+    },
+    {
+      "code": 6006,
+      "name": "NotOwner",
+      "msg": "Signer is not the jar owner"
+    },
+    {
+      "code": 6007,
+      "name": "NotAdmin",
+      "msg": "Signer is not the admin"
+    },
+    {
+      "code": 6008,
+      "name": "NoPendingAdmin",
+      "msg": "No pending admin transfer in progress"
+    },
+    {
+      "code": 6009,
+      "name": "NotPendingAdmin",
+      "msg": "Signer is not the pending admin"
+    },
+    {
+      "code": 6010,
+      "name": "JarNotActive",
+      "msg": "Jar is not in Active status"
+    },
+    {
+      "code": 6011,
+      "name": "JarNotCancelled",
+      "msg": "Jar is not in Cancelled status"
+    },
+    {
+      "code": 6012,
+      "name": "JarNotWithdrawn",
+      "msg": "Jar is not in Withdrawn status"
+    },
+    {
+      "code": 6013,
+      "name": "StillLocked",
+      "msg": "Time-locked jar cannot be withdrawn before unlock"
+    },
+    {
+      "code": 6014,
+      "name": "PartialWithdrawNotAllowed",
+      "msg": "Partial withdraw is only allowed for Flexible jars"
+    },
+    {
+      "code": 6015,
+      "name": "CancelNotAllowed",
+      "msg": "Cancel is only valid for Time-locked jars before unlock"
+    },
+    {
+      "code": 6016,
+      "name": "RefundNotAllowed",
+      "msg": "Refund is only valid for Cancelled jars"
+    },
+    {
+      "code": 6017,
+      "name": "Paused",
+      "msg": "Program is paused"
+    },
+    {
+      "code": 6018,
+      "name": "ContributorsRemain",
+      "msg": "Jar still has active contributors; cannot close"
+    },
+    {
+      "code": 6019,
+      "name": "Overflow",
+      "msg": "Amount overflow"
+    },
+    {
+      "code": 6020,
+      "name": "ZeroAmount",
+      "msg": "Contribution amount must be greater than zero"
+    },
+    {
+      "code": 6021,
+      "name": "WrongAsset",
+      "msg": "Wrong asset type for this instruction"
+    },
+    {
+      "code": 6022,
+      "name": "ContributionJarMismatch",
+      "msg": "Contribution does not belong to this jar"
+    },
+    {
+      "code": 6023,
+      "name": "AlreadyRefunded",
+      "msg": "Contribution has already been refunded"
+    },
+    {
+      "code": 6024,
+      "name": "InsufficientBalance",
+      "msg": "Insufficient jar balance"
+    },
+    {
+      "code": 6025,
+      "name": "CloseNotAllowed",
+      "msg": "Jar cannot be closed in its current state"
+    },
+    {
+      "code": 6026,
+      "name": "DisallowedUsdcMint",
+      "msg": "USDC jar uses a mint that is not the admin-approved canonical mint"
+    },
+    {
+      "code": 6027,
+      "name": "MigrationNotNeeded",
+      "msg": "Config migration is not needed (already at current version)"
+    },
+    {
+      "code": 6028,
+      "name": "AutoStakeDisabled",
+      "msg": "Auto-staking is disabled in config"
+    },
+    {
+      "code": 6029,
+      "name": "AutoStakeMintMismatch",
+      "msg": "Auto-stake jars must use the configured USDC mint"
+    },
+    {
+      "code": 6030,
+      "name": "AutoStakeUnsupportedAsset",
+      "msg": "Auto-stake not supported for this asset"
+    },
+    {
+      "code": 6031,
+      "name": "MarginFiAccountMismatch",
+      "msg": "MarginFi account does not match jar or config"
+    },
+    {
+      "code": 6032,
+      "name": "AutoStakeRequiresTimeLocked",
+      "msg": "Auto-stake on SOL requires a TimeLocked jar"
+    },
+    {
+      "code": 6033,
+      "name": "AutoStakeLockTooShort",
+      "msg": "Time-lock duration is below configured minimum for auto-stake"
+    },
+    {
+      "code": 6034,
+      "name": "MarinadeAccountMismatch",
+      "msg": "Marinade account does not match pinned program constants"
+    },
+    {
+      "code": 6035,
+      "name": "SharesUnderflow",
+      "msg": "Shares accounting underflow"
+    },
+    {
+      "code": 6036,
+      "name": "PrincipalUnderflow",
+      "msg": "Principal accounting underflow"
+    }
+  ],
+  "types": [
+    {
+      "name": "AdminAcceptedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "old_admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "new_admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AdminProposedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "pending_admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Asset",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Sol"
+          },
+          {
+            "name": "Usdc"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CancelEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "jar",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CloseJarEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "jar",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "pending_admin",
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "treasury_bump",
+            "type": "u8"
+          },
+          {
+            "name": "creation_fee_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "withdraw_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "fee_enabled",
+            "type": "bool"
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "allowed_usdc_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "auto_stake_enabled",
+            "type": "bool"
+          },
+          {
+            "name": "marginfi_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "marginfi_group",
+            "type": "pubkey"
+          },
+          {
+            "name": "marginfi_usdc_bank",
+            "type": "pubkey"
+          },
+          {
+            "name": "min_auto_stake_lock_days",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigUpdatedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "creation_fee_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "withdraw_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "fee_enabled",
+            "type": "bool"
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ContributeEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "jar",
+            "type": "pubkey"
+          },
+          {
+            "name": "donor",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount_delta",
+            "type": "u64"
+          },
+          {
+            "name": "total_after",
+            "type": "u64"
+          },
+          {
+            "name": "contributors_after",
+            "type": "u32"
+          },
+          {
+            "name": "is_first",
+            "type": "bool"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          },
+          {
+            "name": "shares_delta",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Contribution",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "jar",
+            "type": "pubkey"
+          },
+          {
+            "name": "donor",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "shares",
+            "type": "u64"
+          },
+          {
+            "name": "first_contributed_at",
+            "type": "i64"
+          },
+          {
+            "name": "last_contributed_at",
+            "type": "i64"
+          },
+          {
+            "name": "refunded",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CreateJarEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "jar",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "jar_type",
+            "type": "u8"
+          },
+          {
+            "name": "asset",
+            "type": "u8"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "goal_amount",
+            "type": "u64"
+          },
+          {
+            "name": "unlock_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "metadata_uri",
+            "type": "string"
+          },
+          {
+            "name": "metadata_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Jar",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "jar_type",
+            "type": {
+              "defined": {
+                "name": "JarType"
+              }
+            }
+          },
+          {
+            "name": "asset",
+            "type": {
+              "defined": {
+                "name": "Asset"
+              }
+            }
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "goal_amount",
+            "type": "u64"
+          },
+          {
+            "name": "unlock_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "total_contributed",
+            "type": "u64"
+          },
+          {
+            "name": "total_contributors",
+            "type": "u32"
+          },
+          {
+            "name": "metadata_uri",
+            "type": "string"
+          },
+          {
+            "name": "metadata_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "JarStatus"
+              }
+            }
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "auto_stake",
+            "type": "bool"
+          },
+          {
+            "name": "stake_protocol",
+            "type": "u8"
+          },
+          {
+            "name": "principal_total",
+            "type": "u64"
+          },
+          {
+            "name": "shares_total",
+            "type": "u64"
+          },
+          {
+            "name": "marginfi_account",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "JarStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Withdrawn"
+          },
+          {
+            "name": "Cancelled"
+          }
+        ]
+      }
+    },
+    {
+      "name": "JarType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Flexible"
+          },
+          {
+            "name": "TimeLocked"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MarginFiConfigArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "auto_stake_enabled",
+            "type": "bool"
+          },
+          {
+            "name": "marginfi_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "marginfi_group",
+            "type": "pubkey"
+          },
+          {
+            "name": "marginfi_usdc_bank",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MetadataUpdatedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "jar",
+            "type": "pubkey"
+          },
+          {
+            "name": "old_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "new_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "new_uri",
+            "type": "string"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RefundEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "jar",
+            "type": "pubkey"
+          },
+          {
+            "name": "donor",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          },
+          {
+            "name": "shares_redeemed",
+            "type": "u64"
+          },
+          {
+            "name": "gross_underlying",
+            "type": "u64"
+          },
+          {
+            "name": "protocol",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TreasuryWithdrawEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "destination",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UserState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "jar_count",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WithdrawEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "jar",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "fee",
+            "type": "u64"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          },
+          {
+            "name": "shares_redeemed",
+            "type": "u64"
+          },
+          {
+            "name": "gross_underlying",
+            "type": "u64"
+          },
+          {
+            "name": "protocol",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ],
+  "constants": [
+    {
+      "name": "STATE_VERSION",
+      "type": "u8",
+      "value": "1"
+    }
+  ]
+}
