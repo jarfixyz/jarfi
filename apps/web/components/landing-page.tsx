@@ -104,9 +104,9 @@ export function LandingPage() {
         <footer>
           <span className="ft-logo">jarfi</span>
           <div className="ft-links">
-            <a href="#">GitHub</a>
-            <a href="#">Docs</a>
-            <a href="#">Twitter</a>
+            <a href="https://github.com/jarfixyz/jarfi" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a href="https://jarfi.gitbook.io/jarfi-docs/" target="_blank" rel="noopener noreferrer">Docs</a>
+            <a href="https://x.com/jarfixyz" target="_blank" rel="noopener noreferrer">Twitter</a>
           </div>
           <span className="ft-note">jarfi.xyz</span>
         </footer>
